@@ -112,3 +112,91 @@ graph TD
 ```
 
 This diagram shows how `Deflate.kt` would ideally use `DeflateUtils.kt`, `InfBlocks.kt` use `InfBlocksUtils.kt`, and `Tree.kt` use `TreeUtils.kt`. It also shows their dependencies on `Constants.kt` and other components.
+
+## Detailed Process Flows
+
+### Deflate Process
+
+The deflation process, primarily managed by `Deflate.kt`, involves several stages. Key utility functions from `DeflateUtils.kt` are intended to support these stages.
+
+```mermaid
+graph TD
+    subgraph "Deflate Operations"
+        direction LR
+        DeflateCore["Deflate.kt
+(Core deflation logic, e.g., deflate_fast, deflate_slow, longest_match)"]
+        DeflateUtils["DeflateUtils.kt
+(Bit/Byte I/O, block handling, data type setting)"]
+        Config["Config.kt
+(Compression parameters)"]
+        Tree["Tree.kt
+(Huffman tree construction - uses TreeUtils)"]
+        StaticTree["StaticTree.kt
+(Static tree definitions)"]
+        Constants_Def["common/Constants.kt"]   subgraph "ZStream Handling"
+        ZStream_Def["ZStream.kt
+(Stream state)"]
+    end
+
+    DeflateCore -->|Uses for params| Config
+    DeflateCore -->|Uses for bit/byte I/O, block ops| DeflateUtils
+    DeflateCore -->|Uses for Huffman trees| Tree
+    DeflateCore -->|References| StaticTree
+    DeflateCore -->|Accesses| ZStream_Def
+    DeflateCore -->|Uses constants| Constants_Def
+    DeflateUtils -->|Uses constants| Constants_Def
+    Tree -->|Uses constants| Constants_Def
+    Config -->|Uses constants| Constants_Def
+```
+*Note: Ideally, `Deflate.kt` would have all its helper methods (now in `DeflateUtils.kt`) removed and would delegate all such calls. This cleanup was deferred due to tooling issues.*
+
+### Inflate Process
+
+The inflation process, managed by `Inflate.kt` and supported by `InfBlocks.kt` and `InfCodes.kt`, also relies on centralized constants and is intended to use extracted utilities.
+
+```mermaid
+graph TD
+    subgraph "Inflate Operations"
+        direction LR
+        InflateCore["Inflate.kt
+(Core inflation state machine)"]
+        InfBlocks["InfBlocks.kt
+(Manages inflation blocks, windowing - uses InfBlocksUtils)"]
+        InfCodes["InfCodes.kt
+(Huffman code processing)"]
+        InfBlocksUtils["InfBlocksUtils.kt
+(e.g., inflate_flush)"]
+        ZStream_Inf["ZStream.kt
+(Stream state, Adler32 checksum)"]
+        Adler32["Adler32.kt"]
+        Constants_Inf2["common/Constants.kt"] subgraph "ZStream Handling"
+        ZStream_Inf["ZStream.kt
+(Stream state, Adler32 checksum)"]
+    end
+
+    InflateCore --> InfBlocks
+    InflateCore --> ZStream_Inf
+    InflateCore --> InfCodes % Indirectly via InfBlocks
+    InflateCore --> Constants_Inf2
+
+    InfBlocks --> InfBlocksUtils
+    InfBlocks --> InfCodes
+    InfBlocks --> ZStream_Inf % For Adler32 reference via z.istate.blocks.reset(z, z.istate.was)
+    InfBlocks --> Constants_Inf2
+
+
+    InfCodes --> Constants_Inf2
+    ZStream_Inf --> Adler32
+    ZStream_Inf --> Constants_Inf2
+    Adler32 --> Constants_Inf2
+```
+*Note: Ideally, `InfBlocks.kt` would have its `inflate_flush` method removed and would delegate the call. This cleanup was deferred due to tooling issues.*
+
+## Conclusion
+
+This refactoring effort aimed to improve the modularity and readability of the ZLib Kotlin port. Key achievements include:
+- Centralization of all constants into `common/Constants.kt`.
+- Extraction of the `Config` class into its own file.
+- Creation of utility modules (`TreeUtils.kt`, `DeflateUtils.kt`, `InfBlocksUtils.kt`) populated with helper functions from their respective core logic files.
+
+While the direct cleanup of `Deflate.kt` and `InfBlocks.kt` (removing original methods and updating all call sites) faced persistent tooling challenges and was deferred, the new utility structure provides a clearer separation of concerns for future development and maintenance. The codebase is now better organized, laying the groundwork for further improvements.
