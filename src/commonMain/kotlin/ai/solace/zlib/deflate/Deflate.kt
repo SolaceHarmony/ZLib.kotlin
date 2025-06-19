@@ -176,11 +176,11 @@ class Deflate {
                 bl_tree[curlen * 2] = (bl_tree[curlen * 2] + count).toShort()
             } else if (curlen != 0) {
                 if (curlen != prevlen) bl_tree[curlen * 2]++
-                bl_tree[REP_3_6 * 2]++
+                bl_tree[ai.solace.zlib.common.REP_3_6 * 2]++
             } else if (count <= 10) {
-                bl_tree[REPZ_3_10 * 2]++
+                bl_tree[ai.solace.zlib.common.REPZ_3_10 * 2]++
             } else {
-                bl_tree[REPZ_11_138 * 2]++
+                bl_tree[ai.solace.zlib.common.REPZ_11_138 * 2]++
             }
             count = 0
             prevlen = curlen
@@ -416,14 +416,14 @@ class Deflate {
                 ins_h = window[strstart].toInt() and 0xff
                 ins_h = (((ins_h shl hash_shift) xor (window[strstart + 1].toInt() and 0xff)) and hash_mask)
             }
-        } while (lookahead < MIN_LOOKAHEAD && strm.avail_in != 0)
+        } while (lookahead < ai.solace.zlib.common.MIN_LOOKAHEAD && strm.avail_in != 0)
     }
 
     internal fun deflate_fast(flush: Int): Int {
         var hash_head = 0
         var bflush: Boolean
         while (true) {
-            if (lookahead < MIN_LOOKAHEAD) {
+            if (lookahead < ai.solace.zlib.common.MIN_LOOKAHEAD) {
                 fill_window()
                 if (lookahead < MIN_LOOKAHEAD && flush == Z_NO_FLUSH) return NEED_MORE
                 if (lookahead == 0) break
@@ -479,7 +479,7 @@ class Deflate {
         var hash_head = 0
         var bflush: Boolean
         while (true) {
-            if (lookahead < MIN_LOOKAHEAD) {
+            if (lookahead < ai.solace.zlib.common.MIN_LOOKAHEAD) {
                 fill_window()
                 if (lookahead < MIN_LOOKAHEAD && flush == Z_NO_FLUSH) return NEED_MORE
                 if (lookahead == 0) break
@@ -515,7 +515,7 @@ class Deflate {
                     }
                 } while (--prev_length != 0)
                 match_available = 0
-                match_length = MIN_MATCH - 1
+                match_length = ai.solace.zlib.common.MIN_MATCH - 1
                 strstart++
                 if (bflush) {
                     flush_block_only(false)
@@ -592,11 +592,11 @@ class Deflate {
     }
 
     internal fun deflateInit(strm: ZStream, level: Int, bits: Int): Int {
-        return deflateInit2(strm, level, Z_DEFLATED, bits, DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY)
+        return deflateInit2(strm, level, ai.solace.zlib.common.Z_DEFLATED, bits, ai.solace.zlib.common.DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY)
     }
 
     internal fun deflateInit(strm: ZStream, level: Int): Int {
-        return deflateInit(strm, level, MAX_WBITS)
+        return deflateInit(strm, level, ai.solace.zlib.common.MAX_WBITS)
     }
 
     internal fun deflateReset(strm: ZStream): Int {
@@ -609,7 +609,7 @@ class Deflate {
         if (noheader < 0) {
             noheader = 0
         }
-        status = if (noheader != 0) BUSY_STATE else INIT_STATE
+        status = if (noheader != 0) ai.solace.zlib.common.BUSY_STATE else ai.solace.zlib.common.INIT_STATE
         strm.adler = strm._adler.adler32(0, null, 0, 0)
         last_flush = Z_NO_FLUSH
         tr_init()
@@ -618,14 +618,14 @@ class Deflate {
     }
 
     internal fun deflateEnd(): Int {
-        if (status != INIT_STATE && status != BUSY_STATE && status != FINISH_STATE) {
-            return Z_STREAM_ERROR
+        if (status != ai.solace.zlib.common.INIT_STATE && status != ai.solace.zlib.common.BUSY_STATE && status != ai.solace.zlib.common.FINISH_STATE) {
+            return Z_STREAM_ERROR // Z_STREAM_ERROR is from common
         }
         pending_buf = ByteArray(0)
         head = ShortArray(0)
         prev = ShortArray(0)
         window = ByteArray(0)
-        return if (status == BUSY_STATE) Z_DATA_ERROR else Z_OK
+        return if (status == ai.solace.zlib.common.BUSY_STATE) Z_DATA_ERROR else Z_OK // Z_DATA_ERROR, Z_OK from common
     }
 
     internal fun deflateParams(strm: ZStream, level_in: Int, strategy_in: Int): Int {
@@ -671,7 +671,7 @@ class Deflate {
             prev[n and w_mask] = head[ins_h]
             head[ins_h] = n.toShort()
         }
-        return Z_OK
+        return Z_OK // Z_OK from common
     }
 
     internal fun deflateInit2(strm: ZStream, level_param: Int, method_param: Int, windowBits_param: Int, memLevel_param: Int, strategy_param: Int): Int {
@@ -749,7 +749,7 @@ class Deflate {
             strm.flush_pending()
             if (strm.avail_out == 0) {
                 last_flush = -1
-                return Z_OK
+                return Z_OK // Z_OK from common
             }
         } else if (strm.avail_in == 0 && flush <= old_flush && flush != Z_FINISH) {
             strm.msg = Z_ERRMSG[Z_NEED_DICT - (Z_BUF_ERROR)]
@@ -761,7 +761,7 @@ class Deflate {
         }
         if (strm.avail_in != 0 || lookahead != 0 || (flush != Z_NO_FLUSH && status != FINISH_STATE)) {
             var bstate = -1
-            when (config_table[level].func) {
+            when (config_table[level].func) { // STORED, FAST, SLOW are local
                 STORED -> bstate = deflate_stored(flush)
                 FAST -> bstate = deflate_fast(flush)
                 SLOW -> bstate = deflate_slow(flush)
@@ -774,7 +774,7 @@ class Deflate {
                 if (strm.avail_out == 0) {
                     last_flush = -1
                 }
-                return Z_OK
+                return Z_OK // Z_OK from common
             }
             if (bstate == BLOCK_DONE) {
                 if (flush == Z_PARTIAL_FLUSH) {
@@ -788,7 +788,7 @@ class Deflate {
                 strm.flush_pending()
                 if (strm.avail_out == 0) {
                     last_flush = -1
-                    return Z_OK
+                    return Z_OK // Z_OK from common
                 }
             }
         }
@@ -798,7 +798,7 @@ class Deflate {
         putShortMSB(this, (strm.adler and 0xffff).toInt())
         strm.flush_pending()
         noheader = -1
-        return if (pending != 0) Z_OK else Z_STREAM_END
+        return if (pending != 0) Z_OK else Z_STREAM_END // Z_OK, Z_STREAM_END from common
     }
 
     companion object {
