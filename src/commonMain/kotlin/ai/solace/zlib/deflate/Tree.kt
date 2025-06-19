@@ -969,7 +969,7 @@ class Tree internal constructor() {
                 len = tree[n * 2 + 1].toInt()
                 if (len != 0) {
                     // Now reverse the bits
-                    tree[n * 2] = bi_reverse(next_code[len]++, len).toShort()
+                    tree[n * 2] = bi_reverse.toInt()(next_code[len]++, len).toShort()
                 }
                 n++
             }

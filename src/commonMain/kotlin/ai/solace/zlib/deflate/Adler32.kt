@@ -1,4 +1,4 @@
-package componentace.compression.libs.zlib.deflate
+package ai.solace.zlib.deflate
 
 /*
 // Copyright (c) 2006, ComponentAce
@@ -68,6 +68,7 @@ class Adler32 {
             k = if (localLen < NMAX) localLen else NMAX
             localLen -= k
             while (k >= 16) {
+                s1 += (buf[localIndex++].toInt() and 0xff).toLong(); s2 += s1
                 s1 += (buf[localIndex++].toInt() and 0xff).toLong(); s2 += s1
                 s1 += (buf[localIndex++].toInt() and 0xff).toLong(); s2 += s1
                 s1 += (buf[localIndex++].toInt() and 0xff).toLong(); s2 += s1
