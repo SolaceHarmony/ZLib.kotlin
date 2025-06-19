@@ -1,0 +1,41 @@
+# Refactoring Progress
+
+- [X] Create a progress checklist file.
+- [X] Identify large files and candidates for refactoring.
+    - Identified the following files as primary candidates for refactoring due to size, complexity, and/or number of constants:
+        - `Deflate.kt` (~1000 lines)
+        - `InfBlocks.kt` (~600 lines)
+        - `InfCodes.kt` (~500 lines)
+        - `Tree.kt` (~400 lines)
+        - `Inflate.kt` (~300 lines)
+        - `StaticTree.kt` (~300 lines)
+        - `Zlib.kt` (~70 lines, mostly constants)
+        - `ZStream.kt` (~150 lines)
+        - `Adler32.kt` (~70 lines)
+        - `ZInputStream.kt` (~100 lines)
+- [X] Create a `Constants.kt` file.
+- [X] Refactor identified files: Extract constants.
+    - [X] Moved constants from `Zlib.kt` to `Constants.kt` and deleted `Zlib.kt`.
+    - [X] Moved constants from `Deflate.kt` to `Constants.kt` and updated internal references.
+    - [X] Moved constants from `Inflate.kt` to `Constants.kt` and updated internal references.
+    - [X] Moved constants from `InfBlocks.kt` to `Constants.kt` and updated internal references.
+    - [X] Moved constants from `InfCodes.kt` to `Constants.kt` and updated internal references.
+    - [X] Moved constants and static arrays from `Tree.kt` to `Constants.kt` and updated references.
+    - [X] Verified/updated `StaticTree.kt` to use constants from `Constants.kt`.
+    - [X] Moved constants from `Adler32.kt` to `Constants.kt` and updated references.
+    - [X] Updated `ZStream.kt` to use constants from `Constants.kt`, removing redundant definitions.
+    - [X] Verified `ZInputStream.kt` uses constants from `Constants.kt`.
+- [X] Refactor identified files: Extract helper/utility functions.
+    - [X] Moved tree-related utility functions from `Tree.kt` to `TreeUtils.kt` and updated call sites.
+    - [P] Moved selected utility functions from `Deflate.kt` to `DeflateUtils.kt`. (`DeflateUtils.kt` is populated; `Deflate.kt` cleanup of original methods and call site updates encountered persistent tooling issues and is deferred).
+      - Successfully moved: `smaller`, `put_byte` (2 versions), `put_short`, `putShortMSB`, `send_bits`, `send_code`, `_tr_align`, `compress_block`, `set_data_type`, `bi_flush`, `bi_windup`, `copy_block`, `_tr_stored_block` to `DeflateUtils.kt`.
+    - [P] Moved `inflate_flush` from `InfBlocks.kt` to `InfBlocksUtils.kt`. (`InfBlocksUtils.kt` is populated; `InfBlocks.kt` cleanup of original method and call site updates encountered tooling issues and is deferred).
+- [X] Refactor identified files: Extract inner classes.
+    - [X] Moved `Config` inner class from `Deflate.kt` to `Config.kt`.
+- [X] Delete redundant files.
+    - [X] `Zlib.kt` was deleted in a previous step after its constants were moved.
+- [ ] Create an architectural document.
+    - [X] Created `docs/ARCHITECTURE.md` with initial structure and component overview.
+    - [X] Added high-level Mermaid diagram of component interactions.
+- [ ] Build the project and run tests.
+- [ ] Submit the changes.

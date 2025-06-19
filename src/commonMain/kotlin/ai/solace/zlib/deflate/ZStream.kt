@@ -44,31 +44,13 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 package componentace.compression.libs.zlib.deflate
 
+import ai.solace.zlib.common.* // Import all constants
 import kotlin.compareTo
 
 class ZStream {
 
-    private val MAX_WBITS = 15 // 32K LZ77 window
-
-    private val DEF_WBITS = MAX_WBITS
-
-    private val Z_NO_FLUSH = 0
-    private val Z_PARTIAL_FLUSH = 1
-    private val Z_SYNC_FLUSH = 2
-    private val Z_FULL_FLUSH = 3
-    private val Z_FINISH = 4
-
-    private val MAX_MEM_LEVEL = 9
-
-    private val Z_OK = 0
-    private val Z_STREAM_END = 1
-    private val Z_NEED_DICT = 2
-    private val Z_ERRNO = -1
-    private val Z_STREAM_ERROR = -2
-    private val Z_DATA_ERROR = -3
-    private val Z_MEM_ERROR = -4
-    private val Z_BUF_ERROR = -5
-    private val Z_VERSION_ERROR = -6
+    // All constants previously defined here (MAX_WBITS, DEF_WBITS, Z_NO_FLUSH, etc., MAX_MEM_LEVEL, Z_OK, etc.)
+    // are now expected to be used from ai.solace.zlib.common.Constants
 
     var next_in: ByteArray? = null // next input byte
     var next_in_index = 0
@@ -91,7 +73,7 @@ class ZStream {
     internal var _adler: Adler32? = Adler32()
 
     fun inflateInit(): Int {
-        return inflateInit(DEF_WBITS)
+        return inflateInit(MAX_WBITS) // DEF_WBITS was MAX_WBITS
     }
 
     fun inflateInit(w: Int): Int {
