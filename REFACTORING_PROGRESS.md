@@ -1,0 +1,31 @@
+# Refactoring Progress (Attempt 2)
+
+- [X] Re-create `REFACTORING_PROGRESS.md`.
+- [X] Re-create `Constants.kt` and centralize constants.
+    - [X] Created `Constants.kt`, moved constants from `Zlib.kt`, and confirmed `Zlib.kt` is deleted.
+    - [X] Moved constants from `Deflate.kt` to `Constants.kt` and updated `Deflate.kt` (initial pass for constants).
+    - [X] Moved constants from `Inflate.kt` to `Constants.kt` and updated `Inflate.kt`.
+    - [X] Moved constants from `InfBlocks.kt` to `Constants.kt` and updated `InfBlocks.kt`.
+    - [X] Moved constants from `InfCodes.kt` to `Constants.kt` and updated `InfCodes.kt`.
+    - [X] Moved constants and static arrays from `Tree.kt` to `Constants.kt`. (References in `Tree.kt` and `StaticTree.kt` were updated in that step).
+    - [X] Verified/updated `StaticTree.kt` to use constants from `Constants.kt`.
+    - [X] Moved constants from `Adler32.kt` to `Constants.kt` and updated references.
+    - [X] Updated `ZStream.kt` to use constants from `Constants.kt`, removing redundant definitions.
+    - [X] Verified `ZInputStream.kt` uses constants from `Constants.kt`.
+- [X] Re-extract `Config` class to `Config.kt`.
+    - [X] Moved `Config` inner class from `Deflate.kt` to `Config.kt`.
+- [X] Review Build Configuration (`build.gradle.kts`, `settings.gradle.kts`).
+    - [X] Reviewed `settings.gradle.kts`.
+    - [X] Could not locate `build.gradle.kts` for the 'shared' module (or the module containing `src/`). Proceeding with refactoring, assuming no build script changes are needed for intra-package file moves.
+- [P] Proceed with extracting utility functions (one file at a time, cautiously).
+    - [P] Re-created `TreeUtils.kt`, moved functions from `Tree.kt`. (`TreeUtils.kt` is populated; `Tree.kt` cleanup and call site updates encountered tooling issues and is deferred).
+    - [P] Moved selected utility functions from `Deflate.kt` to `DeflateUtils.kt`. (`DeflateUtils.kt` is populated; `Deflate.kt` cleanup of original methods and call site updates encountered persistent tooling issues and is deferred).
+      - Note: `DeflateUtils.kt` contains: `smaller`, `put_byte` (2 versions), `put_short`, `putShortMSB`, `send_bits`, `send_code`, `_tr_align`, `compress_block`, `set_data_type`, `bi_flush`, `bi_windup`, `copy_block`, `_tr_stored_block`.
+    - [P] Moved `inflate_flush` from `InfBlocks.kt` to `InfBlocksUtils.kt`. (`InfBlocksUtils.kt` is populated; `InfBlocks.kt` cleanup of original method and call site updates encountered tooling issues and is deferred).
+- [X] Create/Update Architectural Document (`docs/ARCHITECTURE.md`).
+    - [X] Created `docs/ARCHITECTURE.md` with initial structure and component overview.
+    - [X] Added high-level Mermaid diagram of component interactions.
+    - [X] Added detailed Mermaid diagrams for Deflate and Inflate processes.
+    - [X] Added concluding remarks to `ARCHITECTURE.md`.
+- [X] Defer Build Execution.
+- [ ] Submit changes.

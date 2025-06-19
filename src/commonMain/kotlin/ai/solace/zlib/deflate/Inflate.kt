@@ -43,45 +43,17 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package ai.solace.zlib.deflate
 
+import ai.solace.zlib.common.* // Import all constants
+
 internal class Inflate {
 
-    private val MAX_WBITS = 15 // 32K LZ77 window
-
-    // preset dictionary flag in zlib header
-    private val PRESET_DICT = 0x20
-
-    internal val Z_NO_FLUSH = 0
-    internal val Z_PARTIAL_FLUSH = 1
-    internal val Z_SYNC_FLUSH = 2
-    internal val Z_FULL_FLUSH = 3
-    internal val Z_FINISH = 4
-
-    private val Z_DEFLATED = 8
-
-    private val Z_OK = 0
-    private val Z_STREAM_END = 1
-    private val Z_NEED_DICT = 2
-    private val Z_ERRNO = -1
-    private val Z_STREAM_ERROR = -2
-    private val Z_DATA_ERROR = -3
-    private val Z_MEM_ERROR = -4
-    private val Z_BUF_ERROR = -5
-    private val Z_VERSION_ERROR = -6
-
-    private val METHOD = 0 // waiting for method byte
-    private val FLAG = 1 // waiting for flag byte
-    private val DICT4 = 2 // four dictionary check bytes to go
-    private val DICT3 = 3 // three dictionary check bytes to go
-    private val DICT2 = 4 // two dictionary check bytes to go
-    private val DICT1 = 5 // one dictionary check byte to go
-    private val DICT0 = 6 // waiting for inflateSetDictionary
-    private val BLOCKS = 7 // decompressing blocks
-    private val CHECK4 = 8 // four check bytes to go
-    private val CHECK3 = 9 // three check bytes to go
-    private val CHECK2 = 10 // two check bytes to go
-    private val CHECK1 = 11 // one check byte to go
-    private val DONE = 12 // finished check, done
-    private val BAD = 13 // got an error--stay here
+    // Constants previously defined here are now in ai.solace.zlib.common.Constants
+    // MAX_WBITS, PRESET_DICT, Z_NO_FLUSH, Z_PARTIAL_FLUSH, Z_SYNC_FLUSH, Z_FULL_FLUSH,
+    // Z_FINISH, Z_DEFLATED, Z_OK, Z_STREAM_END, Z_NEED_DICT, Z_ERRNO, Z_STREAM_ERROR,
+    // Z_DATA_ERROR, Z_MEM_ERROR, Z_BUF_ERROR, Z_VERSION_ERROR
+    //
+    // Mode constants (METHOD, FLAG, etc.) are now INF_METHOD, INF_FLAG, etc. in Constants.kt
+    // mark array is now INF_MARK in Constants.kt
 
     internal var mode = 0 // current inflate mode
 
@@ -107,7 +79,7 @@ internal class Inflate {
         z.total_in = 0
         z.total_out = 0
         z.msg = null
-        z.istate!!.mode = if (z.istate!!.nowrap != 0) BLOCKS else METHOD
+        z.istate!!.mode = if (z.istate!!.nowrap != 0) INF_BLOCKS else INF_METHOD
         z.istate!!.blocks!!.reset(z, null)
         return Z_OK
     }
@@ -154,28 +126,28 @@ internal class Inflate {
         while (true) {
             //System.out.println("mode: "+z.istate.mode);
             when (z.istate!!.mode) {
-                METHOD -> {
+                INF_METHOD -> {
                     if (z.avail_in == 0) return r
                     r = fMut
                     z.avail_in--
                     z.total_in++
                     if ((z.istate!!.method.also { z.istate!!.method = z.next_in!![z.next_in_index++] }
                             .toInt() and 0xf) != Z_DEFLATED) {
-                        z.istate!!.mode = BAD
+                        z.istate!!.mode = INF_BAD
                         z.msg = "unknown compression method"
                         z.istate!!.marker = 5 // can't try inflateSync
                         break
                     }
                     if ((z.istate!!.method.toInt() shr 4) + 8 > z.istate!!.wbits) {
-                        z.istate!!.mode = BAD
+                        z.istate!!.mode = INF_BAD
                         z.msg = "invalid window size"
                         z.istate!!.marker = 5 // can't try inflateSync
                         break
                     }
-                    z.istate!!.mode = FLAG
+                    z.istate!!.mode = INF_FLAG
                 }
 
-                FLAG -> {
+                INF_FLAG -> {
                     if (z.avail_in == 0) return r
                     r = fMut
 
@@ -184,20 +156,20 @@ internal class Inflate {
                     b = z.next_in!![z.next_in_index++].toInt() and 0xff
 
                     if (((z.istate!!.method.toInt() shl 8) + b) % 31 != 0) {
-                        z.istate!!.mode = BAD
+                        z.istate!!.mode = INF_BAD
                         z.msg = "incorrect header check"
                         z.istate!!.marker = 5 // can't try inflateSync
                         break
                     }
 
                     if (b and PRESET_DICT == 0) {
-                        z.istate!!.mode = BLOCKS
+                        z.istate!!.mode = INF_BLOCKS
                         break
                     }
-                    z.istate!!.mode = DICT4
+                    z.istate!!.mode = INF_DICT4
                 }
 
-                DICT4 -> {
+                INF_DICT4 -> {
                     if (z.avail_in == 0) return r
                     r = fMut
 
@@ -206,10 +178,10 @@ internal class Inflate {
                     z.istate!!.need =
                         ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 24).toLong() and 0xff000000L.toInt()
                             .toLong()
-                    z.istate!!.mode = DICT3
+                    z.istate!!.mode = INF_DICT3
                 }
 
-                DICT3 -> {
+                INF_DICT3 -> {
                     if (z.avail_in == 0) return r
                     r = fMut
 
@@ -217,10 +189,10 @@ internal class Inflate {
                     z.total_in++
                     z.istate!!.need +=
                         ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 16).toLong() and 0xff0000L
-                    z.istate!!.mode = DICT2
+                    z.istate!!.mode = INF_DICT2
                 }
 
-                DICT2 -> {
+                INF_DICT2 -> {
                     if (z.avail_in == 0) return r
                     r = fMut
 
@@ -228,10 +200,10 @@ internal class Inflate {
                     z.total_in++
                     z.istate!!.need +=
                         ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 8).toLong() and 0xff00L
-                    z.istate!!.mode = DICT1
+                    z.istate!!.mode = INF_DICT1
                 }
 
-                DICT1 -> {
+                INF_DICT1 -> {
                     if (z.avail_in == 0) return r
                     r = fMut
 
@@ -239,21 +211,21 @@ internal class Inflate {
                     z.total_in++
                     z.istate!!.need += (z.next_in!![z.next_in_index++].toInt() and 0xff).toLong()
                     z.adler = z.istate!!.need
-                    z.istate!!.mode = DICT0
+                    z.istate!!.mode = INF_DICT0
                     return Z_NEED_DICT
                 }
 
-                DICT0 -> {
-                    z.istate!!.mode = BAD
+                INF_DICT0 -> {
+                    z.istate!!.mode = INF_BAD
                     z.msg = "need dictionary"
                     z.istate!!.marker = 0 // can try inflateSync
                     return Z_STREAM_ERROR
                 }
 
-                BLOCKS -> {
+                INF_BLOCKS -> {
                     r = z.istate!!.blocks!!.proc(z, r)
                     if (r == Z_DATA_ERROR) {
-                        z.istate!!.mode = BAD
+                        z.istate!!.mode = INF_BAD
                         z.istate!!.marker = 0 // can try inflateSync
                         break
                     }
@@ -265,10 +237,10 @@ internal class Inflate {
                     }
                     r = fMut
                     z.istate!!.blocks!!.reset(z, z.istate!!.was)
-                    z.istate!!.mode = if (z.istate!!.nowrap != 0) DONE else CHECK4
+                    z.istate!!.mode = if (z.istate!!.nowrap != 0) INF_DONE else INF_CHECK4
                 }
 
-                CHECK4 -> {
+                INF_CHECK4 -> {
                     if (z.avail_in == 0) return r
                     r = fMut
 
@@ -277,10 +249,10 @@ internal class Inflate {
                     z.istate!!.need =
                         ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 24).toLong() and 0xff000000L.toInt()
                             .toLong()
-                    z.istate!!.mode = CHECK3
+                    z.istate!!.mode = INF_CHECK3
                 }
 
-                CHECK3 -> {
+                INF_CHECK3 -> {
                     if (z.avail_in == 0) return r
                     r = fMut
 
@@ -288,10 +260,10 @@ internal class Inflate {
                     z.total_in++
                     z.istate!!.need +=
                         ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 16).toLong() and 0xff0000L
-                    z.istate!!.mode = CHECK2
+                    z.istate!!.mode = INF_CHECK2
                 }
 
-                CHECK2 -> {
+                INF_CHECK2 -> {
                     if (z.avail_in == 0) return r
                     r = fMut
 
@@ -299,10 +271,10 @@ internal class Inflate {
                     z.total_in++
                     z.istate!!.need +=
                         ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 8).toLong() and 0xff00L
-                    z.istate!!.mode = CHECK1
+                    z.istate!!.mode = INF_CHECK1
                 }
 
-                CHECK1 -> {
+                INF_CHECK1 -> {
                     if (z.avail_in == 0) return r
                     r = fMut
 
@@ -311,17 +283,17 @@ internal class Inflate {
                     z.istate!!.need += (z.next_in!![z.next_in_index++].toInt() and 0xff).toLong()
 
                     if (z.istate!!.was[0].toInt() != z.istate!!.need.toInt()) {
-                        z.istate!!.mode = BAD
+                        z.istate!!.mode = INF_BAD
                         z.msg = "incorrect data check"
                         z.istate!!.marker = 5 // can't try inflateSync
                         break
                     }
 
-                    z.istate!!.mode = DONE
+                    z.istate!!.mode = INF_DONE
                 }
 
-                DONE -> return Z_STREAM_END
-                BAD -> return Z_DATA_ERROR
+                INF_DONE -> return Z_STREAM_END
+                INF_BAD -> return Z_DATA_ERROR
                 else -> return Z_STREAM_ERROR
             }
         }
@@ -332,7 +304,7 @@ internal class Inflate {
         val lengthMut = dictLength.coerceAtMost(1 shl z!!.istate!!.wbits)
         val index = if (lengthMut < dictLength) dictLength - lengthMut else 0
 
-        if (z == null || z.istate == null || z.istate!!.mode != DICT0) return Z_STREAM_ERROR
+        if (z == null || z.istate == null || z.istate!!.mode != INF_DICT0) return Z_STREAM_ERROR
 
         if (z._adler!!.adler32(1L, dictionary, 0, dictLength) != z.adler) {
             return Z_DATA_ERROR
@@ -340,11 +312,11 @@ internal class Inflate {
 
         z.adler = z._adler!!.adler32(0, null, 0, 0)
         z.istate!!.blocks!!.set_dictionary(dictionary!!, index, lengthMut)
-        z.istate!!.mode = BLOCKS
+        z.istate!!.mode = INF_BLOCKS
         return Z_OK
     }
 
-    private val mark = byteArrayOf(0, 0, (-1).toByte(), (-1).toByte())
+    // private val mark = byteArrayOf(0, 0, (-1).toByte(), (-1).toByte()) // Moved to INF_MARK in Constants.kt
 
     internal fun inflateSync(z: ZStream?): Int {
         var n: Int // number of bytes to look at
@@ -355,8 +327,8 @@ internal class Inflate {
 
         // set up
         if (z == null || z.istate == null) return Z_STREAM_ERROR
-        if (z.istate!!.mode != BAD) {
-            z.istate!!.mode = BAD
+        if (z.istate!!.mode != INF_BAD) {
+            z.istate!!.mode = INF_BAD
             z.istate!!.marker = 0
         }
         n = z.avail_in.takeIf { it != 0 } ?: return Z_BUF_ERROR
@@ -366,7 +338,7 @@ internal class Inflate {
         // search
         while (n != 0 && m < 4) {
             m = when {
-                z.next_in!![p] == mark[m] -> m + 1
+                z.next_in!![p] == INF_MARK[m] -> m + 1 // INF_MARK from common
                 z.next_in!![p] != 0.toByte() -> 0
                 else -> 4 - m
             }
@@ -389,7 +361,7 @@ internal class Inflate {
         inflateReset(z)
         z.total_in = r
         z.total_out = w
-        z.istate!!.mode = BLOCKS
+        z.istate!!.mode = INF_BLOCKS
         return Z_OK
     }
 
