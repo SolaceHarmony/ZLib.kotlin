@@ -45,13 +45,12 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 * and contributors of zlib.
 
 */
+import ai.solace.zlib.common.ADLER_BASE
+import ai.solace.zlib.common.ADLER_NMAX
 
 class Adler32 {
 
-    // largest prime smaller than 65536
-    private val BASE = 65521
-    // NMAX is the largest n such that 255n(n+1)/2 + (n+1)(BASE-1) <= 2^32-1
-    private val NMAX = 5552
+    // Constants moved to common.Constants.kt
 
     internal fun adler32(adler: Long, buf: ByteArray?, index: Int, len: Int): Long {
         if (buf == null) {
@@ -65,7 +64,7 @@ class Adler32 {
         var k: Int
 
         while (localLen > 0) {
-            k = if (localLen < NMAX) localLen else NMAX
+            k = if (localLen < ADLER_NMAX) localLen else ADLER_NMAX
             localLen -= k
             while (k >= 16) {
                 s1 += (buf[localIndex++].toInt() and 0xff).toLong(); s2 += s1
@@ -92,8 +91,8 @@ class Adler32 {
                     s1 += (buf[localIndex++].toInt() and 0xff).toLong(); s2 += s1
                 } while (--k != 0)
             }
-            s1 %= BASE
-            s2 %= BASE
+            s1 %= ADLER_BASE
+            s2 %= ADLER_BASE
         }
         return (s2 shl 16) or s1
     }
