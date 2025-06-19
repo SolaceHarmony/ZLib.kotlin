@@ -43,6 +43,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package componentace.compression.libs.zlib.deflate
 
+import ai.solace.zlib.common.* // Import all constants
+
 internal class InfCodes {
 
     private var mode: Int = 0 // current inflate_codes mode
@@ -68,7 +70,7 @@ internal class InfCodes {
     private var dtreeIndex: Int = 0 // distance tree
 
     constructor(bl: Int, bd: Int, tl: IntArray, tlIndex: Int, td: IntArray, tdIndex: Int, z: ZStream) {
-        mode = START
+        mode = ICODES_START
         lbits = bl.toByte()
         dbits = bd.toByte()
         ltree = tl
@@ -78,7 +80,7 @@ internal class InfCodes {
     }
 
     constructor(bl: Int, bd: Int, tl: IntArray, td: IntArray, z: ZStream) {
-        mode = START
+        mode = ICODES_START
         lbits = bl.toByte()
         dbits = bd.toByte()
         ltree = tl
@@ -113,7 +115,7 @@ internal class InfCodes {
             when (mode) {
 
                 // waiting for "i:"=input, "o:"=output, "x:"=nothing
-                START -> { // x: set up for LEN
+                ICODES_START -> { // x: set up for LEN
                     if (m >= 258 && n >= 10) {
 
                         s.bitb = b
@@ -132,7 +134,7 @@ internal class InfCodes {
                         m = if (q < s.read) s.read - q - 1 else s.end - q
 
                         if (result != Z_OK) {
-                            mode = if (result == Z_STREAM_END) WASH else BADCODE
+                            mode = if (result == Z_STREAM_END) ICODES_WASH else ICODES_BADCODE
                             break
                         }
                     }
@@ -140,11 +142,11 @@ internal class InfCodes {
                     tree = ltree
                     treeIndex = ltreeIndex
 
-                    mode = LEN
+                    mode = ICODES_LEN
                     continue
                 }
 
-                LEN -> {  // i: get length/literal/eob next
+                ICODES_LEN -> {  // i: get length/literal/eob next
                     j = need
 
                     while (k < j) {
@@ -164,7 +166,7 @@ internal class InfCodes {
                         k += 8
                     }
 
-                    tindex = (treeIndex + (b and inflate_mask[j])) * 3
+                    tindex = (treeIndex + (b and IBLK_INFLATE_MASK[j])) * 3
 
                     b = b ushr tree[tindex + 1]
                     k -= tree[tindex + 1]
@@ -174,14 +176,14 @@ internal class InfCodes {
                     if (e == 0) {
                         // literal
                         lit = tree[tindex + 2]
-                        mode = LIT
+                        mode = ICODES_LIT
                         break
                     }
                     if (e and 16 != 0) {
                         // length
                         get_Renamed = e and 15
                         len = tree[tindex + 2]
-                        mode = LENEXT
+                        mode = ICODES_LENEXT
                         break
                     }
                     if (e and 64 == 0) {
@@ -192,10 +194,10 @@ internal class InfCodes {
                     }
                     if (e and 32 != 0) {
                         // end of block
-                        mode = WASH
+                        mode = ICODES_WASH
                         break
                     }
-                    mode = BADCODE // invalid code
+                    mode = ICODES_BADCODE // invalid code
                     z.msg = "invalid literal/length code"
                     result = Z_DATA_ERROR
 
@@ -208,7 +210,7 @@ internal class InfCodes {
                     return s.inflate_flush(z, result)
                 }
 
-                LENEXT -> {  // i: getting length extra (have base)
+                ICODES_LENEXT -> {  // i: getting length extra (have base)
                     j = get_Renamed
 
                     while (k < j) {
@@ -228,7 +230,7 @@ internal class InfCodes {
                         k += 8
                     }
 
-                    len += b and inflate_mask[j]
+                    len += b and IBLK_INFLATE_MASK[j]
 
                     b = b ushr j
                     k -= j
@@ -236,11 +238,11 @@ internal class InfCodes {
                     need = dbits.toInt()
                     tree = dtree
                     treeIndex = dtreeIndex
-                    mode = DIST
+                    mode = ICODES_DIST
                     continue
                 }
 
-                DIST -> {  // i: get distance next
+                ICODES_DIST -> {  // i: get distance next
                     j = need
 
                     while (k < j) {
@@ -260,7 +262,7 @@ internal class InfCodes {
                         k += 8
                     }
 
-                    tindex = (treeIndex + (b and inflate_mask[j])) * 3
+                    tindex = (treeIndex + (b and IBLK_INFLATE_MASK[j])) * 3
 
                     b = b ushr tree[tindex + 1]
                     k -= tree[tindex + 1]
@@ -270,7 +272,7 @@ internal class InfCodes {
                         // distance
                         get_Renamed = e and 15
                         dist = tree[tindex + 2]
-                        mode = DISTEXT
+                        mode = ICODES_DISTEXT
                         break
                     }
                     if (e and 64 == 0) {
@@ -279,7 +281,7 @@ internal class InfCodes {
                         treeIndex = tindex / 3 + tree[tindex + 2]
                         break
                     }
-                    mode = BADCODE // invalid code
+                    mode = ICODES_BADCODE // invalid code
                     z.msg = "invalid distance code"
                     result = Z_DATA_ERROR
 
@@ -292,7 +294,7 @@ internal class InfCodes {
                     return s.inflate_flush(z, result)
                 }
 
-                DISTEXT -> {  // i: getting distance extra
+                ICODES_DISTEXT -> {  // i: getting distance extra
                     j = get_Renamed
 
                     while (k < j) {
@@ -312,16 +314,16 @@ internal class InfCodes {
                         k += 8
                     }
 
-                    dist += b and inflate_mask[j]
+                    dist += b and IBLK_INFLATE_MASK[j]
 
                     b = b ushr j
                     k -= j
 
-                    mode = COPY
+                    mode = ICODES_COPY
                     continue
                 }
 
-                COPY -> {  // o: copying bytes in window, waiting for space
+                ICODES_COPY -> {  // o: copying bytes in window, waiting for space
                     f = q - dist
                     while (f < 0) {
                         // modulo window size-"while" instead
@@ -363,10 +365,10 @@ internal class InfCodes {
                         if (f == s.end) f = 0
                         len--
                     }
-                    mode = START
+                    mode = ICODES_START
                 }
 
-                LIT -> {  // o: got literal, waiting for output space
+                ICODES_LIT -> {  // o: got literal, waiting for output space
                     if (m == 0) {
                         if (q == s.end && s.read != 0) {
                             q = 0
@@ -398,10 +400,10 @@ internal class InfCodes {
                     s.window[q++] = lit.toByte()
                     m--
 
-                    mode = START
+                    mode = ICODES_START
                 }
 
-                WASH -> {  // o: got eob, possibly more output
+                ICODES_WASH -> {  // o: got eob, possibly more output
                     if (k > 7) {
                         // return unused byte, if any
                         k -= 8
@@ -423,11 +425,11 @@ internal class InfCodes {
                         s.write = q
                         return s.inflate_flush(z, result)
                     }
-                    mode = END
+                    mode = ICODES_END
                     continue
                 }
 
-                END -> {
+                ICODES_END -> {
                     result = Z_STREAM_END
                     s.bitb = b
                     s.bitk = k
@@ -438,7 +440,7 @@ internal class InfCodes {
                     return s.inflate_flush(z, result)
                 }
 
-                BADCODE -> {  // x: got error
+                ICODES_BADCODE -> {  // x: got error
 
                     result = Z_DATA_ERROR
 
@@ -510,8 +512,8 @@ internal class InfCodes {
         m = if (q < s.read) s.read - q - 1 else s.end - q
 
         // initialize masks
-        ml = inflate_mask[bl]
-        md = inflate_mask[bd]
+        ml = IBLK_INFLATE_MASK[bl]
+        md = IBLK_INFLATE_MASK[bd]
 
         // do until not enough input or output space for fast loop
         do {
@@ -543,7 +545,7 @@ internal class InfCodes {
 
                 if (tp[(tpIndex + t) * 3] and 16 != 0) {
                     e = tp[(tpIndex + t) * 3] and 15
-                    c = tp[(tpIndex + t) * 3 + 2] + (b and inflate_mask[e])
+                    c = tp[(tpIndex + t) * 3 + 2] + (b and IBLK_INFLATE_MASK[e])
 
                     b = b ushr e
                     k -= e
@@ -576,7 +578,7 @@ internal class InfCodes {
                                 k += 8
                             }
 
-                            d = tp[(tpIndex + t) * 3 + 2] + (b and inflate_mask[e])
+                            d = tp[(tpIndex + t) * 3 + 2] + (b and IBLK_INFLATE_MASK[e])
 
                             b = b ushr e
                             k -= e
@@ -636,7 +638,7 @@ internal class InfCodes {
                             break
                         } else if ((e and 64) == 0) {
                             t += tp[(tpIndex + t) * 3 + 2]
-                            t += (b and inflate_mask[e])
+                            t += (b and IBLK_INFLATE_MASK[e])
                             e = tp[(tpIndex + t) * 3]
                         } else {
                             z.msg = "invalid distance code"
@@ -662,7 +664,7 @@ internal class InfCodes {
 
                 if ((tp[(tpIndex + t) * 3] and 64) == 0) {
                     t += tp[(tpIndex + t) * 3 + 2]
-                    t += (b and inflate_mask[tp[(tpIndex + t) * 3]])
+                    t += (b and IBLK_INFLATE_MASK[tp[(tpIndex + t) * 3]])
                     if (tp[(tpIndex + t) * 3] == 0) {
 
                         b = b ushr tp[(tpIndex + t) * 3 + 1]
@@ -727,48 +729,9 @@ internal class InfCodes {
     }
 
     companion object {
-        private val inflate_mask = intArrayOf(
-            0x00000000,
-            0x00000001,
-            0x00000003,
-            0x00000007,
-            0x0000000f,
-            0x0000001f,
-            0x0000003f,
-            0x0000007f,
-            0x000000ff,
-            0x000001ff,
-            0x000003ff,
-            0x000007ff,
-            0x00000fff,
-            0x00001fff,
-            0x00003fff,
-            0x00007fff,
-            0x0000ffff
-        )
-
-        private const val Z_OK = 0
-        private const val Z_STREAM_END = 1
-        private const val Z_NEED_DICT = 2
-        private const val Z_ERRNO = -1
-        private const val Z_STREAM_ERROR = -2
-        private const val Z_DATA_ERROR = -3
-        private const val Z_MEM_ERROR = -4
-        private const val Z_BUF_ERROR = -5
-        private const val Z_VERSION_ERROR = -6
-
-        // waiting for "i:"=input,
-        //             "o:"=output,
-        //             "x:"=nothing
-        private const val START = 0 // x: set up for LEN
-        private const val LEN = 1 // i: get length/literal/eob next
-        private const val LENEXT = 2 // i: getting length extra (have base)
-        private const val DIST = 3 // i: get distance next
-        private const val DISTEXT = 4 // i: getting distance extra
-        private const val COPY = 5 // o: copying bytes in window, waiting for space
-        private const val LIT = 6 // o: got literal, waiting for output space
-        private const val WASH = 7 // o: got eob, possibly still output waiting
-        private const val END = 8 // x: got eob and all data flushed
-        private const val BADCODE = 9 // x: got error
+        // Constants previously defined here are now in ai.solace.zlib.common.Constants
+        // inflate_mask is IBLK_INFLATE_MASK
+        // Z_OK, Z_STREAM_END, etc. are already in common
+        // Mode constants (START, LEN, etc.) are now ICODES_START, ICODES_LEN, etc. in Constants.kt
     }
 }
