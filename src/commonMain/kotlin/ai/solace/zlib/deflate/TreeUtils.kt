@@ -122,7 +122,6 @@ internal fun gen_bitlen(treeInstance: Tree, s: Deflate) {
     }
 }
 
-// Originally Tree.build_tree
 internal fun build_tree(treeInstance: Tree, s: Deflate) {
     val tree = treeInstance.dyn_tree
     val stree = treeInstance.stat_desc.static_tree
