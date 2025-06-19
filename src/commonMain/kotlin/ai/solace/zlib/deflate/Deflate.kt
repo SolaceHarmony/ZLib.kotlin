@@ -43,116 +43,51 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package ai.solace.zlib.deflate
 
-import componentace.compression.libs.zlib.deflate.Tree
+import ai.solace.zlib.common.* // Import all constants
+import componentace.compression.libs.zlib.deflate.Tree // Keep this for Tree class instances (l_desc, d_desc, bl_desc)
+// For functions moved from Tree.Companion to TreeUtils.kt
+import ai.solace.zlib.deflate.d_code
+// gen_codes and bi_reverse are not directly used in Deflate.kt
+// For functions moved from Deflate.kt itself to DeflateUtils.kt
+// import ai.solace.zlib.deflate.smaller // Already handled by direct package access or previous import
+// import ai.solace.zlib.deflate.put_short // Already imported or accessible
+// import ai.solace.zlib.deflate.put_byte // Already imported or accessible
+// import ai.solace.zlib.deflate.putShortMSB // Already imported or accessible
+import ai.solace.zlib.deflate.send_bits
+import ai.solace.zlib.deflate.send_code
+// Config class is now in Config.kt, in the same package, so direct usage should work.
+// If not, an explicit import ai.solace.zlib.deflate.Config might be needed,
+// but usually not for same-package classes.
+
 
 class Deflate {
 
-    private val MAX_MEM_LEVEL = 9
-    private val Z_DEFAULT_COMPRESSION = -1
-    private val MAX_WBITS = 15 // 32K LZ77 window
-    private val DEF_MEM_LEVEL = 8
+    // Constants previously defined here are now in ai.solace.zlib.common.Constants
+    // MAX_MEM_LEVEL, Z_DEFAULT_COMPRESSION, MAX_WBITS, DEF_MEM_LEVEL,
+    // z_errmsg (now Z_ERRMSG), NeedMore (now NEED_MORE), BlockDone (now BLOCK_DONE),
+    // FinishStarted (now FINISH_STARTED), FinishDone (now FINISH_DONE), PRESET_DICT,
+    // Z_FILTERED, Z_HUFFMAN_ONLY, Z_DEFAULT_STRATEGY, Z_NO_FLUSH, Z_PARTIAL_FLUSH,
+    // Z_SYNC_FLUSH, Z_FULL_FLUSH, Z_FINISH, Z_OK, Z_STREAM_END, Z_NEED_DICT,
+    // Z_ERRNO, Z_STREAM_ERROR, Z_DATA_ERROR, Z_MEM_ERROR, Z_BUF_ERROR, Z_VERSION_ERROR,
+    // INIT_STATE, BUSY_STATE, FINISH_STATE, Z_DEFLATED, STORED_BLOCK, STATIC_TREES,
+    // DYN_TREES, Z_BINARY, Z_ASCII, Z_UNKNOWN, Buf_size (now BUF_SIZE),
+    // REP_3_6, REPZ_3_10, REPZ_11_138, MIN_MATCH, MAX_MATCH, MIN_LOOKAHEAD,
+    // MAX_BITS, D_CODES, BL_CODES, LENGTH_CODES, LITERALS, L_CODES, HEAP_SIZE, END_BLOCK
 
-    internal class Config(
-        internal var good_length: Int,
-        internal var max_lazy: Int,
-        internal var nice_length: Int,
-        internal var max_chain: Int,
-        internal var func: Int
-    )
+    // Config class moved to Config.kt
 
-    private val STORED = 0
-    private val FAST = 1
-    private val SLOW = 2
+    private val STORED = 0 // Function type for stored block - kept local for config_table
+    private val FAST = 1   // Function type for fast block - kept local for config_table
+    private val SLOW = 2   // Function type for slow block - kept local for config_table
     private lateinit var config_table: Array<Config>
 
-    private val z_errmsg = arrayOf(
-        "need dictionary",
-        "stream end",
-        "",
-        "file error",
-        "stream error",
-        "data error",
-        "insufficient memory",
-        "buffer error",
-        "incompatible version",
-        ""
-    )
+    // Note: z_errmsg is now Z_ERRMSG in Constants.kt
+    // Note: NeedMore is now NEED_MORE in Constants.kt
+    // Note: BlockDone is now BLOCK_DONE in Constants.kt
+    // Note: FinishStarted is now FINISH_STARTED in Constants.kt
+    // Note: FinishDone is now FINISH_DONE in Constants.kt
+    // Note: Buf_size is now BUF_SIZE in Constants.kt
 
-    // block not completed, need more input or more output
-    private val NeedMore = 0
-
-    // block flush performed
-    private val BlockDone = 1
-
-    // finish started, need only more output at next deflate
-    private val FinishStarted = 2
-
-    // finish done, accept no more input or output
-    private val FinishDone = 3
-
-    // preset dictionary flag in zlib header
-    private val PRESET_DICT = 0x20
-
-    private val Z_FILTERED = 1
-    private val Z_HUFFMAN_ONLY = 2
-    private val Z_DEFAULT_STRATEGY = 0
-
-    private val Z_NO_FLUSH = 0
-    private val Z_PARTIAL_FLUSH = 1
-    private val Z_SYNC_FLUSH = 2
-    private val Z_FULL_FLUSH = 3
-    private val Z_FINISH = 4
-
-    private val Z_OK = 0
-    private val Z_STREAM_END = 1
-    private val Z_NEED_DICT = 2
-    private val Z_ERRNO = -1
-    private val Z_STREAM_ERROR = -2
-    private val Z_DATA_ERROR = -3
-    private val Z_MEM_ERROR = -4
-    private val Z_BUF_ERROR = -5
-    private val Z_VERSION_ERROR = -6
-
-    private val INIT_STATE = 42
-    private val BUSY_STATE = 113
-    private val FINISH_STATE = 666
-
-    // The deflate compression method
-    private val Z_DEFLATED = 8
-
-    private val STORED_BLOCK = 0
-    private val STATIC_TREES = 1
-    private val DYN_TREES = 2
-
-    // The three kinds of block type
-    private val Z_BINARY = 0
-    private val Z_ASCII = 1
-    private val Z_UNKNOWN = 2
-
-    private val Buf_size = 8 * 2
-
-    // repeat previous bit length 3-6 times (2 bits of repeat count)
-    private val REP_3_6 = 16
-
-    // repeat a zero length 3-10 times  (3 bits of repeat count)
-    private val REPZ_3_10 = 17
-
-    // repeat a zero length 11-138 times  (7 bits of repeat count)
-    private val REPZ_11_138 = 18
-
-    private val MIN_MATCH = 3
-    private val MAX_MATCH = 258
-    private val MIN_LOOKAHEAD = MAX_MATCH + MIN_MATCH + 1
-
-    private val MAX_BITS = 15
-    private val D_CODES = 30
-    private val BL_CODES = 19
-    private val LENGTH_CODES = 29
-    private val LITERALS = 256
-    private val L_CODES = LITERALS + 1 + LENGTH_CODES
-    private val HEAP_SIZE = 2 * L_CODES + 1
-
-    private val END_BLOCK = 256
 
     internal lateinit var strm: ZStream // pointer back to this zlib stream
     internal var status: Int = 0 // as the name implies
@@ -303,9 +238,9 @@ class Deflate {
     internal var bi_valid: Int = 0
 
     init {
-        dyn_ltree = ShortArray(HEAP_SIZE * 2)
-        dyn_dtree = ShortArray((2 * D_CODES + 1) * 2) // distance tree
-        bl_tree = ShortArray((2 * BL_CODES + 1) * 2) // Huffman tree for bit lengths
+        dyn_ltree = ShortArray(ai.solace.zlib.common.HEAP_SIZE * 2)
+        dyn_dtree = ShortArray((2 * ai.solace.zlib.common.D_CODES + 1) * 2) // distance tree
+        bl_tree = ShortArray((2 * ai.solace.zlib.common.BL_CODES + 1) * 2) // Huffman tree for bit lengths
     }
 
     internal fun lm_init() {
@@ -323,7 +258,7 @@ class Deflate {
         strstart = 0
         block_start = 0
         lookahead = 0
-        match_length = prev_length = MIN_MATCH - 1
+        match_length = prev_length = ai.solace.zlib.common.MIN_MATCH - 1
         match_available = 0
         ins_h = 0
     }
@@ -349,14 +284,14 @@ class Deflate {
 
     internal fun init_block() {
         // Initialize the trees.
-        for (i in 0 until L_CODES)
+        for (i in 0 until ai.solace.zlib.common.L_CODES)
             dyn_ltree[i * 2] = 0
-        for (i in 0 until D_CODES)
+        for (i in 0 until ai.solace.zlib.common.D_CODES)
             dyn_dtree[i * 2] = 0
-        for (i in 0 until BL_CODES)
+        for (i in 0 until ai.solace.zlib.common.BL_CODES)
             bl_tree[i * 2] = 0
 
-        dyn_ltree[END_BLOCK * 2] = 1
+        dyn_ltree[ai.solace.zlib.common.END_BLOCK * 2] = 1
         opt_len = static_len = 0
         last_lit = matches = 0
     }
@@ -370,11 +305,11 @@ class Deflate {
         var j = k shl 1 // left son of k
         while (j <= heap_len) {
             // Set j to the smallest of the two sons:
-            if (j < heap_len && smaller(tree, heap[j + 1], heap[j], depth)) {
+            if (j < heap_len && ai.solace.zlib.deflate.smaller(tree, heap[j + 1], heap[j], depth)) { // Call to moved function
                 j++
             }
             // Exit if v is smaller than both sons
-            if (smaller(tree, v, heap[j], depth)) break
+            if (ai.solace.zlib.deflate.smaller(tree, v, heap[j], depth)) break // Call to moved function
 
             // Exchange v with the smallest son
             heap[k] = heap[j]
@@ -409,11 +344,11 @@ class Deflate {
                 bl_tree[curlen * 2] = (bl_tree[curlen * 2] + count).toShort()
             } else if (curlen != 0) {
                 if (curlen != prevlen) bl_tree[curlen * 2]++
-                bl_tree[REP_3_6 * 2]++
+                bl_tree[ai.solace.zlib.common.REP_3_6 * 2]++
             } else if (count <= 10) {
-                bl_tree[REPZ_3_10 * 2]++
+                bl_tree[ai.solace.zlib.common.REPZ_3_10 * 2]++
             } else {
-                bl_tree[REPZ_11_138 * 2]++
+                bl_tree[ai.solace.zlib.common.REPZ_11_138 * 2]++
             }
             count = 0
             prevlen = curlen
@@ -445,8 +380,8 @@ class Deflate {
         // Determine the number of bit length codes to send. The pkzip format
         // requires that at least 4 bit length codes be sent. (appnote.txt says
         // 3 but the actual value used is 4.)
-        for (max_blindex in BL_CODES - 1 downTo 3) {
-            if (bl_tree[Tree.bl_order[max_blindex] * 2 + 1] != 0) break
+        for (max_blindex in ai.solace.zlib.common.BL_CODES - 1 downTo 3) {
+            if (bl_tree[TREE_BL_ORDER[max_blindex] * 2 + 1].toInt() != 0) break
         }
         // Update opt_len to include the bit length tree and counts
         opt_len += 3 * (max_blindex + 1) + 5 + 5 + 4
@@ -461,7 +396,7 @@ class Deflate {
         send_bits(dcodes - 1, 5)
         send_bits(blcodes - 4, 4) // not -3 as stated in appnote.txt
         for (rank in 0 until blcodes) {
-            send_bits(bl_tree[Tree.bl_order[rank] * 2 + 1].toInt(), 3)
+            send_bits(bl_tree[TREE_BL_ORDER[rank] * 2 + 1].toInt(), 3)
         }
         send_tree(dyn_ltree, lcodes - 1) // literal tree
         send_tree(dyn_dtree, dcodes - 1) // distance tree
@@ -495,13 +430,13 @@ class Deflate {
                     send_code(curlen, bl_tree)
                     count--
                 }
-                send_code(REP_3_6, bl_tree)
+                send_code(ai.solace.zlib.common.REP_3_6, bl_tree)
                 send_bits(count - 3, 2)
             } else if (count <= 10) {
-                send_code(REPZ_3_10, bl_tree)
+                send_code(ai.solace.zlib.common.REPZ_3_10, bl_tree)
                 send_bits(count - 3, 3)
             } else {
-                send_code(REPZ_11_138, bl_tree)
+                send_code(ai.solace.zlib.common.REPZ_11_138, bl_tree)
                 send_bits(count - 11, 7)
             }
             count = 0
@@ -519,40 +454,26 @@ class Deflate {
         }
     }
 
-    // Output a byte on the stream.
+    // Output a byte on the stream. - MOVED to DeflateUtils.kt
     // IN assertion: there is enough room in pending_buf.
-    internal fun put_byte(p: ByteArray, start: Int, len: Int) {
-        System.arraycopy(p, start, pending_buf, pending, len)
-        pending += len
-    }
-
-    internal fun put_byte(c: Byte) {
-        pending_buf[pending++] = c
-    }
-
-    internal fun put_short(w: Int) {
-        put_byte(w.toByte())
-        put_byte((w ushr 8).toByte())
-    }
-
-    internal fun putShortMSB(b: Int) {
-        put_byte((b shr 8).toByte())
-        put_byte(b.toByte())
-    }
+    // internal fun put_byte(p: ByteArray, start: Int, len: Int)
+    // internal fun put_byte(c: Byte)
+    // internal fun put_short(w: Int)
+    // internal fun putShortMSB(b: Int)
 
     internal fun send_code(c: Int, tree: ShortArray) {
-        send_bits((tree[c * 2].toInt() and 0xffff), (tree[c * 2 + 1].toInt() and 0xffff))
+        send_bits(this, (tree[c * 2].toInt() and 0xffff), (tree[c * 2 + 1].toInt() and 0xffff)) // Call to moved send_bits
     }
 
     internal fun send_bits(value_Renamed: Int, length: Int) {
         val len = length
-        if (bi_valid > Buf_size - len) {
+        if (bi_valid > ai.solace.zlib.common.BUF_SIZE - len) {
             val value = value_Renamed
             // bi_buf |= (val << bi_valid);
             bi_buf = (bi_buf.toInt() or ((value shl bi_valid) and 0xffff).toShort().toInt()).toShort()
-            put_short(bi_buf.toInt())
-            bi_buf = (value ushr (Buf_size - bi_valid)).toShort()
-            bi_valid += len - Buf_size
+            ai.solace.zlib.deflate.put_short(this, bi_buf.toInt()) // Call to moved put_short
+            bi_buf = (value ushr (ai.solace.zlib.common.BUF_SIZE - bi_valid)).toShort()
+            bi_valid += len - ai.solace.zlib.common.BUF_SIZE
         } else {
             // bi_buf |= (value) << bi_valid;
             bi_buf = (bi_buf.toInt() or ((value_Renamed shl bi_valid) and 0xffff).toShort().toInt()).toShort()
@@ -561,14 +482,14 @@ class Deflate {
     }
 
     internal fun _tr_align() {
-        send_bits(STATIC_TREES shl 1, 3)
-        send_code(END_BLOCK, StaticTree.static_ltree)
+        send_bits(ai.solace.zlib.common.STATIC_TREES shl 1, 3)
+        send_code(ai.solace.zlib.common.END_BLOCK, StaticTree.static_ltree)
 
         bi_flush()
 
         if (1 + last_eob_len + 10 - bi_valid < 9) {
-            send_bits(STATIC_TREES shl 1, 3)
-            send_code(END_BLOCK, StaticTree.static_ltree)
+            send_bits(ai.solace.zlib.common.STATIC_TREES shl 1, 3)
+            send_code(ai.solace.zlib.common.END_BLOCK, StaticTree.static_ltree)
             bi_flush()
         }
         last_eob_len = 7
@@ -586,15 +507,15 @@ class Deflate {
         } else {
             matches++
             dist--
-            dyn_ltree[(Tree._length_code[lc] + LITERALS + 1) * 2]++
-            dyn_dtree[Tree.d_code(dist) * 2]++
+            dyn_ltree[(TREE_LENGTH_CODE[lc] + ai.solace.zlib.common.LITERALS + 1) * 2]++
+            dyn_dtree[d_code(dist) * 2]++
         }
 
         if ((last_lit and 0x1fff) == 0 && level > 2) {
             var out_length = last_lit * 8
             val in_length = strstart - block_start
-            for (dcode in 0 until D_CODES) {
-                out_length = (out_length + dyn_dtree[dcode * 2] * (5L + Tree.extra_dbits[dcode])).toInt()
+            for (dcode in 0 until ai.solace.zlib.common.D_CODES) {
+                out_length = (out_length + dyn_dtree[dcode * 2] * (5L + TREE_EXTRA_DBITS[dcode])).toInt()
             }
             out_length = out_length ushr 3
             if (matches < last_lit / 2 && out_length < in_length / 2)
@@ -621,29 +542,29 @@ class Deflate {
                 if (dist == 0) {
                     send_code(lc, ltree) // send a literal byte
                 } else {
-                    code = Tree._length_code[lc]
+                    code = TREE_LENGTH_CODE[lc].toInt()
 
-                    send_code(code + LITERALS + 1, ltree) // send the length code
-                    extra = Tree.extra_lbits[code]
+                    send_code(code + ai.solace.zlib.common.LITERALS + 1, ltree) // send the length code
+                    extra = TREE_EXTRA_LBITS[code]
                     if (extra != 0) {
-                        lc -= Tree.base_length[code]
+                        lc -= TREE_BASE_LENGTH[code]
                         send_bits(lc, extra) // send the extra length bits
                     }
                     dist--
-                    code = Tree.d_code(dist)
+                    code = d_code(dist)
 
                     send_code(code, dtree) // send the distance code
-                    extra = Tree.extra_dbits[code]
+                    extra = TREE_EXTRA_DBITS[code]
                     if (extra != 0) {
-                        dist -= Tree.base_dist[code]
+                        dist -= TREE_BASE_DIST[code]
                         send_bits(dist, extra) // send the extra distance bits
                     }
                 }
             } while (lx < last_lit)
         }
 
-        send_code(END_BLOCK, ltree)
-        last_eob_len = ltree[END_BLOCK * 2 + 1].toInt()
+        send_code(ai.solace.zlib.common.END_BLOCK, ltree)
+        last_eob_len = ltree[ai.solace.zlib.common.END_BLOCK * 2 + 1].toInt()
     }
 
     internal fun set_data_type() {
@@ -658,20 +579,20 @@ class Deflate {
             ascii_freq += dyn_ltree[n * 2]
             n++
         }
-        while (n < LITERALS) {
+        while (n < ai.solace.zlib.common.LITERALS) {
             bin_freq += dyn_ltree[n * 2]
             n++
         }
-        data_type = if (bin_freq > ascii_freq ushr 2) Z_BINARY.toByte() else Z_ASCII.toByte()
+        data_type = if (bin_freq > ascii_freq ushr 2) ai.solace.zlib.common.Z_BINARY.toByte() else ai.solace.zlib.common.Z_ASCII.toByte()
     }
 
     internal fun bi_flush() {
         if (bi_valid == 16) {
-            put_short(bi_buf.toInt())
+            ai.solace.zlib.deflate.put_short(this, bi_buf.toInt()) // Call to moved put_short
             bi_buf = 0
             bi_valid = 0
         } else if (bi_valid >= 8) {
-            put_byte(bi_buf.toByte())
+            ai.solace.zlib.deflate.put_byte(this, bi_buf.toByte()) // Call to moved put_byte
             bi_buf = (bi_buf.toInt() ushr 8).toShort()
             bi_valid -= 8
         }
@@ -679,24 +600,24 @@ class Deflate {
 
     internal fun bi_windup() {
         if (bi_valid > 8) {
-            put_short(bi_buf.toInt())
+            ai.solace.zlib.deflate.put_short(this, bi_buf.toInt()) // Call to moved put_short
         } else if (bi_valid > 0) {
-            put_byte(bi_buf.toByte())
+            ai.solace.zlib.deflate.put_byte(this, bi_buf.toByte()) // Call to moved put_byte
         }
         bi_buf = 0
         bi_valid = 0
     }
 
     internal fun copy_block(buf: Int, len: Int, header: Boolean) {
-        bi_windup()
+        bi_windup() // Calls put_short, put_byte internally, which are now moved.
         last_eob_len = 8
 
         if (header) {
-            put_short(len.toShort().toInt())
-            put_short(len.inv().toShort().toInt())
+            ai.solace.zlib.deflate.put_short(this, len.toShort().toInt()) // Call to moved put_short
+            ai.solace.zlib.deflate.put_short(this, len.inv().toShort().toInt()) // Call to moved put_short
         }
 
-        put_byte(window, buf, len)
+        ai.solace.zlib.deflate.put_byte(this, window, buf, len) // Call to moved put_byte
     }
 
     internal fun flush_block_only(eof: Boolean) {
@@ -717,7 +638,7 @@ class Deflate {
             if (lookahead <= 1) {
                 fill_window()
                 if (lookahead == 0 && flush == Z_NO_FLUSH)
-                    return NeedMore
+                    return NEED_MORE
                 if (lookahead == 0)
                     break
             }
@@ -732,25 +653,25 @@ class Deflate {
 
                 flush_block_only(false)
                 if (strm.avail_out == 0)
-                    return NeedMore
+                    return NEED_MORE
             }
 
             if (strstart - block_start >= w_size - MIN_LOOKAHEAD) {
                 flush_block_only(false)
                 if (strm.avail_out == 0)
-                    return NeedMore
+                    return NEED_MORE
             }
         }
 
         flush_block_only(flush == Z_FINISH)
         if (strm.avail_out == 0)
-            return if (flush == Z_FINISH) FinishStarted else NeedMore
+            return if (flush == Z_FINISH) FINISH_STARTED else NEED_MORE
 
-        return if (flush == Z_FINISH) FinishDone else BlockDone
+        return if (flush == Z_FINISH) FINISH_DONE else BLOCK_DONE
     }
 
     internal fun _tr_stored_block(buf: Int, stored_len: Int, eof: Boolean) {
-        send_bits((STORED_BLOCK shl 1) + if (eof) 1 else 0, 3)
+        send_bits((ai.solace.zlib.common.STORED_BLOCK shl 1) + if (eof) 1 else 0, 3)
         copy_block(buf, stored_len, true)
     }
 
@@ -760,7 +681,7 @@ class Deflate {
         val max_blindex: Int
 
         if (level > 0) {
-            if (data_type == Z_UNKNOWN)
+            if (data_type == ai.solace.zlib.common.Z_UNKNOWN)
                 set_data_type()
 
             l_desc.build_tree(this)
@@ -780,10 +701,10 @@ class Deflate {
         if (stored_len + 4 <= opt_lenb && buf != -1) {
             _tr_stored_block(buf, stored_len, eof)
         } else if (static_lenb.toFloat() == opt_lenb.toFloat()) {
-            send_bits((STATIC_TREES shl 1) + if (eof) 1 else 0, 3)
+            send_bits((ai.solace.zlib.common.STATIC_TREES shl 1) + if (eof) 1 else 0, 3)
             compress_block(StaticTree.static_ltree, StaticTree.static_dtree)
         } else {
-            send_bits((DYN_TREES shl 1) + if (eof) 1 else 0, 3)
+            send_bits((ai.solace.zlib.common.DYN_TREES shl 1) + if (eof) 1 else 0, 3)
             send_all_trees(l_desc.max_code + 1, d_desc.max_code + 1, max_blindex + 1)
             compress_block(dyn_ltree, dyn_dtree)
         }
@@ -809,7 +730,7 @@ class Deflate {
             } else if (more == -1) {
                 more--
 
-            } else if (strstart >= w_size + w_size - MIN_LOOKAHEAD) {
+            } else if (strstart >= w_size + w_size - ai.solace.zlib.common.MIN_LOOKAHEAD) {
                 System.arraycopy(window, w_size, window, 0, w_size)
                 match_start -= w_size
                 strstart -= w_size
@@ -837,11 +758,11 @@ class Deflate {
             n = strm.read_buf(window, strstart + lookahead, more)
             lookahead += n
 
-            if (lookahead >= MIN_MATCH) {
+            if (lookahead >= ai.solace.zlib.common.MIN_MATCH) {
                 ins_h = window[strstart].toInt() and 0xff
                 ins_h = (((ins_h shl hash_shift) xor (window[strstart + 1].toInt() and 0xff)) and hash_mask)
             }
-        } while (lookahead < MIN_LOOKAHEAD && strm.avail_in != 0)
+        } while (lookahead < ai.solace.zlib.common.MIN_LOOKAHEAD && strm.avail_in != 0)
     }
 
     internal fun deflate_fast(flush: Int): Int {
@@ -849,40 +770,40 @@ class Deflate {
         var bflush: Boolean
 
         while (true) {
-            if (lookahead < MIN_LOOKAHEAD) {
+            if (lookahead < ai.solace.zlib.common.MIN_LOOKAHEAD) {
                 fill_window()
-                if (lookahead < MIN_LOOKAHEAD && flush == Z_NO_FLUSH) {
-                    return NeedMore
+                if (lookahead < ai.solace.zlib.common.MIN_LOOKAHEAD && flush == Z_NO_FLUSH) {
+                    return NEED_MORE
                 }
                 if (lookahead == 0) break
             }
 
-            if (lookahead >= MIN_MATCH) {
+            if (lookahead >= ai.solace.zlib.common.MIN_MATCH) {
                 ins_h =
-                    (((ins_h shl hash_shift) xor (window[(strstart) + (MIN_MATCH - 1)].toInt() and 0xff)) and hash_mask)
+                    (((ins_h shl hash_shift) xor (window[(strstart) + (ai.solace.zlib.common.MIN_MATCH - 1)].toInt() and 0xff)) and hash_mask)
 
                 hash_head = (head[ins_h].toInt() and 0xffff)
                 prev[strstart and w_mask] = head[ins_h]
                 head[ins_h] = strstart.toShort()
             }
 
-            if (hash_head != 0 && ((strstart - hash_head) and 0xffff) <= w_size - MIN_LOOKAHEAD) {
+            if (hash_head != 0 && ((strstart - hash_head) and 0xffff) <= w_size - ai.solace.zlib.common.MIN_LOOKAHEAD) {
                 if (strategy != Z_HUFFMAN_ONLY) {
                     match_length = longest_match(hash_head)
                 }
             }
-            if (match_length >= MIN_MATCH) {
-                bflush = _tr_tally(strstart - match_start, match_length - MIN_MATCH)
+            if (match_length >= ai.solace.zlib.common.MIN_MATCH) {
+                bflush = _tr_tally(strstart - match_start, match_length - ai.solace.zlib.common.MIN_MATCH)
 
                 lookahead -= match_length
 
-                if (match_length <= max_lazy_match && lookahead >= MIN_MATCH) {
+                if (match_length <= max_lazy_match && lookahead >= ai.solace.zlib.common.MIN_MATCH) {
                     match_length--
                     do {
                         strstart++
 
                         ins_h =
-                            (((ins_h shl hash_shift) xor (window[(strstart) + (MIN_MATCH - 1)].toInt() and 0xff)) and hash_mask)
+                            (((ins_h shl hash_shift) xor (window[(strstart) + (ai.solace.zlib.common.MIN_MATCH - 1)].toInt() and 0xff)) and hash_mask)
                         hash_head = (head[ins_h].toInt() and 0xffff)
                         prev[strstart and w_mask] = head[ins_h]
                         head[ins_h] = strstart.toShort()
@@ -904,15 +825,15 @@ class Deflate {
             if (bflush) {
                 flush_block_only(false)
                 if (strm.avail_out == 0)
-                    return NeedMore
+                    return NEED_MORE
             }
         }
 
         flush_block_only(flush == Z_FINISH)
         if (strm.avail_out == 0) {
-            return if (flush == Z_FINISH) FinishStarted else NeedMore
+            return if (flush == Z_FINISH) FINISH_STARTED else NEED_MORE
         }
-        return if (flush == Z_FINISH) FinishDone else BlockDone
+        return if (flush == Z_FINISH) FINISH_DONE else BLOCK_DONE
     }
 
     internal fun deflate_slow(flush: Int): Int {
@@ -920,17 +841,17 @@ class Deflate {
         var bflush: Boolean
 
         while (true) {
-            if (lookahead < MIN_LOOKAHEAD) {
+            if (lookahead < ai.solace.zlib.common.MIN_LOOKAHEAD) {
                 fill_window()
-                if (lookahead < MIN_LOOKAHEAD && flush == Z_NO_FLUSH) {
-                    return NeedMore
+                if (lookahead < ai.solace.zlib.common.MIN_LOOKAHEAD && flush == Z_NO_FLUSH) {
+                    return NEED_MORE
                 }
                 if (lookahead == 0) break
             }
 
-            if (lookahead >= MIN_MATCH) {
+            if (lookahead >= ai.solace.zlib.common.MIN_MATCH) {
                 ins_h =
-                    (((ins_h shl hash_shift) xor (window[(strstart) + (MIN_MATCH - 1)].toInt() and 0xff)) and hash_mask)
+                    (((ins_h shl hash_shift) xor (window[(strstart) + (ai.solace.zlib.common.MIN_MATCH - 1)].toInt() and 0xff)) and hash_mask)
                 hash_head = (head[ins_h].toInt() and 0xffff)
                 prev[strstart and w_mask] = head[ins_h]
                 head[ins_h] = strstart.toShort()
@@ -938,42 +859,42 @@ class Deflate {
 
             prev_length = match_length
             prev_match = match_start
-            match_length = MIN_MATCH - 1
+            match_length = ai.solace.zlib.common.MIN_MATCH - 1
 
-            if (hash_head != 0 && prev_length < max_lazy_match && ((strstart - hash_head) and 0xffff) <= w_size - MIN_LOOKAHEAD) {
+            if (hash_head != 0 && prev_length < max_lazy_match && ((strstart - hash_head) and 0xffff) <= w_size - ai.solace.zlib.common.MIN_LOOKAHEAD) {
                 if (strategy != Z_HUFFMAN_ONLY) {
                     match_length = longest_match(hash_head)
                 }
 
-                if (match_length <= 5 && (strategy == Z_FILTERED || (match_length == MIN_MATCH && strstart - match_start > 4096))) {
-                    match_length = MIN_MATCH - 1
+                if (match_length <= 5 && (strategy == Z_FILTERED || (match_length == ai.solace.zlib.common.MIN_MATCH && strstart - match_start > 4096))) {
+                    match_length = ai.solace.zlib.common.MIN_MATCH - 1
                 }
             }
 
-            if (prev_length >= MIN_MATCH && match_length <= prev_length) {
-                val max_insert = strstart + lookahead - MIN_MATCH
+            if (prev_length >= ai.solace.zlib.common.MIN_MATCH && match_length <= prev_length) {
+                val max_insert = strstart + lookahead - ai.solace.zlib.common.MIN_MATCH
 
-                bflush = _tr_tally(strstart - 1 - prev_match, prev_length - MIN_MATCH)
+                bflush = _tr_tally(strstart - 1 - prev_match, prev_length - ai.solace.zlib.common.MIN_MATCH)
 
                 lookahead -= prev_length - 1
                 prev_length -= 2
                 do {
                     if (++strstart <= max_insert) {
                         ins_h =
-                            (((ins_h shl hash_shift) xor (window[(strstart) + (MIN_MATCH - 1)].toInt() and 0xff)) and hash_mask)
+                            (((ins_h shl hash_shift) xor (window[(strstart) + (ai.solace.zlib.common.MIN_MATCH - 1)].toInt() and 0xff)) and hash_mask)
                         hash_head = (head[ins_h].toInt() and 0xffff)
                         prev[strstart and w_mask] = head[ins_h]
                         head[ins_h] = strstart.toShort()
                     }
                 } while (--prev_length != 0)
                 match_available = 0
-                match_length = MIN_MATCH - 1
+                match_length = ai.solace.zlib.common.MIN_MATCH - 1
                 strstart++
 
                 if (bflush) {
                     flush_block_only(false)
                     if (strm.avail_out == 0)
-                        return NeedMore
+                        return NEED_MORE
                 }
             } else if (match_available != 0) {
                 bflush = _tr_tally(0, window[strstart - 1].toInt() and 0xff)
@@ -984,7 +905,7 @@ class Deflate {
                 strstart++
                 lookahead--
                 if (strm.avail_out == 0)
-                    return NeedMore
+                    return NEED_MORE
             } else {
                 match_available = 1
                 strstart++
@@ -999,10 +920,10 @@ class Deflate {
         flush_block_only(flush == Z_FINISH)
 
         if (strm.avail_out == 0) {
-            return if (flush == Z_FINISH) FinishStarted else NeedMore
+            return if (flush == Z_FINISH) FINISH_STARTED else NEED_MORE
         }
 
-        return if (flush == Z_FINISH) FinishDone else BlockDone
+        return if (flush == Z_FINISH) FINISH_DONE else BLOCK_DONE
     }
 
     internal fun longest_match(cur_match: Int): Int {
@@ -1011,12 +932,12 @@ class Deflate {
         var match: Int
         var len: Int
         var best_len = prev_length
-        val limit = if (strstart > w_size - MIN_LOOKAHEAD) strstart - w_size + MIN_LOOKAHEAD else 0
+        val limit = if (strstart > w_size - ai.solace.zlib.common.MIN_LOOKAHEAD) strstart - (w_size - ai.solace.zlib.common.MIN_LOOKAHEAD) else 0
         var nice_match = this.nice_match
 
         var wmask = w_mask
 
-        val strend = strstart + MAX_MATCH
+        val strend = strstart + ai.solace.zlib.common.MAX_MATCH
         var scan_end1 = window[scan + best_len - 1]
         var scan_end = window[scan + best_len]
 
@@ -1039,8 +960,8 @@ class Deflate {
             do {
             } while (window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && scan < strend)
 
-            len = MAX_MATCH - (strend - scan)
-            scan = strend - MAX_MATCH
+            len = ai.solace.zlib.common.MAX_MATCH - (strend - scan)
+            scan = strend - ai.solace.zlib.common.MAX_MATCH
 
             if (len > best_len) {
                 match_start = cur_match
@@ -1055,18 +976,18 @@ class Deflate {
     }
 
     internal fun deflateInit(strm: ZStream, level: Int, bits: Int): Int {
-        return deflateInit2(strm, level, Z_DEFLATED, bits, DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY)
+        return deflateInit2(strm, level, ai.solace.zlib.common.Z_DEFLATED, bits, ai.solace.zlib.common.DEF_MEM_LEVEL, Z_DEFAULT_STRATEGY)
     }
 
     internal fun deflateInit(strm: ZStream, level: Int): Int {
-        return deflateInit(strm, level, MAX_WBITS)
+        return deflateInit(strm, level, ai.solace.zlib.common.MAX_WBITS)
     }
 
     internal fun deflateReset(strm: ZStream): Int {
         strm.total_in = 0
         strm.total_out = 0
         strm.msg = null
-        strm.data_type = Z_UNKNOWN
+        strm.data_type = ai.solace.zlib.common.Z_UNKNOWN
 
         pending = 0
         pending_out = 0
@@ -1074,7 +995,7 @@ class Deflate {
         if (noheader < 0) {
             noheader = 0
         }
-        status = if (noheader != 0) BUSY_STATE else INIT_STATE
+        status = if (noheader != 0) ai.solace.zlib.common.BUSY_STATE else ai.solace.zlib.common.INIT_STATE
         strm.adler = strm._adler.adler32(0, null, 0, 0)
 
         last_flush = Z_NO_FLUSH
@@ -1085,29 +1006,29 @@ class Deflate {
     }
 
     internal fun deflateEnd(): Int {
-        if (status != INIT_STATE && status != BUSY_STATE && status != FINISH_STATE) {
-            return Z_STREAM_ERROR
+        if (status != ai.solace.zlib.common.INIT_STATE && status != ai.solace.zlib.common.BUSY_STATE && status != ai.solace.zlib.common.FINISH_STATE) {
+            return Z_STREAM_ERROR // Z_STREAM_ERROR is from common
         }
         pending_buf = ByteArray(0)
         head = ShortArray(0)
         prev = ShortArray(0)
         window = ByteArray(0)
-        return if (status == BUSY_STATE) Z_DATA_ERROR else Z_OK
+        return if (status == ai.solace.zlib.common.BUSY_STATE) Z_DATA_ERROR else Z_OK // Z_DATA_ERROR, Z_OK from common
     }
 
     internal fun deflateParams(strm: ZStream, _level: Int, _strategy: Int): Int {
         var level = _level
-        var err = Z_OK
+        var err = Z_OK // Z_OK from common
 
-        if (level == Z_DEFAULT_COMPRESSION) {
+        if (level == Z_DEFAULT_COMPRESSION) { // Z_DEFAULT_COMPRESSION from common
             level = 6
         }
-        if (level < 0 || level > 9 || _strategy < 0 || _strategy > Z_HUFFMAN_ONLY) {
-            return Z_STREAM_ERROR
+        if (level < 0 || level > 9 || _strategy < 0 || _strategy > Z_HUFFMAN_ONLY) { // Z_HUFFMAN_ONLY from common
+            return Z_STREAM_ERROR // Z_STREAM_ERROR from common
         }
 
         if (config_table[level].func != config_table[level].func && strm.total_in != 0) {
-            err = strm.deflate(Z_PARTIAL_FLUSH)
+            err = strm.deflate(Z_PARTIAL_FLUSH) // Z_PARTIAL_FLUSH from common
         }
 
         if (this.level != level) {
@@ -1125,13 +1046,13 @@ class Deflate {
         var length = dictLength
         var index = 0
 
-        if (dictionary == null || status != INIT_STATE) return Z_STREAM_ERROR
+        if (dictionary == null || status != ai.solace.zlib.common.INIT_STATE) return Z_STREAM_ERROR // INIT_STATE, Z_STREAM_ERROR from common
 
         strm.adler = strm._adler.adler32(strm.adler, dictionary, 0, dictLength)
 
-        if (length < MIN_MATCH) return Z_OK
-        if (length > w_size - MIN_LOOKAHEAD) {
-            length = w_size - MIN_LOOKAHEAD
+        if (length < ai.solace.zlib.common.MIN_MATCH) return Z_OK // MIN_MATCH, Z_OK from common
+        if (length > w_size - ai.solace.zlib.common.MIN_LOOKAHEAD) { // MIN_LOOKAHEAD from common
+            length = w_size - ai.solace.zlib.common.MIN_LOOKAHEAD
             index = dictLength - length
         }
         System.arraycopy(dictionary, index, window, 0, length)
@@ -1141,12 +1062,12 @@ class Deflate {
         ins_h = window[0].toInt() and 0xff
         ins_h = (((ins_h shl hash_shift) xor (window[1].toInt() and 0xff)) and hash_mask)
 
-        for (n in 0..length - MIN_MATCH) {
-            ins_h = (((ins_h shl hash_shift) xor (window[(n) + (MIN_MATCH - 1)].toInt() and 0xff)) and hash_mask)
+        for (n in 0..length - ai.solace.zlib.common.MIN_MATCH) { // MIN_MATCH from common
+            ins_h = (((ins_h shl hash_shift) xor (window[(n) + (ai.solace.zlib.common.MIN_MATCH - 1)].toInt() and 0xff)) and hash_mask)
             prev[n and w_mask] = head[ins_h]
             head[ins_h] = n.toShort()
         }
-        return Z_OK
+        return Z_OK // Z_OK from common
     }
 
     internal fun deflateInit2(
@@ -1162,7 +1083,7 @@ class Deflate {
         strm.msg = null
 
         var level = level
-        if (level == Z_DEFAULT_COMPRESSION) level = 6
+        if (level == Z_DEFAULT_COMPRESSION) level = 6 // Z_DEFAULT_COMPRESSION from common
 
         var windowBits = windowBits
         if (windowBits < 0) {
@@ -1170,8 +1091,8 @@ class Deflate {
             windowBits = -windowBits
         }
 
-        if (memLevel < 1 || memLevel > MAX_MEM_LEVEL || method != Z_DEFLATED || windowBits < 9 || windowBits > 15 || level < 0 || level > 9 || strategy < 0 || strategy > Z_HUFFMAN_ONLY) {
-            return Z_STREAM_ERROR
+        if (memLevel < 1 || memLevel > ai.solace.zlib.common.MAX_MEM_LEVEL || method != ai.solace.zlib.common.Z_DEFLATED || windowBits < 9 || windowBits > 15 || level < 0 || level > 9 || strategy < 0 || strategy > Z_HUFFMAN_ONLY) { // MAX_MEM_LEVEL, Z_DEFLATED, Z_HUFFMAN_ONLY from common
+            return Z_STREAM_ERROR // Z_STREAM_ERROR from common
         }
 
         strm.dstate = this
@@ -1184,7 +1105,7 @@ class Deflate {
         hash_bits = memLevel + 7
         hash_size = 1 shl hash_bits
         hash_mask = hash_size - 1
-        hash_shift = (hash_bits + MIN_MATCH - 1) / MIN_MATCH
+        hash_shift = (hash_bits + ai.solace.zlib.common.MIN_MATCH - 1) / ai.solace.zlib.common.MIN_MATCH // MIN_MATCH from common
 
         window = ByteArray(w_size * 2)
         prev = ShortArray(w_size)
@@ -1208,38 +1129,38 @@ class Deflate {
     internal fun deflate(strm: ZStream, flush: Int): Int {
         val old_flush: Int
 
-        if (flush > Z_FINISH || flush < 0) {
-            return Z_STREAM_ERROR
+        if (flush > Z_FINISH || flush < 0) { // Z_FINISH from common
+            return Z_STREAM_ERROR // Z_STREAM_ERROR from common
         }
 
-        if (strm.next_out == null || (strm.next_in == null && strm.avail_in != 0) || (status == FINISH_STATE && flush != Z_FINISH)) {
-            strm.msg = z_errmsg[Z_NEED_DICT - (Z_STREAM_ERROR)]
-            return Z_STREAM_ERROR
+        if (strm.next_out == null || (strm.next_in == null && strm.avail_in != 0) || (status == ai.solace.zlib.common.FINISH_STATE && flush != Z_FINISH)) { // FINISH_STATE, Z_FINISH from common
+            strm.msg = Z_ERRMSG[Z_NEED_DICT - (Z_STREAM_ERROR)] // Z_ERRMSG, Z_NEED_DICT, Z_STREAM_ERROR from common
+            return Z_STREAM_ERROR // Z_STREAM_ERROR from common
         }
         if (strm.avail_out == 0) {
-            strm.msg = z_errmsg[Z_NEED_DICT - (Z_BUF_ERROR)]
-            return Z_BUF_ERROR
+            strm.msg = Z_ERRMSG[Z_NEED_DICT - (Z_BUF_ERROR)] // Z_ERRMSG, Z_NEED_DICT, Z_BUF_ERROR from common
+            return Z_BUF_ERROR // Z_BUF_ERROR from common
         }
 
         this.strm = strm
         old_flush = last_flush
         last_flush = flush
 
-        if (status == INIT_STATE) {
-            var header: Int = (Z_DEFLATED + ((w_bits - 8) shl 4)) shl 8
+        if (status == ai.solace.zlib.common.INIT_STATE) { // INIT_STATE from common
+            var header: Int = (ai.solace.zlib.common.Z_DEFLATED + ((w_bits - 8) shl 4)) shl 8 // Z_DEFLATED from common
             var level_flags: Int = ((level - 1) and 0xff) shr 1
 
             if (level_flags > 3) level_flags = 3
             header = header or (level_flags shl 6)
-            if (strstart != 0) header = header or PRESET_DICT
+            if (strstart != 0) header = header or ai.solace.zlib.common.PRESET_DICT // PRESET_DICT from common
             header += 31 - (header % 31)
 
-            status = BUSY_STATE
-            putShortMSB(header)
+            status = ai.solace.zlib.common.BUSY_STATE // BUSY_STATE from common
+            ai.solace.zlib.deflate.putShortMSB(this, header) // Call to moved putShortMSB
 
             if (strstart != 0) {
-                putShortMSB((strm.adler ushr 16).toInt())
-                putShortMSB((strm.adler and 0xffff).toInt())
+                ai.solace.zlib.deflate.putShortMSB(this, (strm.adler ushr 16).toInt()) // Call to moved putShortMSB
+                ai.solace.zlib.deflate.putShortMSB(this, (strm.adler and 0xffff).toInt()) // Call to moved putShortMSB
             }
             strm.adler = strm._adler.adler32(0, null, 0, 0)
         }
@@ -1248,21 +1169,21 @@ class Deflate {
             strm.flush_pending()
             if (strm.avail_out == 0) {
                 last_flush = -1
-                return Z_OK
+                return Z_OK // Z_OK from common
             }
-        } else if (strm.avail_in == 0 && flush <= old_flush && flush != Z_FINISH) {
-            strm.msg = z_errmsg[Z_NEED_DICT - (Z_BUF_ERROR)]
-            return Z_BUF_ERROR
+        } else if (strm.avail_in == 0 && flush <= old_flush && flush != Z_FINISH) { // Z_FINISH from common
+            strm.msg = Z_ERRMSG[Z_NEED_DICT - (Z_BUF_ERROR)] // Z_ERRMSG, Z_NEED_DICT, Z_BUF_ERROR from common
+            return Z_BUF_ERROR // Z_BUF_ERROR from common
         }
 
-        if (status == FINISH_STATE && strm.avail_in != 0) {
-            strm.msg = z_errmsg[Z_NEED_DICT - (Z_BUF_ERROR)]
-            return Z_BUF_ERROR
+        if (status == ai.solace.zlib.common.FINISH_STATE && strm.avail_in != 0) { // FINISH_STATE from common
+            strm.msg = Z_ERRMSG[Z_NEED_DICT - (Z_BUF_ERROR)] // Z_ERRMSG, Z_NEED_DICT, Z_BUF_ERROR from common
+            return Z_BUF_ERROR // Z_BUF_ERROR from common
         }
 
-        if (strm.avail_in != 0 || lookahead != 0 || (flush != Z_NO_FLUSH && status != FINISH_STATE)) {
+        if (strm.avail_in != 0 || lookahead != 0 || (flush != Z_NO_FLUSH && status != ai.solace.zlib.common.FINISH_STATE)) { // Z_NO_FLUSH, FINISH_STATE from common
             var bstate = -1
-            when (config_table[level].func) {
+            when (config_table[level].func) { // STORED, FAST, SLOW are local
                 STORED -> bstate = deflate_stored(flush)
                 FAST -> bstate = deflate_fast(flush)
                 SLOW -> bstate = deflate_slow(flush)
@@ -1270,44 +1191,44 @@ class Deflate {
                 }
             }
 
-            if (bstate == FinishStarted || bstate == FinishDone) {
-                status = FINISH_STATE
+            if (bstate == FINISH_STARTED || bstate == FINISH_DONE) { // FINISH_STARTED, FINISH_DONE from common
+                status = ai.solace.zlib.common.FINISH_STATE // FINISH_STATE from common
             }
-            if (bstate == NeedMore || bstate == FinishStarted) {
+            if (bstate == NEED_MORE || bstate == FINISH_STARTED) { // NEED_MORE, FINISH_STARTED from common
                 if (strm.avail_out == 0) {
                     last_flush = -1
                 }
-                return Z_OK
+                return Z_OK // Z_OK from common
             }
 
-            if (bstate == BlockDone) {
-                if (flush == Z_PARTIAL_FLUSH) {
+            if (bstate == BLOCK_DONE) { // BLOCK_DONE from common
+                if (flush == Z_PARTIAL_FLUSH) { // Z_PARTIAL_FLUSH from common
                     _tr_align()
                 } else {
                     _tr_stored_block(0, 0, false)
-                    if (flush == Z_FULL_FLUSH) {
+                    if (flush == Z_FULL_FLUSH) { // Z_FULL_FLUSH from common
                         for (i in 0 until hash_size) head[i] = 0
                     }
                 }
                 strm.flush_pending()
                 if (strm.avail_out == 0) {
                     last_flush = -1
-                    return Z_OK
+                    return Z_OK // Z_OK from common
                 }
             }
         }
 
-        if (flush != Z_FINISH)
-            return Z_OK
+        if (flush != Z_FINISH) // Z_FINISH from common
+            return Z_OK // Z_OK from common
         if (noheader != 0)
-            return Z_STREAM_END
+            return Z_STREAM_END // Z_STREAM_END from common
 
-        putShortMSB((strm.adler ushr 16).toInt())
-        putShortMSB((strm.adler and 0xffff).toInt())
+        ai.solace.zlib.deflate.putShortMSB(this, (strm.adler ushr 16).toInt()) // Call to moved putShortMSB
+        ai.solace.zlib.deflate.putShortMSB(this, (strm.adler and 0xffff).toInt()) // Call to moved putShortMSB
         strm.flush_pending()
 
         noheader = -1
-        return if (pending != 0) Z_OK else Z_STREAM_END
+        return if (pending != 0) Z_OK else Z_STREAM_END // Z_OK, Z_STREAM_END from common
     }
 
     companion object {
@@ -1326,9 +1247,6 @@ class Deflate {
             )
         }
 
-        internal fun smaller(tree: ShortArray, n: Int, m: Int, depth: ByteArray): Boolean {
-            return tree[n * 2].toInt() < tree[m * 2].toInt() ||
-                    (tree[n * 2].toInt() == tree[m * 2].toInt() && depth[n] <= depth[m])
-        }
+        // smaller function moved to DeflateUtils.kt
     }
 }

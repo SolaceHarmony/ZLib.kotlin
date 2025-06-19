@@ -43,6 +43,8 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package ai.solace.zlib.deflate
 
+import ai.solace.zlib.common.* // Import all constants
+
 internal class StaticTree(
     internal var static_tree: ShortArray?, // static tree or null
     internal var extra_bits: IntArray?, // extra bits for each code or null
@@ -51,16 +53,8 @@ internal class StaticTree(
     internal var max_length: Int // max bit length for the codes
 ) {
     companion object {
-        private const val MAX_BITS = 15
-
-        private const val BL_CODES = 19
-        private const val D_CODES = 30
-        private const val LITERALS = 256
-        private const val LENGTH_CODES = 29
-        private val L_CODES = LITERALS + 1 + LENGTH_CODES
-
-        // Bit length codes must not exceed MAX_BL_BITS bits
-        internal const val MAX_BL_BITS = 7
+        // Constants previously defined here are now in ai.solace.zlib.common.Constants
+        // MAX_BITS, BL_CODES, D_CODES, LITERALS, LENGTH_CODES, L_CODES, MAX_BL_BITS (now TREE_MAX_BL_BITS)
 
         internal val static_ltree = shortArrayOf(
             12,
@@ -711,9 +705,9 @@ internal class StaticTree(
         internal var static_bl_desc: StaticTree
 
         init {
-            static_l_desc = StaticTree(static_ltree, Tree.extra_lbits, LITERALS + 1, L_CODES, MAX_BITS)
-            static_d_desc = StaticTree(static_dtree, Tree.extra_dbits, 0, D_CODES, MAX_BITS)
-            static_bl_desc = StaticTree(null, Tree.extra_blbits, 0, BL_CODES, MAX_BL_BITS)
+            static_l_desc = StaticTree(static_ltree, TREE_EXTRA_LBITS, LITERALS + 1, L_CODES, MAX_BITS)
+            static_d_desc = StaticTree(static_dtree, TREE_EXTRA_DBITS, 0, D_CODES, MAX_BITS)
+            static_bl_desc = StaticTree(null, TREE_EXTRA_BLBITS, 0, BL_CODES, TREE_MAX_BL_BITS)
         }
     }
 }
