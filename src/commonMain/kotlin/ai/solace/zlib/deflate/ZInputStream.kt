@@ -41,13 +41,17 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 * Jean-loup Gailly(jloup@gzip.org) and Mark Adler(madler@alumni.caltech.edu)
 * and contributors of zlib.
 */
+import ai.solace.zlib.common.Z_BUF_ERROR
+import ai.solace.zlib.common.Z_NO_FLUSH
+import ai.solace.zlib.common.Z_OK
+import ai.solace.zlib.common.Z_STREAM_END
 import java.io.InputStream
 import java.io.DataInputStream
 
 class ZInputStream(input: InputStream) : DataInputStream(input) {
     private val z = ZStream()
     private val bufsize = 512
-    private var flush = zlibConst.Z_NO_FLUSH
+    private var flush = Z_NO_FLUSH // Use common constant
     private val buf = ByteArray(bufsize)
     private val buf1 = ByteArray(1)
     private val compress: Boolean
@@ -101,11 +105,11 @@ class ZInputStream(input: InputStream) : DataInputStream(input) {
                 }
             }
             err = if (compress) z.deflate(flush) else z.inflate(flush)
-            if (nomoreinput && err == zlibConst.Z_BUF_ERROR) return -1
-            if (err != zlibConst.Z_OK && err != zlibConst.Z_STREAM_END)
+            if (nomoreinput && err == Z_BUF_ERROR) return -1 // Use common constant
+            if (err != Z_OK && err != Z_STREAM_END) // Use common constants
                 throw ZStreamException((if (compress) "de" else "in") + "flating: " + z.msg)
             if (nomoreinput && z.avail_out == len) return -1
-        } while (z.avail_out == len && err == zlibConst.Z_OK)
+        } while (z.avail_out == len && err == Z_OK) // Use common constant
         return len - z.avail_out
     }
 

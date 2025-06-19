@@ -43,56 +43,17 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package componentace.compression.libs.zlib.deflate
 
+import ai.solace.zlib.common.* // Import all constants
 import kotlin.collections.get
 import kotlin.invoke
 
 class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w: Int) {
-    private val MANY = 1440
-
-    // And'ing with mask[n] masks the lower n bits
-    private val inflate_mask = intArrayOf(
-        0x00000000,
-        0x00000001,
-        0x00000003,
-        0x00000007,
-        0x0000000f,
-        0x0000001f,
-        0x0000003f,
-        0x0000007f,
-        0x000000ff,
-        0x000001ff,
-        0x000003ff,
-        0x000007ff,
-        0x00000fff,
-        0x00001fff,
-        0x00003fff,
-        0x00007fff,
-        0x0000ffff
-    )
-
-    // Table for deflate from PKZIP's appnote.txt.
-    internal val border = intArrayOf(16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15)
-
-    private val Z_OK = 0
-    private val Z_STREAM_END = 1
-    private val Z_NEED_DICT = 2
-    private val Z_ERRNO = -1
-    private val Z_STREAM_ERROR = -2
-    private val Z_DATA_ERROR = -3
-    private val Z_MEM_ERROR = -4
-    private val Z_BUF_ERROR = -5
-    private val Z_VERSION_ERROR = -6
-
-    private val TYPE = 0 // get type bits (3, including end bit)
-    private val LENS = 1 // get lengths for stored
-    private val STORED = 2 // processing stored block
-    private val TABLE = 3 // get table lengths
-    private val BTREE = 4 // get bit lengths tree for a dynamic block
-    private val DTREE = 5 // get length, distance trees for a dynamic block
-    private val CODES = 6 // processing fixed or dynamic block
-    private val DRY = 7 // output remaining window bytes
-    private val DONE = 8 // finished last block, done
-    private val BAD = 9 // ot a data error--stuck here
+    // Constants previously defined here are now in ai.solace.zlib.common.Constants
+    // MANY is IBLK_MANY
+    // inflate_mask is IBLK_INFLATE_MASK
+    // border is IBLK_BORDER
+    // Z_OK, Z_STREAM_END, etc. are already in common
+    // Mode constants (TYPE, LENS, etc.) are now IBLK_TYPE, IBLK_LENS, etc. in Constants.kt
 
     internal var mode = 0 // current inflate_block mode 
 
@@ -119,22 +80,22 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
     internal var check: Long = 0 // check on output
 
     init {
-        hufts = IntArray(MANY * 3)
+        hufts = IntArray(IBLK_MANY * 3)
         window = ByteArray(w)
         end = w
-        mode = TYPE
+        mode = IBLK_TYPE
         reset(z, null)
     }
 
     internal fun reset(z: ZStream, c: LongArray?) {
         if (c != null) c[0] = check
-        if (mode == BTREE || mode == DTREE) {
+        if (mode == IBLK_BTREE || mode == IBLK_DTREE) {
             blens = null
         }
-        if (mode == CODES) {
+        if (mode == IBLK_CODES) {
             codes.free(z)
         }
-        mode = TYPE
+        mode = IBLK_TYPE
         bitk = 0
         bitb = 0
         read = 0
@@ -168,7 +129,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
         // process input based on current state
         while (true) {
             when (mode) {
-                TYPE -> {
+                IBLK_TYPE -> {
                     while (k < 3) {
                         if (n != 0) {
                             r = Z_OK
@@ -199,7 +160,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                             b = b.ushr(t)
                             k -= t
                         }
-                                mode = LENS // get length of stored block
+                                mode = IBLK_LENS // get length of stored block
                     }
                     1 -> { // fixed
                         val bl = IntArray(1)
@@ -215,7 +176,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                             k -= 3
                         }
 
-                        mode = CODES
+                        mode = IBLK_CODES
                     }
                     2 -> { // dynamic
                         run {
@@ -223,14 +184,14 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                             k -= 3
                         }
 
-                        mode = TABLE
+                        mode = IBLK_TABLE
                     }
                     3 -> { // illegal
                         run {
                             b = b.ushr(3)
                             k -= 3
                         }
-                        mode = BAD
+                        mode = IBLK_BAD
                         z.msg = "invalid block type"
                         r = Z_DATA_ERROR
 
@@ -265,7 +226,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                     )
                     != (b and 0xffff.toInt())
                     ) {
-                    mode = BAD
+                    mode = IBLK_BAD
                     z.msg = "invalid stored block lengths"
                     r = Z_DATA_ERROR
 
@@ -281,8 +242,8 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                 left = b and 0xffff.toInt()
                         b = 0
                     k = b // dump bits
-                mode = if (left != 0) STORED else if (last != 0) DRY else TYPE
-                        STORED -> if (n == 0) {
+                mode = if (left != 0) IBLK_STORED else if (last != 0) IBLK_DRY else IBLK_TYPE
+                        IBLK_STORED -> if (n == 0) {
                     bitb = b
                     bitk = k
                     z.avail_in = n
@@ -330,8 +291,8 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                         q += t
                         m -= t
                         if ((left -= t) != 0) break
-                                mode = if (last != 0) DRY else TYPE
-                        TABLE -> while (k < 14) {
+                                mode = if (last != 0) IBLK_DRY else IBLK_TYPE
+                        IBLK_TABLE -> while (k < 14) {
                     if (n != 0) {
                         r = Z_OK
                     } else {
@@ -350,7 +311,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
 
                 table = t = b and 0x3fff
                     if ((t and 0x1f) > 29 || ((t shr 5) and 0x1f) > 29) {
-                        mode = BAD
+                        mode = IBLK_BAD
                         z.msg = "too many length or distance symbols"
                         r = Z_DATA_ERROR
 
@@ -373,9 +334,9 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                 }
 
                         index = 0
-                    mode = BTREE
+                    mode = IBLK_BTREE
 
-                BTREE -> {
+                IBLK_BTREE -> {
                     while (index < 4 + (table ushr 10)) {
                         while (k < 3) {
                             if (n != 0) {
@@ -394,7 +355,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                             k += 8
                         }
 
-                        blens!![border[index++]] = b and 7
+                        blens!![IBLK_BORDER[index++]] = b and 7
 
                         run {
                             b = b.ushr(3)
@@ -403,7 +364,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                     }
 
                     while (index < 19) {
-                        blens!![border[index++]] = 0
+                        blens!![IBLK_BORDER[index++]] = 0
                     }
 
                     bb[0] = 7
@@ -412,7 +373,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                         r = t
                         if (r == Z_DATA_ERROR) {
                             blens = null
-                            mode = BAD
+                            mode = IBLK_BAD
                         }
 
                         bitb = b
@@ -425,8 +386,8 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                     }
 
                     index = 0
-                    mode = DTREE
-                    DTREE -> while (true) {
+                    mode = IBLK_DTREE
+                    IBLK_DTREE -> while (true) {
                         t = table
                         if (!(index < 258 + (t and 0x1f) + (t shr 5 and 0x1f))) {
                             break
@@ -455,8 +416,8 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                             k += 8
                         }
 
-                        t = hufts[(tb[0] + (b and inflate_mask[t])) * 3 + 1]
-                        c = hufts[(tb[0] + (b and inflate_mask[t])) * 3 + 2]
+                        t = hufts[(tb[0] + (b and IBLK_INFLATE_MASK[t])) * 3 + 1]
+                        c = hufts[(tb[0] + (b and IBLK_INFLATE_MASK[t])) * 3 + 2]
 
                         if (c < 16) {
                             b = b.ushr(t)
@@ -487,7 +448,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                             b = b.ushr(t)
                             k -= t
 
-                            j += (b and inflate_mask[i])
+                            j += (b and IBLK_INFLATE_MASK[i])
 
                             b = b.ushr(i)
                             k -= i
@@ -496,7 +457,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                             t = table
                             if (i + j > 258 + (t and 0x1f) + (t shr 5 and 0x1f) || c == 16 && i < 1) {
                                 blens = null
-                                mode = BAD
+                                mode = IBLK_BAD
                                 z.msg = "invalid bit length repeat"
                                 r = Z_DATA_ERROR
 
@@ -539,7 +500,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                     if (t != Z_OK) {
                         if (t == Z_DATA_ERROR) {
                             blens = null
-                            mode = BAD
+                                mode = IBLK_BAD
                         }
                         r = t
 
@@ -554,8 +515,8 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
 
                     codes = InfCodes(bl[0], bd[0], hufts, tl[0], hufts, td[0], z)
                     blens = null
-                    mode = CODES
-                    CODES -> {
+                        mode = IBLK_CODES
+                        IBLK_CODES -> {
                         bitb = b
                         bitk = k
                         z.avail_in = n
@@ -577,11 +538,11 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                         m = if (q < read) read - q - 1 else end - q
 
                         if (last == 0) {
-                            mode = TYPE
+                            mode = IBLK_TYPE
                             break
                         }
-                        mode = DRY
-                        DRY -> {
+                        mode = IBLK_DRY
+                        IBLK_DRY -> {
                         write = q
                         r = inflate_flush(z, r)
                         q = write
@@ -595,8 +556,8 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                             write = q
                             return inflate_flush(z, r)
                         }
-                        mode = DONE
-                        DONE -> {
+                        mode = IBLK_DONE
+                        IBLK_DONE -> {
                         r = Z_STREAM_END
 
                         bitb = b
@@ -607,7 +568,7 @@ class InfBlocks(private val z: ZStream, private val checkfn: Any?, private val w
                         write = q
                         return inflate_flush(z, r)
                     }
-                        BAD -> {
+                        IBLK_BAD -> {
                         r = Z_DATA_ERROR
 
                         bitb = b
@@ -652,7 +613,7 @@ internal fun set_dictionary(d: ByteArray, start: Int, n: Int) {
 // Returns true if inflate is currently at the end of a block generated
 // by Z_SYNC_FLUSH or Z_FULL_FLUSH.
 internal fun sync_point(): Int {
-    return if (mode == LENS) 1 else 0
+    return if (mode == IBLK_LENS) 1 else 0
 }
 
 // copy as much as possible from the sliding window to the output area
