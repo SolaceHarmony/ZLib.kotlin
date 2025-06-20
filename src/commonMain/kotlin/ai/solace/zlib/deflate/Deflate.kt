@@ -89,10 +89,10 @@ class Deflate {
         for (i in 0 until hash_size - 1) {
             head[i] = 0
         }
-        max_lazy_match = Companion.config_table[level].max_lazy
-        good_match = Companion.config_table[level].good_length
-        nice_match = Companion.config_table[level].nice_length
-        max_chain_length = Companion.config_table[level].max_chain
+        max_lazy_match = config_table[level].max_lazy
+        good_match = config_table[level].good_length
+        nice_match = config_table[level].nice_length
+        max_chain_length = config_table[level].max_chain
 
         strstart = 0
         block_start = 0
@@ -571,10 +571,13 @@ class Deflate {
             }
             scan += 2
             match++
-            do {
-            } while (window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && window[++scan] == window[++match] && scan < strend)
-            len = MAX_MATCH - (strend - scan)
-            scan = strend - MAX_MATCH
+            while (scan < strend && window[scan] == window[match]) {
+                scan++
+                match++
+            }
+            len = scan - strstart
+            scan = strstart
+
             if (len > best_len) {
                 match_start = cur_match_in
                 best_len = len
@@ -633,15 +636,15 @@ class Deflate {
         if (current_level < 0 || current_level > 9 || strategy_in < 0 || strategy_in > Z_HUFFMAN_ONLY) {
             return Z_STREAM_ERROR
         }
-        if (Companion.config_table[this.level].func != Companion.config_table[current_level].func && strm.total_in != 0L) {
+        if (config_table[this.level].func != config_table[current_level].func && strm.total_in != 0L) {
             err = strm.deflate(Z_PARTIAL_FLUSH)
         }
         if (this.level != current_level) {
             this.level = current_level
-            max_lazy_match = Companion.config_table[this.level].max_lazy
-            good_match = Companion.config_table[this.level].good_length
-            nice_match = Companion.config_table[this.level].nice_length
-            max_chain_length = Companion.config_table[this.level].max_chain
+            max_lazy_match = config_table[this.level].max_lazy
+            good_match = config_table[this.level].good_length
+            nice_match = config_table[this.level].nice_length
+            max_chain_length = config_table[this.level].max_chain
         }
         this.strategy = strategy_in
         return err
@@ -820,4 +823,3 @@ class Deflate {
         // smaller function moved to DeflateUtils.kt
     }
 }
-

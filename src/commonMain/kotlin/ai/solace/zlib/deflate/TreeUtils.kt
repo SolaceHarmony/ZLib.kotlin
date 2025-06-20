@@ -18,8 +18,8 @@ internal fun gen_codes(tree: ShortArray, max_code: Int, bl_count: ShortArray) {
 
     bits = 1
     while (bits <= MAX_BITS) {
+        code = ((code + bl_count[bits - 1]) shl 1).toShort()
         next_code[bits] = code
-        code = (code + bl_count[bits - 1] shl 1).toShort()
         bits++
     }
 

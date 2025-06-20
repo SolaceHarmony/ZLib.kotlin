@@ -34,12 +34,12 @@ internal fun send_bits(d: Deflate, value_Renamed: Int, length: Int) {
     val len = length
     if (d.bi_valid > BUF_SIZE - len) {
         val value = value_Renamed
-        d.bi_buf = (d.bi_buf.toInt() or ((value shl d.bi_valid) and 0xffff).toShort().toInt()).toShort()
+        d.bi_buf = ((d.bi_buf.toInt() and 0xFFFF) or (value shl d.bi_valid)).toShort()
         put_short(d, d.bi_buf.toInt())
         d.bi_buf = (value ushr (BUF_SIZE - d.bi_valid)).toShort()
         d.bi_valid += len - BUF_SIZE
     } else {
-        d.bi_buf = (d.bi_buf.toInt() or ((value_Renamed shl d.bi_valid) and 0xffff).toShort().toInt()).toShort()
+        d.bi_buf = ((d.bi_buf.toInt() and 0xFFFF) or (value_Renamed shl d.bi_valid)).toShort()
         d.bi_valid += len
     }
 }

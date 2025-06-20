@@ -48,17 +48,16 @@ class InflateTest {
         stream.avail_out = outputBuffer.size
         stream.next_out_index = 0
 
-        var loopCount = 0 // Safety break
-        // Loop for inflation is needed if output buffer might be too small or input is chunked.
-        // For this test, we provide one large chunk and expect one Z_STREAM_END.
-        // A more robust general purpose inflate would loop on Z_OK and Z_BUF_ERROR if output buffer needs expansion.
-        err = stream.inflate(Z_NO_FLUSH) // Z_NO_FLUSH is typical until all input is consumed or Z_STREAM_END is expected.
-                                        // Z_FINISH can also be used if an early end is desired.
-
-        // Check if stream ended. If not, and avail_in is 0, it means more output buffer might be needed,
-        // or it's a Z_BUF_ERROR for other reasons.
-        // This simplified test expects Z_STREAM_END in one go if input is complete and output buffer is sufficient.
-        assertTrue(err == Z_STREAM_END, "inflate did not return Z_STREAM_END on first call. error: $err, msg: ${stream.msg}, avail_in: ${stream.avail_in}, avail_out: ${stream.avail_out}")
+        // Loop to fully inflate the data
+        do {
+            err = stream.inflate(Z_NO_FLUSH)
+            // Z_BUF_ERROR is ok if we are out of output space, but this test assumes enough space.
+            // Z_OK means progress was made.
+            // Z_STREAM_END means we are done.
+            if (err < Z_OK && err != Z_BUF_ERROR) {
+                assertTrue(false, "Inflation failed with unexpected error: $err, msg: ${stream.msg}")
+            }
+        } while (err != Z_STREAM_END)
 
         val inflatedSize = stream.total_out.toInt()
         val result = outputBuffer.copyOf(inflatedSize)

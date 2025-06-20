@@ -63,7 +63,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
     private var index = 0
     private var blens: IntArray? = null
     private val bb = IntArray(1)
-    private val tb = IntArray(1)
+    private val tb = arrayOf(IntArray(1))
     private var codes: InfCodes? = null
     private var last = 0
     internal var bitk = 0
@@ -289,8 +289,8 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
                             k += 8
                         }
-                        t2 = hufts[(tb[0] + (b and IBLK_INFLATE_MASK[t2])) * 3 + 1]
-                        c = hufts[(tb[0] + (b and IBLK_INFLATE_MASK[t2])) * 3 + 2]
+                        t2 = hufts[(tb[0][0] + (b and IBLK_INFLATE_MASK[t2])) * 3 + 1]
+                        c = hufts[(tb[0][0] + (b and IBLK_INFLATE_MASK[t2])) * 3 + 2]
                         if (c < 16) {
                             b = b ushr t2; k -= t2
                             blens!![index++] = c
@@ -328,11 +328,11 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             index = i
                         }
                     }
-                    tb[0] = -1
+                    tb[0][0] = -1
                     val bl_ = IntArray(1)
                     val bd_ = IntArray(1)
-                    val tl_ = IntArray(1)
-                    val td_ = IntArray(1)
+                    val tl_ = arrayOf(IntArray(1))
+                    val td_ = arrayOf(IntArray(1))
                     bl_[0] = 9; bd_[0] = 6
                     val t4 = table
                     val t5 = InfTree.inflate_trees_dynamic(257 + (t4 and 0x1f), 1 + ((t4 ushr 5) and 0x1f), blens!!, bl_, bd_, tl_, td_, hufts, z)
@@ -345,7 +345,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         bitb = b; bitk = k; z.avail_in = n; z.total_in += (p - z.next_in_index).toLong(); z.next_in_index = p; write = q
                         return inflate_flush(this, z, r)
                     }
-                    codes = InfCodes(bl_[0], bd_[0], hufts, tl_[0], hufts, td_[0], z)
+                    codes = InfCodes(bl_[0], bd_[0], hufts, tl_[0][0], hufts, td_[0][0], z)
                     blens = null
                     mode = IBLK_CODES
                 }

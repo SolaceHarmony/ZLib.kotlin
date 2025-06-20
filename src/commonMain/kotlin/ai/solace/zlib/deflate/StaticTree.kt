@@ -46,11 +46,12 @@ package ai.solace.zlib.deflate
 import ai.solace.zlib.common.* // Import all constants
 
 internal class StaticTree(
-    internal var static_tree: ShortArray?, // static tree or null
-    internal var extra_bits: IntArray?, // extra bits for each code or null
-    internal var extra_base: Int, // base index for extra_bits
-    internal var elems: Int, // max number of elements in the tree
-    internal var max_length: Int // max bit length for the codes
+    internal val static_tree: ShortArray?, // static tree or null
+    internal val extra_bits: IntArray?, // extra bits for each code or null
+    internal val extra_base: Int, // base index for extra_bits
+    internal val elems: Int, // max number of elements in the tree
+    internal val max_length: Int, // max bit length for the codes
+    internal val max_code: Int // largest code
 ) {
     companion object {
         // Constants previously defined here are now in ai.solace.zlib.common.Constants
@@ -698,16 +699,16 @@ internal class StaticTree(
             5
         )
 
-        internal var static_l_desc: StaticTree
+        internal val static_l_desc: StaticTree
 
-        internal var static_d_desc: StaticTree
+        internal val static_d_desc: StaticTree
 
-        internal var static_bl_desc: StaticTree
+        internal val static_bl_desc: StaticTree
 
         init {
-            static_l_desc = StaticTree(static_ltree, TREE_EXTRA_LBITS, LITERALS + 1, L_CODES, MAX_BITS)
-            static_d_desc = StaticTree(static_dtree, TREE_EXTRA_DBITS, 0, D_CODES, MAX_BITS)
-            static_bl_desc = StaticTree(null, TREE_EXTRA_BLBITS, 0, BL_CODES, TREE_MAX_BL_BITS)
+            static_l_desc = StaticTree(static_ltree, TREE_EXTRA_LBITS, LITERALS + 1, L_CODES, MAX_BITS, L_CODES - 1)
+            static_d_desc = StaticTree(static_dtree, TREE_EXTRA_DBITS, 0, D_CODES, MAX_BITS, D_CODES - 1)
+            static_bl_desc = StaticTree(null, TREE_EXTRA_BLBITS, 0, BL_CODES, TREE_MAX_BL_BITS, BL_CODES - 1)
         }
     }
 }
