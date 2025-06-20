@@ -69,8 +69,8 @@ class Deflate {
     internal var lit_bufsize: Int = 0
     internal var last_lit: Int = 0
     internal var d_buf: Int = 0
-    internal var opt_len: Int = 0
-    internal var static_len: Int = 0
+    internal var opt_len: Long = 0
+    internal var static_len: Long = 0
     internal var matches: Int = 0
     internal var last_eob_len: Int = 0
     internal var bi_buf: Short = 0
@@ -124,8 +124,8 @@ class Deflate {
         for (i in 0 until BL_CODES) bl_tree[i * 2] = 0
 
         dyn_ltree[END_BLOCK * 2] = 1
-        opt_len = 0
-        static_len = 0
+        opt_len = 0L
+        static_len = 0L
         last_lit = 0
         matches = 0
     }
@@ -290,10 +290,10 @@ class Deflate {
         }
 
         if ((last_lit and 0x1fff) == 0 && level > 2) {
-            var out_length = last_lit * 8
+            var out_length = (last_lit * 8).toLong()
             val in_length = strstart - block_start
             for (dcode_val in 0 until D_CODES) {
-                out_length = (out_length + dyn_dtree[dcode_val * 2] * (5L + TREE_EXTRA_DBITS[dcode_val])).toInt()
+                out_length += dyn_dtree[dcode_val * 2] * (5L + TREE_EXTRA_DBITS[dcode_val])
             }
             out_length = out_length ushr 3
             if (matches < last_lit / 2 && out_length < in_length / 2) return true
@@ -341,8 +341,8 @@ class Deflate {
     }
 
     internal fun _tr_flush_block(buf: Int, stored_len: Int, eof: Boolean) {
-        var opt_lenb: Int
-        var static_lenb: Int
+        var opt_lenb: Long
+        var static_lenb: Long
         var max_blindex = 0
 
         if (level > 0) {
@@ -354,7 +354,7 @@ class Deflate {
             static_lenb = (static_len + 3 + 7) ushr 3
             if (static_lenb <= opt_lenb) opt_lenb = static_lenb
         } else {
-            opt_lenb = stored_len + 5
+            opt_lenb = (stored_len + 5).toLong()
             static_lenb = opt_lenb
         }
 
@@ -819,3 +819,4 @@ class Deflate {
         // smaller function moved to DeflateUtils.kt
     }
 }
+

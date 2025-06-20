@@ -43,6 +43,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 import ai.solace.zlib.common.*
 import ai.solace.zlib.deflate.ZStream
+import ai.solace.zlib.deflate.ZStreamException
 import ai.solace.zlib.streams.InputStream
 
 class ZInputStream(private val `in`: InputStream) : InputStream() {
@@ -84,6 +85,10 @@ class ZInputStream(private val `in`: InputStream) : InputStream() {
 
     override fun read(): Int {
         return if (read(buf1, 0, 1) == -1) -1 else (buf1[0].toInt() and 0xFF)
+    }
+
+    override fun available(): Int {
+        return `in`.available()
     }
 
     override fun read(b: ByteArray, off: Int, len: Int): Int {
