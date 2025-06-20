@@ -1,11 +1,15 @@
 package ai.solace.zlib.test
 
-import ai.solace.zlib.deflate.* // TreeUtils functions are here
-import ai.solace.zlib.common.* // Constants like MAX_BITS
+import ai.solace.zlib.common.END_BLOCK
+import ai.solace.zlib.common.L_CODES
+import ai.solace.zlib.common.MAX_BITS
+import ai.solace.zlib.deflate.StaticTree
+import ai.solace.zlib.deflate.bi_reverse
+import ai.solace.zlib.deflate.d_code
+import ai.solace.zlib.deflate.gen_codes
 import kotlin.test.Test
-import kotlin.test.assertTrue
 import kotlin.test.assertEquals
-import kotlin.test.assertContentEquals
+import kotlin.test.assertTrue
 
 
 class TreeUtilsTest {
@@ -101,7 +105,7 @@ class TreeUtilsTest {
 
         // Populate bl_count for static_ltree (lengths are in static_ltree[i*2+1])
         // The original static_ltree is already populated with lengths.
-        for (i in 0 .. staticLDesc.max_code) { // max_code for static_ltree is L_CODES - 1
+        for (i in 0 until L_CODES) { // max_code for static_ltree is L_CODES - 1
             val len = StaticTree.static_ltree[i * 2 + 1].toInt() // Read from original static tree
             if (len != 0) {
                 blCount[len]++
