@@ -58,9 +58,7 @@ class Tree internal constructor() {
         // Mapping from a distance to a distance code. dist is the distance - 1 and
         // must not have side effects. _dist_code[256] and _dist_code[257] are never
         // used.
-        // fun d_code(dist: Int): Int // MOVED to TreeUtils.kt
-        // fun gen_codes(tree: ShortArray, max_code: Int, bl_count: ShortArray) // MOVED to TreeUtils.kt
-        // fun bi_reverse(code: Int, len: Int): Int // MOVED to TreeUtils.kt
+        // d_code, gen_codes, and bi_reverse were moved to TreeUtils.kt
     }
 
     lateinit var dyn_tree: ShortArray // the dynamic tree
@@ -75,9 +73,10 @@ class Tree internal constructor() {
     //     array bl_count contains the frequencies for each bit length.
     //     The length opt_len is updated; static_len is also updated if stree is
     //     not null.
-    // MOVED to TreeUtils.kt as: internal fun gen_bitlen(treeInstance: Tree, s: Deflate)
+    // gen_bitlen moved to TreeUtils.kt; called via wrapper below
     // Call wrapper:
     internal fun gen_bitlen(s: Deflate) {
+        // Calls TreeUtils.gen_bitlen (same package)
         gen_bitlen(this, s)
     }
 
@@ -87,9 +86,10 @@ class Tree internal constructor() {
     // OUT assertions: the fields len and code are set to the optimal bit length
     //     and corresponding code. The length opt_len is updated; static_len is
     //     also updated if stree is not null. The field max_code is set.
-    // MOVED to TreeUtils.kt as: internal fun build_tree(treeInstance: Tree, s: Deflate)
+    // build_tree moved to TreeUtils.kt; called via wrapper below
     // Call wrapper:
     internal fun build_tree(s: Deflate) {
+        // Calls TreeUtils.build_tree (same package)
         build_tree(this, s)
     }
 }
