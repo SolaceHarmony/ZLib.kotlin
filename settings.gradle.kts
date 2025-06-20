@@ -1,5 +1,4 @@
-rootProject.name = "Kognitive"
-enableFeaturePreview("TYPESAFE_PROJECT_ACCESSORS")
+rootProject.name = "ZLib"
 
 pluginManagement {
     repositories {
@@ -14,5 +13,3 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-
-include("shared")

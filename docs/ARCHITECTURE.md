@@ -79,7 +79,7 @@ graph TD
     Deflate --> Constants
     Deflate --> Tree
     Deflate --> ZStream
-    Deflate --> StaticTree % For config_table and other direct uses
+    Deflate --> StaticTree 
 
     Inflate --> Constants
     Inflate --> InfBlocks
@@ -89,23 +89,23 @@ graph TD
     InfBlocks --> InfBlocksUtils
     InfBlocks --> Constants
     InfBlocks --> ZStream
-    InfBlocks --> InfCodes % InfBlocks creates InfCodes instance
+    InfBlocks --> InfCodes %% InfBlocks creates InfCodes instance
 
     Tree --> TreeUtils
     Tree --> Constants
-    Tree --> StaticTree % Accesses static_l_desc etc.
+    Tree --> StaticTree %% Accesses static_l_desc etc.
 
     ZStream --> Constants
     ZStream --> Adler32
 
     ZInputStream --> ZStream
     ZInputStream --> ZStreamException
-    ZInputStream --> Constants % For Z_NO_FLUSH etc.
+    ZInputStream --> Constants %% For Z_NO_FLUSH etc.
 
     DeflateUtils --> Constants
     InfBlocksUtils --> Constants
     TreeUtils --> Constants
-    ConfigKt --> Constants % If Config uses any, good to show dependency
+    ConfigKt --> Constants %% If Config uses any, good to show dependency
     StaticTree --> Constants
     InfCodes --> Constants
     Adler32 --> Constants
@@ -123,19 +123,13 @@ The deflation process, primarily managed by `Deflate.kt`, involves several stage
 graph TD
     subgraph "Deflate Operations"
         direction LR
-        DeflateCore["Deflate.kt
-(Core deflation logic, e.g., deflate_fast, deflate_slow, longest_match)"]
-        DeflateUtils["DeflateUtils.kt
-(Bit/Byte I/O, block handling, data type setting)"]
-        Config["Config.kt
-(Compression parameters)"]
-        Tree["Tree.kt
-(Huffman tree construction - uses TreeUtils)"]
-        StaticTree["StaticTree.kt
-(Static tree definitions)"]
+        DeflateCore["Deflate.kt(Core deflation logic, e.g., deflate_fast, deflate_slow, longest_match)"]
+        DeflateUtils["DeflateUtils.kt(Bit/Byte I/O, block handling, data type setting)"]
+        Config["Config.kt(Compression parameters)"]
+        Tree["Tree.kt(Huffman tree construction - uses TreeUtils)"]
+        StaticTree["StaticTree.kt(Static tree definitions)"]
         Constants_Def["common/Constants.kt"]   subgraph "ZStream Handling"
-        ZStream_Def["ZStream.kt
-(Stream state)"]
+        ZStream_Def["ZStream.kt(Stream state)"]
     end
 
     DeflateCore -->|Uses for params| Config
@@ -158,20 +152,14 @@ The inflation process, managed by `Inflate.kt` and supported by `InfBlocks.kt` a
 graph TD
     subgraph "Inflate Operations"
         direction LR
-        InflateCore["Inflate.kt
-(Core inflation state machine)"]
-        InfBlocks["InfBlocks.kt
-(Manages inflation blocks, windowing - uses InfBlocksUtils)"]
-        InfCodes["InfCodes.kt
-(Huffman code processing)"]
-        InfBlocksUtils["InfBlocksUtils.kt
-(e.g., inflate_flush)"]
-        ZStream_Inf["ZStream.kt
-(Stream state, Adler32 checksum)"]
+        InflateCore["Inflate.kt(Core inflation state machine)"]
+        InfBlocks["InfBlocks.kt(Manages inflation blocks, windowing - uses InfBlocksUtils)"]
+        InfCodes["InfCodes.kt(Huffman code processing)"]
+        InfBlocksUtils["InfBlocksUtils.kt(e.g., inflate_flush)"]
+        ZStream_Inf["ZStream.kt(Stream state, Adler32 checksum)"]
         Adler32["Adler32.kt"]
         Constants_Inf2["common/Constants.kt"] subgraph "ZStream Handling"
-        ZStream_Inf["ZStream.kt
-(Stream state, Adler32 checksum)"]
+        ZStream_Inf["ZStream.kt(Stream state, Adler32 checksum)"]
     end
 
     InflateCore --> InfBlocks
