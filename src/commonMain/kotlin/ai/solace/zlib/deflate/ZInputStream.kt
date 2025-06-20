@@ -41,18 +41,14 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 * Jean-loup Gailly(jloup@gzip.org) and Mark Adler(madler@alumni.caltech.edu)
 * and contributors of zlib.
 */
-import ai.solace.zlib.common.Z_BUF_ERROR
-import ai.solace.zlib.common.Z_NO_FLUSH
-import ai.solace.zlib.common.Z_OK
-import ai.solace.zlib.common.Z_STREAM_END
+import ai.solace.zlib.common.*
 import ai.solace.zlib.deflate.ZStream
 import ai.solace.zlib.streams.InputStream
-import ai.solace.zlib.deflate.ZStreamException
 
-class ZInputStream(input: InputStream) : DataInputStream(input) {
+class ZInputStream(private val `in`: InputStream) : InputStream() {
     private val z = ZStream()
     private val bufsize = 512
-    private var flush = Z_NO_FLUSH // Use common constant
+    private var flush = Z_NO_FLUSH
     private val buf = ByteArray(bufsize)
     private val buf1 = ByteArray(1)
     private var compress: Boolean
@@ -78,7 +74,7 @@ class ZInputStream(input: InputStream) : DataInputStream(input) {
         z.avail_in = 0
     }
 
-    constructor(input: InputStream, level: Int) : this(input) {
+    constructor(`in`: InputStream, level: Int) : this(`in`) {
         z.deflateInit(level)
         compress = true
         z.next_in = buf
@@ -86,11 +82,11 @@ class ZInputStream(input: InputStream) : DataInputStream(input) {
         z.avail_in = 0
     }
 
-    fun read(): Int {
+    override fun read(): Int {
         return if (read(buf1, 0, 1) == -1) -1 else (buf1[0].toInt() and 0xFF)
     }
 
-    fun read(b: ByteArray, off: Int, len: Int): Int {
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
         if (len == 0) return 0
         var err: Int
         z.next_out = b
@@ -99,28 +95,22 @@ class ZInputStream(input: InputStream) : DataInputStream(input) {
         do {
             if (z.avail_in == 0 && !nomoreinput) {
                 z.next_in_index = 0
-                z.avail_in = SupportClass.readInput(`in`, buf, 0, bufsize)
+                z.avail_in = `in`.read(buf, 0, bufsize)
                 if (z.avail_in == -1) {
                     z.avail_in = 0
                     nomoreinput = true
                 }
             }
             err = if (compress) z.deflate(flush) else z.inflate(flush)
-            if (nomoreinput && err == Z_BUF_ERROR) return -1 // Use common constant
-            if (err != Z_OK && err != Z_STREAM_END) // Use common constants
+            if (nomoreinput && err == Z_BUF_ERROR) return -1
+            if (err != Z_OK && err != Z_STREAM_END)
                 throw ZStreamException((if (compress) "de" else "in") + "flating: " + z.msg)
             if (nomoreinput && z.avail_out == len) return -1
-        } while (z.avail_out == len && err == Z_OK) // Use common constant
+        } while (z.avail_out == len && err == Z_OK)
         return len - z.avail_out
     }
 
-    fun skip(n: Long): Long {
-        val len = 512.coerceAtMost(n.toInt())
-        val tmp = ByteArray(len)
-        return SupportClass.readInput(input, tmp, 0, tmp.size).toLong()
-    }
-
-    fun close() {
+    override fun close() {
         `in`.close()
     }
 }

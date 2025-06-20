@@ -44,7 +44,6 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.* // Import all constants
-import kotlin.collections.set
 
 internal class InfCodes {
 
@@ -470,7 +469,7 @@ internal class InfCodes {
         return Z_OK // Should be unreachable
     }
 
-    internal fun free(z: ZStream) {
+    internal fun free(z: ZStream?) {
         //  ZFREE(z, c);
     }
 
