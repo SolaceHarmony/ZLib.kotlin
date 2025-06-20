@@ -1,3 +1,4 @@
+@file:OptIn(ExperimentalUnsignedTypes::class)
 package ai.solace.zlib.common
 
 // This file will house constants extracted from various zlib implementation files.
