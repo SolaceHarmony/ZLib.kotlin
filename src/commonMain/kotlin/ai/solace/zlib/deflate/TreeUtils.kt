@@ -27,7 +27,7 @@ internal fun gen_codes(tree: ShortArray, max_code: Int, bl_count: ShortArray) {
     while (n <= max_code) {
         val len = tree[n * 2 + 1].toInt()
         if (len != 0) {
-            tree[n * 2] = bi_reverse(next_code[len]++, len).toShort()
+            tree[n * 2] = bi_reverse(next_code[len]++.toInt(), len).toShort()
         }
         n++
     }
@@ -88,8 +88,8 @@ internal fun gen_bitlen(treeInstance: Tree, s: Deflate) {
         xbits = 0
         if (n >= baseRenamed) xbits = extra!![n - baseRenamed]
         f = tree[n * 2]
-        s.opt_len += (f * (bits + xbits)).toLong()
-        if (stree != null) s.static_len += f * (stree[n * 2 + 1] + xbits).toLong()
+        s.opt_len += f * (bits + xbits)
+        if (stree != null) s.static_len += f * (stree[n * 2 + 1] + xbits)
         h++
     }
     if (overflow == 0) return
@@ -110,7 +110,7 @@ internal fun gen_bitlen(treeInstance: Tree, s: Deflate) {
             m = s.heap[--h]
             if (m > treeInstance.max_code) continue
             if (tree[m * 2 + 1].toInt() != bits) {
-                s.opt_len = (s.opt_len + (bits.toLong() - tree[m * 2 + 1].toLong()) * tree[m * 2].toLong()).toInt()
+                s.opt_len += (bits.toLong() - tree[m * 2 + 1].toLong()) * tree[m * 2].toLong()
                 tree[m * 2 + 1] = bits.toShort()
             }
             n--
