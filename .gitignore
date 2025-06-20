@@ -4,3 +4,4 @@
 # Ignore Gradle build output directory
 build
 # Contributor graph refresh
+Repository cleaned of bot references
