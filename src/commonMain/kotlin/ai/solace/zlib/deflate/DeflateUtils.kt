@@ -1,8 +1,6 @@
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.*
-import componentace.compression.libs.zlib.deflate.StaticTree
-import componentace.compression.libs.zlib.deflate.Tree
 
 
 // This file will house utility functions previously in Deflate.kt.
@@ -14,7 +12,7 @@ internal fun smaller(tree: ShortArray, n: Int, m: Int, depth: ByteArray): Boolea
 }
 
 internal fun put_byte(d: Deflate, p: ByteArray, start: Int, len: Int) {
-    System.arraycopy(p, start, d.pending_buf, d.pending, len)
+    p.copyInto(d.pending_buf, d.pending, start, start + len)
     d.pending += len
 }
 

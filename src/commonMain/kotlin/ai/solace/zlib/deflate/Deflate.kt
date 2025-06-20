@@ -1,10 +1,8 @@
 package ai.solace.zlib.deflate // Ensure correct package
 
+// Fix the imports to use the new package structure
+// For functions moved from Deflate.kt itself to DeflateUtils.kt
 import ai.solace.zlib.common.*
-import componentace.compression.libs.zlib.deflate.StaticTree
-import componentace.compression.libs.zlib.deflate.Tree
-// For functions moved from Tree.Companion to TreeUtils.kt
-import ai.solace.zlib.deflate.d_code // This is fine
 // For functions moved from Deflate.kt itself to DeflateUtils.kt
 import ai.solace.zlib.deflate.* // Wildcard import for all DeflateUtils
 
@@ -12,9 +10,6 @@ class Deflate {
 
     // Config class moved to Config.kt
 
-    private val STORED = 0 // Function type for stored block - kept local for config_table
-    private val FAST = 1   // Function type for fast block - kept local for config_table
-    private val SLOW = 2   // Function type for slow block - kept local for config_table
     private lateinit var config_table: Array<Config>
 
     internal lateinit var strm: ZStream
@@ -57,9 +52,9 @@ class Deflate {
     internal var good_match: Int = 0
     internal var nice_match: Int = 0
 
-    internal lateinit var dyn_ltree: ShortArray
-    internal lateinit var dyn_dtree: ShortArray
-    internal lateinit var bl_tree: ShortArray
+    internal var dyn_ltree: ShortArray
+    internal var dyn_dtree: ShortArray
+    internal var bl_tree: ShortArray
 
     internal var l_desc = Tree()
     internal var d_desc = Tree()
@@ -137,7 +132,7 @@ class Deflate {
 
     internal fun pqdownheap(tree: ShortArray, k_in: Int) {
         var k = k_in
-        var v = heap[k]
+        val v = heap[k]
         var j = k shl 1
         while (j <= heap_len) {
             if (j < heap_len && smaller(tree, heap[j + 1], heap[j], depth)) {
@@ -289,9 +284,9 @@ class Deflate {
             dyn_ltree[lc * 2]++
         } else {
             matches++
-            dist--
-            dyn_ltree[(TREE_LENGTH_CODE[lc] + LITERALS + 1) * 2]++
-            dyn_dtree[d_code(dist) * 2]++
+            val dist_val = dist - 1
+            dyn_ltree[(TREE_LENGTH_CODE[lc].toInt() + LITERALS + 1) * 2]++
+            dyn_dtree[d_code(dist_val) * 2]++
         }
 
         if ((last_lit and 0x1fff) == 0 && level > 2) {
@@ -307,7 +302,7 @@ class Deflate {
     }
 
     internal fun flush_block_only(eof: Boolean) {
-        _tr_flush_block(this, if (block_start >= 0) block_start else -1, strstart - block_start, eof)
+        _tr_flush_block(if (block_start >= 0) block_start else -1, strstart - block_start, eof)
         block_start = strstart
         strm.flush_pending()
     }
@@ -391,7 +386,7 @@ class Deflate {
             } else if (more == -1) {
                 more--
             } else if (strstart >= w_size + w_size - MIN_LOOKAHEAD) {
-                System.arraycopy(window, w_size, window, 0, w_size)
+                window.copyInto(window, 0, w_size, w_size)
                 match_start -= w_size
                 strstart -= w_size
                 block_start -= w_size
@@ -434,7 +429,7 @@ class Deflate {
                 prev[strstart and w_mask] = head[ins_h]
                 head[ins_h] = strstart.toShort()
             }
-            if (hash_head != 0L && ((strstart - hash_head) and 0xffff) <= w_size - MIN_LOOKAHEAD) {
+            if (hash_head != 0 && ((strstart - hash_head) and 0xffff) <= w_size - MIN_LOOKAHEAD) {
                 if (strategy != Z_HUFFMAN_ONLY) {
                     match_length = longest_match(hash_head)
                 }
@@ -603,14 +598,14 @@ class Deflate {
         strm.total_in = 0
         strm.total_out = 0
         strm.msg = null
-        strm.data_type = Z_UNKNOWN.toByte()
+        strm.data_type = Z_UNKNOWN
         pending = 0
         pending_out = 0
         if (noheader < 0) {
             noheader = 0
         }
         status = if (noheader != 0) BUSY_STATE else INIT_STATE
-        strm.adler = strm._adler.adler32(0, null, 0, 0)
+        strm.adler = strm._adler!!.adler32(0, null, 0, 0)
         last_flush = Z_NO_FLUSH
         tr_init()
         lm_init()
@@ -654,14 +649,14 @@ class Deflate {
     internal fun deflateSetDictionary(strm: ZStream, dictionary: ByteArray, dictLength: Int): Int {
         var length = dictLength
         var index = 0
-        if (dictionary == null || status != INIT_STATE) return Z_STREAM_ERROR
-        strm.adler = strm._adler.adler32(strm.adler, dictionary, 0, dictLength)
+        if (status != INIT_STATE) return Z_STREAM_ERROR
+        strm.adler = strm._adler!!.adler32(strm.adler, dictionary, 0, dictLength)
         if (length < MIN_MATCH) return Z_OK
         if (length > w_size - MIN_LOOKAHEAD) {
             length = w_size - MIN_LOOKAHEAD
             index = dictLength - length
         }
-        System.arraycopy(dictionary, index, window, 0, length)
+        dictionary.copyInto(window, 0, index, length)
         strstart = length
         block_start = length
         ins_h = window[0].toInt() and 0xff
@@ -676,10 +671,10 @@ class Deflate {
 
     internal fun deflateInit2(strm: ZStream, level_param: Int, method_param: Int, windowBits_param: Int, memLevel_param: Int, strategy_param: Int): Int {
         var level_val = level_param
-        var method_val = method_param
+        val method_val = method_param
         var windowBits_val = windowBits_param
-        var memLevel_val = memLevel_param
-        var strategy_val = strategy_param
+        val memLevel_val = memLevel_param
+        val strategy_val = strategy_param
 
         var noheader_local = 0
         strm.msg = null
@@ -743,7 +738,7 @@ class Deflate {
                 putShortMSB(this, (strm.adler ushr 16).toInt())
                 putShortMSB(this, (strm.adler and 0xffff).toInt())
             }
-            strm.adler = strm._adler.adler32(0, null, 0, 0)
+            strm.adler = strm._adler!!.adler32(0, null, 0, 0)
         }
         if (pending != 0) {
             strm.flush_pending()
@@ -802,6 +797,10 @@ class Deflate {
     }
 
     companion object {
+        private const val STORED = 0
+        private const val FAST = 1
+        private const val SLOW = 2
+        private val config_table: Array<Config>
         init {
             config_table = arrayOf(
                 Config(0, 0, 0, 0, STORED),

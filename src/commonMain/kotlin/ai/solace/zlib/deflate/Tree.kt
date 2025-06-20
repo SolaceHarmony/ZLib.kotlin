@@ -41,9 +41,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 * Jean-loup Gailly(jloup@gzip.org) and Mark Adler(madler@alumni.caltech.edu)
 * and contributors of zlib.
 */
-package componentace.compression.libs.zlib.deflate
-
-import ai.solace.zlib.common.* // Import all constants
+package ai.solace.zlib.deflate
 
 class Tree internal constructor() {
     companion object {
@@ -67,7 +65,7 @@ class Tree internal constructor() {
 
     lateinit var dyn_tree: ShortArray // the dynamic tree
     var max_code: Int = 0 // largest code with non zero frequency
-    lateinit var stat_desc: StaticTree // the corresponding static tree
+    internal lateinit var stat_desc: StaticTree // the corresponding static tree
 
     // Compute the optimal bit lengths for a tree and update the total bit length
     // for the current block.
@@ -80,7 +78,7 @@ class Tree internal constructor() {
     // MOVED to TreeUtils.kt as: internal fun gen_bitlen(treeInstance: Tree, s: Deflate)
     // Call wrapper:
     internal fun gen_bitlen(s: Deflate) {
-        ai.solace.zlib.deflate.gen_bitlen(this, s)
+        gen_bitlen(this, s)
     }
 
     // Construct one Huffman tree and assigns the code bit strings and lengths.
@@ -92,6 +90,6 @@ class Tree internal constructor() {
     // MOVED to TreeUtils.kt as: internal fun build_tree(treeInstance: Tree, s: Deflate)
     // Call wrapper:
     internal fun build_tree(s: Deflate) {
-        ai.solace.zlib.deflate.build_tree(this, s)
+        build_tree(this, s)
     }
 }

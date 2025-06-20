@@ -45,8 +45,9 @@ import ai.solace.zlib.common.Z_BUF_ERROR
 import ai.solace.zlib.common.Z_NO_FLUSH
 import ai.solace.zlib.common.Z_OK
 import ai.solace.zlib.common.Z_STREAM_END
-import java.io.InputStream
-import java.io.DataInputStream
+import ai.solace.zlib.deflate.ZStream
+import ai.solace.zlib.streams.InputStream
+import ai.solace.zlib.deflate.ZStreamException
 
 class ZInputStream(input: InputStream) : DataInputStream(input) {
     private val z = ZStream()
@@ -54,7 +55,7 @@ class ZInputStream(input: InputStream) : DataInputStream(input) {
     private var flush = Z_NO_FLUSH // Use common constant
     private val buf = ByteArray(bufsize)
     private val buf1 = ByteArray(1)
-    private val compress: Boolean
+    private var compress: Boolean
     private var nomoreinput = false
 
     var flushMode: Int
@@ -85,7 +86,7 @@ class ZInputStream(input: InputStream) : DataInputStream(input) {
         z.avail_in = 0
     }
 
-    override fun read(): Int {
+    fun read(): Int {
         return if (read(buf1, 0, 1) == -1) -1 else (buf1[0].toInt() and 0xFF)
     }
 
@@ -119,7 +120,7 @@ class ZInputStream(input: InputStream) : DataInputStream(input) {
         return SupportClass.readInput(input, tmp, 0, tmp.size).toLong()
     }
 
-    override fun close() {
+    fun close() {
         `in`.close()
     }
 }

@@ -1,8 +1,6 @@
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.*
-import componentace.compression.libs.zlib.deflate.ZStream
-import componentace.compression.libs.zlib.deflate.InfBlocks
 
 // Utility functions for InfBlocks operations
 
@@ -27,7 +25,7 @@ internal fun inflate_flush(s: InfBlocks, z: ZStream, r_in: Int): Int {
     z.total_out += n.toLong()
 
     // update check information
-    if (s.checkfn != null) z.adler = s.check.apply { s.check = z._adler.adler32(s.check, s.window, q, n) }
+    if (s.checkfn != null) z.adler = s.check.apply { s.check = z._adler!!.adler32(s.check, s.window, q, n) }
 
 
     // copy as far as end of window
@@ -51,7 +49,7 @@ internal fun inflate_flush(s: InfBlocks, z: ZStream, r_in: Int): Int {
         z.total_out += n.toLong()
 
         // update check information
-        if (s.checkfn != null) z.adler = s.check.apply { s.check = z._adler.adler32(s.check, s.window, q, n) }
+        if (s.checkfn != null) z.adler = s.check.apply { s.check = z._adler!!.adler32(s.check, s.window, q, n) }
 
 
         // copy

@@ -41,9 +41,10 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 * Jean-loup Gailly(jloup@gzip.org) and Mark Adler(madler@alumni.caltech.edu)
 * and contributors of zlib.
 */
-package componentace.compression.libs.zlib.deflate
+package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.* // Import all constants
+import kotlin.collections.set
 
 internal class InfCodes {
 
@@ -52,7 +53,7 @@ internal class InfCodes {
     // mode dependent information
     private var len: Int = 0
 
-    private lateinit var tree: IntArray // pointer into tree
+    private var tree: IntArray = IntArray(0)
     private var treeIndex: Int = 0
     private var need: Int = 0 // bits needed
 
@@ -64,9 +65,9 @@ internal class InfCodes {
 
     private var lbits: Byte = 0 // ltree bits decoded per branch
     private var dbits: Byte = 0 // dtree bits decoder per branch
-    private lateinit var ltree: IntArray // literal/length/eob tree
+    private var ltree: IntArray = IntArray(0)
     private var ltreeIndex: Int = 0 // literal/length/eob tree
-    private lateinit var dtree: IntArray // distance tree
+    private var dtree: IntArray = IntArray(0)
     private var dtreeIndex: Int = 0 // distance tree
 
     constructor(bl: Int, bd: Int, tl: IntArray, tlIndex: Int, td: IntArray, tdIndex: Int, z: ZStream) {
@@ -162,7 +163,7 @@ internal class InfCodes {
                             return s.inflate_flush(z, result)
                         }
                         n--
-                        b = b or ((z.next_in[p++].toInt() and 0xff) shl k)
+                        b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
                         k += 8
                     }
 
@@ -226,7 +227,7 @@ internal class InfCodes {
                             return s.inflate_flush(z, result)
                         }
                         n--
-                        b = b or ((z.next_in[p++].toInt() and 0xff) shl k)
+                        b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
                         k += 8
                     }
 
@@ -258,7 +259,7 @@ internal class InfCodes {
                             return s.inflate_flush(z, result)
                         }
                         n--
-                        b = b or ((z.next_in[p++].toInt() and 0xff) shl k)
+                        b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
                         k += 8
                     }
 
@@ -310,7 +311,7 @@ internal class InfCodes {
                             return s.inflate_flush(z, result)
                         }
                         n--
-                        b = b or ((z.next_in[p++].toInt() and 0xff) shl k)
+                        b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
                         k += 8
                     }
 
@@ -466,6 +467,7 @@ internal class InfCodes {
                 }
             }
         }
+        return Z_OK // Should be unreachable
     }
 
     internal fun free(z: ZStream) {
@@ -522,7 +524,7 @@ internal class InfCodes {
             while (k < 20) {
                 // max bits for literal/length code
                 n--
-                b = b or ((z.next_in[p++].toInt() and 0xff) shl k)
+                b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
                 k += 8
             }
 
@@ -554,7 +556,7 @@ internal class InfCodes {
                     while (k < 15) {
                         // max bits for distance code
                         n--
-                        b = b or ((z.next_in[p++].toInt() and 0xff) shl k)
+                        b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
                         k += 8
                     }
 
@@ -574,7 +576,7 @@ internal class InfCodes {
                             while (k < e) {
                                 // get extra bits (up to 13)
                                 n--
-                                b = b or ((z.next_in[p++].toInt() and 0xff) shl k)
+                                b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
                                 k += 8
                             }
 
@@ -595,7 +597,7 @@ internal class InfCodes {
                                     s.window[q++] = s.window[r++]
                                     c-- // so unroll loop a little
                                 } else {
-                                    System.arraycopy(s.window, r, s.window, q, 2)
+                                    s.window.copyInto(s.window, q, r, r + 2)
                                     q += 2
                                     r += 2
                                     c -= 2
@@ -615,7 +617,7 @@ internal class InfCodes {
                                             s.window[q++] = s.window[r++]
                                         } while (--e != 0)
                                     } else {
-                                        System.arraycopy(s.window, r, s.window, q, e)
+                                        s.window.copyInto(s.window, q, r, r + e)
                                         q += e
                                         r += e
                                         e = 0
@@ -630,7 +632,7 @@ internal class InfCodes {
                                     s.window[q++] = s.window[r++]
                                 } while (--c != 0)
                             } else {
-                                System.arraycopy(s.window, r, s.window, q, c)
+                                s.window.copyInto(s.window, q, r, r + c)
                                 q += c
                                 r += c
                                 c = 0
