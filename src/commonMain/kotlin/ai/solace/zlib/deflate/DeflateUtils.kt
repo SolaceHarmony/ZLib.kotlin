@@ -35,10 +35,11 @@ internal fun send_bits(d: Deflate, value: Int, length: Int) {
     val len = length
     val old_bi_valid = d.bi_valid
     if (old_bi_valid > 16 - len) {  // 16 is BUF_SIZE (bits in a Short * 2)
-        var bi_buf_int = d.bi_buf.toInt() and 0xffff
-        // Fill and flush the buffer
-        bi_buf_int = bi_buf_int or (value shl old_bi_valid)
-        put_short(d, bi_buf_int and 0xffff)
+        var bi_buf_val = d.bi_buf.toInt() and 0xffff
+        val val_shifted = value shl old_bi_valid
+        val val_shifted_masked = val_shifted and 0xffff
+        val combined_val_for_flush = bi_buf_val or val_shifted_masked
+        put_short(d, combined_val_for_flush)
 
         // Place remaining bits in the buffer
         val bits_already_written = 16 - old_bi_valid  // 16 is BUF_SIZE
