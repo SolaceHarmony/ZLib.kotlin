@@ -11,6 +11,23 @@ kotlin {
             }
         }
     }
+
+    linuxX64("linux") {
+        binaries {
+            executable() // Defines a default executable
+        }
+        compilations.getByName("main").defaultSourceSet.dependsOn(sourceSets.getByName("commonMain"))
+        compilations.getByName("test").defaultSourceSet.dependsOn(sourceSets.getByName("commonTest"))
+    }
+
+    linuxArm64("linuxArm") {
+        binaries {
+            executable() // Defines a default executable
+        }
+        compilations.getByName("main").defaultSourceSet.dependsOn(sourceSets.getByName("commonMain"))
+        compilations.getByName("test").defaultSourceSet.dependsOn(sourceSets.getByName("commonTest"))
+    }
+
     sourceSets {
         val commonMain by getting {
             dependencies {
