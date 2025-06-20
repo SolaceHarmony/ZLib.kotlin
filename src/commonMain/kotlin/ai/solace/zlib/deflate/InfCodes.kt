@@ -159,7 +159,7 @@ internal class InfCodes {
                             z.total_in += p - z.next_in_index
                             z.next_in_index = p
                             s.write = q
-                            return s.inflate_flush(z, result)
+                            return inflate_flush(s, z, result)
                         }
                         n--
                         b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
@@ -207,7 +207,7 @@ internal class InfCodes {
                     z.total_in += p - z.next_in_index
                     z.next_in_index = p
                     s.write = q
-                    return s.inflate_flush(z, result)
+                    return inflate_flush(s, z, result)
                 }
 
                 ICODES_LENEXT -> {  // i: getting length extra (have base)
@@ -223,7 +223,7 @@ internal class InfCodes {
                             z.total_in += p - z.next_in_index
                             z.next_in_index = p
                             s.write = q
-                            return s.inflate_flush(z, result)
+                            return inflate_flush(s, z, result)
                         }
                         n--
                         b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
@@ -255,7 +255,7 @@ internal class InfCodes {
                             z.total_in += p - z.next_in_index
                             z.next_in_index = p
                             s.write = q
-                            return s.inflate_flush(z, result)
+                            return inflate_flush(s, z, result)
                         }
                         n--
                         b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
@@ -291,7 +291,7 @@ internal class InfCodes {
                     z.total_in += p - z.next_in_index
                     z.next_in_index = p
                     s.write = q
-                    return s.inflate_flush(z, result)
+                    return inflate_flush(s, z, result)
                 }
 
                 ICODES_DISTEXT -> {  // i: getting distance extra
@@ -307,7 +307,7 @@ internal class InfCodes {
                             z.total_in += p - z.next_in_index
                             z.next_in_index = p
                             s.write = q
-                            return s.inflate_flush(z, result)
+                            return inflate_flush(s, z, result)
                         }
                         n--
                         b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
@@ -338,7 +338,7 @@ internal class InfCodes {
                             }
                             if (m == 0) {
                                 s.write = q
-                                result = s.inflate_flush(z, result)
+                                result = inflate_flush(s, z, result)
                                 q = s.write
                                 m = if (q < s.read) s.read - q - 1 else s.end - q
 
@@ -354,7 +354,7 @@ internal class InfCodes {
                                     z.total_in += p - z.next_in_index
                                     z.next_in_index = p
                                     s.write = q
-                                    return s.inflate_flush(z, result)
+                                    return inflate_flush(s, z, result)
                                 }
                             }
                         }
@@ -376,7 +376,7 @@ internal class InfCodes {
                         }
                         if (m == 0) {
                             s.write = q
-                            result = s.inflate_flush(z, result)
+                            result = inflate_flush(s, z, result)
                             q = s.write
                             m = if (q < s.read) s.read - q - 1 else s.end - q
 
@@ -391,7 +391,7 @@ internal class InfCodes {
                                 z.total_in += p - z.next_in_index
                                 z.next_in_index = p
                                 s.write = q
-                                return s.inflate_flush(z, result)
+                                return inflate_flush(s, z, result)
                             }
                         }
                     }
@@ -412,7 +412,7 @@ internal class InfCodes {
                     }
 
                     s.write = q
-                    result = s.inflate_flush(z, result)
+                    result = inflate_flush(s, z, result)
                     q = s.write
                     m = if (q < s.read) s.read - q - 1 else s.end - q
 
@@ -423,7 +423,7 @@ internal class InfCodes {
                         z.total_in += p - z.next_in_index
                         z.next_in_index = p
                         s.write = q
-                        return s.inflate_flush(z, result)
+                        return inflate_flush(s, z, result)
                     }
                     mode = ICODES_END
                     continue
@@ -437,7 +437,7 @@ internal class InfCodes {
                     z.total_in += p - z.next_in_index
                     z.next_in_index = p
                     s.write = q
-                    return s.inflate_flush(z, result)
+                    return inflate_flush(s, z, result)
                 }
 
                 ICODES_BADCODE -> {  // x: got error
@@ -450,7 +450,7 @@ internal class InfCodes {
                     z.total_in += p - z.next_in_index
                     z.next_in_index = p
                     s.write = q
-                    return s.inflate_flush(z, result)
+                    return inflate_flush(s, z, result)
                 }
 
                 else -> {
@@ -462,7 +462,7 @@ internal class InfCodes {
                     z.total_in += p - z.next_in_index
                     z.next_in_index = p
                     s.write = q
-                    return s.inflate_flush(z, result)
+                    return inflate_flush(s, z, result)
                 }
             }
         }
