@@ -105,7 +105,7 @@ class DeflateUtilsTest {
         //    d.bi_valid = 16
         send_bits(d, 0xAAAA, 16)
         assertEquals(16, d.bi_valid)
-        assertEquals(0xAAAA, d.bi_buf.toInt())
+        assertEquals(0xAAAA, d.bi_buf.toInt() and 0xffff) // Masking to handle sign extension
         assertEquals(0, d.pending, "Pending should be 0 before explicit flush condition")
 
         // 2. send_bits(d, 0x05, 3)
