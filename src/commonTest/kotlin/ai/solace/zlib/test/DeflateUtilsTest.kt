@@ -1,11 +1,13 @@
 package ai.solace.zlib.test
 
 import ai.solace.zlib.common.*
-import ai.solace.zlib.deflate.Deflate // Full Deflate class for state
-import ai.solace.zlib.deflate.DeflateUtils // This is what we are testing
-import ai.solace.zlib.deflate.StaticTree
+import ai.solace.zlib.deflate.Deflate
+import ai.solace.zlib.deflate.*
 import ai.solace.zlib.deflate.ZStream
 import kotlin.test.*
+
+private val DeflateUtilsTest.PENDING_BUF_SIZE: Int
+    get() = 65536
 
 class DeflateUtilsTest {
 
@@ -18,7 +20,7 @@ class DeflateUtilsTest {
         d.strm = stream // Deflate instance methods might use this
         stream.dstate = d // Link back
 
-        d.status = Deflate.INIT_STATE // A valid initial status (typically 42)
+        d.status = INIT_STATE // A valid initial status (typically 42)
         d.pending_buf = ByteArray(PENDING_BUF_SIZE) // From Constants.kt or Deflate companion
         d.pending = 0
         d.bi_buf = 0
@@ -54,7 +56,7 @@ class DeflateUtilsTest {
         val d = createDeflateState()
         d.pending = 0
         val value = 0x1234
-        DeflateUtils.put_short(d, value)
+        put_short(d, value)
         assertEquals(2, d.pending, "Pending offset should advance by 2")
         assertEquals(0x34.toByte(), d.pending_buf[0], "Byte 0 (little-endian)")
         assertEquals(0x12.toByte(), d.pending_buf[1], "Byte 1 (little-endian)")
@@ -65,7 +67,7 @@ class DeflateUtilsTest {
         val d = createDeflateState()
         d.pending = 0
         val value = 0x1234
-        DeflateUtils.putShortMSB(d, value)
+        putShortMSB(d, value)
         assertEquals(2, d.pending, "Pending offset should advance by 2")
         assertEquals(0x12.toByte(), d.pending_buf[0], "Byte 0 (big-endian)")
         assertEquals(0x34.toByte(), d.pending_buf[1], "Byte 1 (big-endian)")
@@ -77,11 +79,11 @@ class DeflateUtilsTest {
         d.bi_buf = 0
         d.bi_valid = 0
 
-        DeflateUtils.send_bits(d, 0b101, 3) // value, length
+        send_bits(d, 0b101, 3) // value, length
         assertEquals(3, d.bi_valid)
         assertEquals(0b101, d.bi_buf.toInt()) // bi_buf is Short, compare with Int
 
-        DeflateUtils.send_bits(d, 0b11, 2) // value, length
+        send_bits(d, 0b11, 2) // value, length
         assertEquals(5, d.bi_valid)
         // Expected: existing bi_buf OR (new_value LSL current_bi_valid)
         // 0b101 | (0b11 << 3) = 0b101 | 0b11000 = 0b11101 (29)
@@ -101,7 +103,7 @@ class DeflateUtilsTest {
         //    bi_valid = 0, len = 16.  0 > 16 - 16 (false).
         //    d.bi_buf = (0 | (0xAAAA << 0)) = 0xAAAA
         //    d.bi_valid = 16
-        DeflateUtils.send_bits(d, 0xAAAA, 16)
+        send_bits(d, 0xAAAA, 16)
         assertEquals(16, d.bi_valid)
         assertEquals(0xAAAA, d.bi_buf.toInt())
         assertEquals(0, d.pending, "Pending should be 0 before explicit flush condition")
@@ -118,7 +120,7 @@ class DeflateUtilsTest {
         //    put_short(d, d.bi_buf) -> puts 0xAAAA
         //    d.bi_buf = (value_Renamed ushr (BUF_SIZE - d.bi_valid_old)).toShort() -> (0x05 ushr (16-16)) = 0x05
         //    d.bi_valid = d.bi_valid_old + len - BUF_SIZE = 16 + 3 - 16 = 3
-        DeflateUtils.send_bits(d, 0x05, 3)
+        send_bits(d, 0x05, 3)
 
         assertEquals(3, d.bi_valid, "bi_valid after flush")
         assertEquals(0x05, d.bi_buf.toInt(), "bi_buf after flush")
@@ -127,4 +129,3 @@ class DeflateUtilsTest {
         assertEquals(2, d.pending, "Pending should be 2 after flush")
     }
 }
-```
