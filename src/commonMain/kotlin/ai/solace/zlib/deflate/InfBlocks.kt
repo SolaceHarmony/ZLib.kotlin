@@ -45,7 +45,6 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 import ai.solace.zlib.common.*
-import ai.solace.zlib.deflate.ZStream
 
 class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
     companion object {
@@ -81,7 +80,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         reset(z, null)
     }
 
-    fun reset(z: ZStream, c: LongArray?) {
+    fun reset(z: ZStream?, c: LongArray?) {
         if (c != null) c[0] = check
         if (mode == IBLK_BTREE || mode == IBLK_DTREE) {
             blens = null
@@ -95,8 +94,8 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         read = 0
         write = 0
         if (checkfn != null) {
-            z.adler = Adler32().adler32(0L, null, 0, 0)
-            check = z.adler
+            z?.adler = Adler32().adler32(0L, null, 0, 0)
+            check = z!!.adler
         }
     }
 
@@ -392,7 +391,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         }
     }
 
-    fun free(z: ZStream) {
+    fun free(z: ZStream?) {
         reset(z, null)
         // window = null // Not possible in Kotlin like this
         // hufts = null

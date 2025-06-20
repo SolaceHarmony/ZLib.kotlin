@@ -1,6 +1,6 @@
 package ai.solace.zlib.streams
 
-expect abstract class InputStream {
+expect abstract class InputStream() {
     abstract fun read(): Int
     open fun read(b: ByteArray): Int
     open fun read(b: ByteArray, off: Int, len: Int): Int

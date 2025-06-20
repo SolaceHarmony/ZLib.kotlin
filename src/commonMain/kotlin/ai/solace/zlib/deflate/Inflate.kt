@@ -43,7 +43,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package ai.solace.zlib.deflate
 
-import ai.solace.zlib.common.* // Import all constants
+import ai.solace.zlib.common.*
 
 internal class Inflate {
 
@@ -91,15 +91,15 @@ internal class Inflate {
         return Z_OK
     }
 
-    internal fun inflateInit(z: ZStream?, w: Int): Int {
-        z?.msg = null
+    internal fun inflateInit(z: ZStream, w: Int): Int {
+        z.msg = null
         blocks = null
 
         // handle undocumented nowrap option (no zlib header or check)
         nowrap = 0
         var wMut = w
-        if (w < 0) {
-            wMut = -w
+        if (wMut < 0) {
+            wMut = -wMut
             nowrap = 1
         }
 
@@ -110,7 +110,7 @@ internal class Inflate {
         }
         wbits = wMut
 
-        z!!.istate!!.blocks = InfBlocks(z!!, if (z!!.istate!!.nowrap != 0) null else this, 1 shl wMut)
+        z.istate!!.blocks = InfBlocks(z, if (z.istate!!.nowrap != 0) null else this, 1 shl wMut)
 
         // reset state
         inflateReset(z)
@@ -124,21 +124,20 @@ internal class Inflate {
         val fMut = if (f == Z_FINISH) Z_BUF_ERROR else Z_OK
         r = Z_BUF_ERROR
         while (true) {
-            //System.out.println("mode: "+z.istate.mode);
             when (z.istate!!.mode) {
                 INF_METHOD -> {
                     if (z.avail_in == 0) return r
                     r = fMut
                     z.avail_in--
                     z.total_in++
-                    if ((z.istate!!.method.also { z.istate!!.method = z.next_in!![z.next_in_index++] }
-                            .toInt() and 0xf) != Z_DEFLATED) {
+                    z.istate!!.method = z.next_in!![z.next_in_index++].toInt() and 0xff
+                    if ((z.istate!!.method and 0xf) != Z_DEFLATED) {
                         z.istate!!.mode = INF_BAD
                         z.msg = "unknown compression method"
                         z.istate!!.marker = 5 // can't try inflateSync
                         break
                     }
-                    if ((z.istate!!.method.toInt() shr 4) + 8 > z.istate!!.wbits) {
+                    if ((z.istate!!.method shr 4) + 8 > z.istate!!.wbits) {
                         z.istate!!.mode = INF_BAD
                         z.msg = "invalid window size"
                         z.istate!!.marker = 5 // can't try inflateSync
@@ -155,7 +154,7 @@ internal class Inflate {
                     z.total_in++
                     b = z.next_in!![z.next_in_index++].toInt() and 0xff
 
-                    if (((z.istate!!.method.toInt() shl 8) + b) % 31 != 0) {
+                    if (((z.istate!!.method shl 8) + b) % 31 != 0) {
                         z.istate!!.mode = INF_BAD
                         z.msg = "incorrect header check"
                         z.istate!!.marker = 5 // can't try inflateSync
@@ -175,9 +174,7 @@ internal class Inflate {
 
                     z.avail_in--
                     z.total_in++
-                    z.istate!!.need =
-                        ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 24).toLong() and 0xff000000L.toInt()
-                            .toLong()
+                    z.istate!!.need = ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 24).toLong()
                     z.istate!!.mode = INF_DICT3
                 }
 
@@ -187,8 +184,7 @@ internal class Inflate {
 
                     z.avail_in--
                     z.total_in++
-                    z.istate!!.need +=
-                        ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 16).toLong() and 0xff0000L
+                    z.istate!!.need += ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 16).toLong()
                     z.istate!!.mode = INF_DICT2
                 }
 
@@ -198,8 +194,7 @@ internal class Inflate {
 
                     z.avail_in--
                     z.total_in++
-                    z.istate!!.need +=
-                        ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 8).toLong() and 0xff00L
+                    z.istate!!.need += ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 8).toLong()
                     z.istate!!.mode = INF_DICT1
                 }
 
@@ -246,9 +241,7 @@ internal class Inflate {
 
                     z.avail_in--
                     z.total_in++
-                    z.istate!!.need =
-                        ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 24).toLong() and 0xff000000L.toInt()
-                            .toLong()
+                    z.istate!!.need = ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 24).toLong()
                     z.istate!!.mode = INF_CHECK3
                 }
 
@@ -258,8 +251,7 @@ internal class Inflate {
 
                     z.avail_in--
                     z.total_in++
-                    z.istate!!.need +=
-                        ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 16).toLong() and 0xff0000L
+                    z.istate!!.need += ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 16).toLong()
                     z.istate!!.mode = INF_CHECK2
                 }
 
@@ -269,8 +261,7 @@ internal class Inflate {
 
                     z.avail_in--
                     z.total_in++
-                    z.istate!!.need +=
-                        ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 8).toLong() and 0xff00L
+                    z.istate!!.need += ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 8).toLong()
                     z.istate!!.mode = INF_CHECK1
                 }
 
@@ -282,7 +273,7 @@ internal class Inflate {
                     z.total_in++
                     z.istate!!.need += (z.next_in!![z.next_in_index++].toInt() and 0xff).toLong()
 
-                    if (z.istate!!.was[0].toInt() != z.istate!!.need.toInt()) {
+                    if (z.istate!!.was[0] != z.istate!!.need) {
                         z.istate!!.mode = INF_BAD
                         z.msg = "incorrect data check"
                         z.istate!!.marker = 5 // can't try inflateSync
@@ -297,12 +288,12 @@ internal class Inflate {
                 else -> return Z_STREAM_ERROR
             }
         }
-        return TODO("Provide the return value")
+        return Z_OK
     }
 
     internal fun inflateSetDictionary(z: ZStream?, dictionary: ByteArray?, dictLength: Int): Int {
-        val lengthMut = dictLength.coerceAtMost(1 shl z!!.istate!!.wbits)
-        val index = if (lengthMut < dictLength) dictLength - lengthMut else 0
+        var lengthMut = dictLength
+        var index = 0
 
         if (z == null || z.istate == null || z.istate!!.mode != INF_DICT0) return Z_STREAM_ERROR
 
@@ -311,12 +302,16 @@ internal class Inflate {
         }
 
         z.adler = z._adler!!.adler32(0, null, 0, 0)
+
+        val wsize = 1 shl z.istate!!.wbits
+        if (lengthMut >= wsize) {
+            lengthMut = wsize
+            index = dictLength - lengthMut
+        }
         z.istate!!.blocks!!.set_dictionary(dictionary!!, index, lengthMut)
         z.istate!!.mode = INF_BLOCKS
         return Z_OK
     }
-
-    // private val mark = byteArrayOf(0, 0, (-1).toByte(), (-1).toByte()) // Moved to INF_MARK in Constants.kt
 
     internal fun inflateSync(z: ZStream?): Int {
         var n: Int // number of bytes to look at
@@ -338,7 +333,7 @@ internal class Inflate {
         // search
         while (n != 0 && m < 4) {
             m = when {
-                z.next_in!![p] == INF_MARK[m] -> m + 1 // INF_MARK from common
+                z.next_in!![p] == INF_MARK[m] -> m + 1
                 z.next_in!![p] != 0.toByte() -> 0
                 else -> 4 - m
             }
@@ -369,10 +364,9 @@ internal class Inflate {
     // by Z_SYNC_FLUSH or Z_FULL_FLUSH. This function is used by one PPP
     // implementation to provide an additional safety check. PPP uses Z_SYNC_FLUSH
     // but removes the length bytes of the resulting empty stored block. When
-    // decompressing, PPP checks that at the end of input packet, inflate is
+    // decompressing, PPP checks that at the end of the packet, inflate is
     // waiting for these length bytes.
-    internal fun inflateSyncPoint(z: ZStream?): Int {
-        if (z == null || z.istate == null || z.istate!!.blocks == null) return Z_STREAM_ERROR
-        return z.istate!!.blocks!!.sync_point
+    internal fun inflateSyncPoint(z: ZStream?): Boolean {
+        return z?.istate?.blocks?.sync_point == 1
     }
 }
