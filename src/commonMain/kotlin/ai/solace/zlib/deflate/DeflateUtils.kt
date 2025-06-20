@@ -30,17 +30,24 @@ internal fun putShortMSB(d: Deflate, b: Int) {
     put_byte(d, b.toByte())
 }
 
-internal fun send_bits(d: Deflate, value_Renamed: Int, length: Int) {
+internal fun send_bits(d: Deflate, value: Int, length: Int) {
+    if (length == 0) return
     val len = length
-    if (d.bi_valid > BUF_SIZE - len) {
-        val value = value_Renamed
-        d.bi_buf = ((d.bi_buf.toInt() and 0xFFFF) or (value shl d.bi_valid)).toShort()
-        put_short(d, d.bi_buf.toInt())
-        d.bi_buf = (value ushr (BUF_SIZE - d.bi_valid)).toShort()
-        d.bi_valid += len - BUF_SIZE
+    val old_bi_valid = d.bi_valid
+    if (old_bi_valid > 16 - len) {  // 16 is BUF_SIZE (bits in a Short * 2)
+        var bi_buf_int = d.bi_buf.toInt() and 0xffff
+        // Fill and flush the buffer
+        bi_buf_int = bi_buf_int or (value shl old_bi_valid)
+        put_short(d, bi_buf_int and 0xffff)
+
+        // Place remaining bits in the buffer
+        val bits_already_written = 16 - old_bi_valid  // 16 is BUF_SIZE
+        d.bi_buf = (value ushr bits_already_written).toShort()
+        d.bi_valid = old_bi_valid + len - 16  // 16 is BUF_SIZE
     } else {
-        d.bi_buf = ((d.bi_buf.toInt() and 0xFFFF) or (value_Renamed shl d.bi_valid)).toShort()
-        d.bi_valid += len
+        val bi_buf_int = (d.bi_buf.toInt() and 0xffff) or (value shl old_bi_valid)
+        d.bi_buf = bi_buf_int.toShort()
+        d.bi_valid = old_bi_valid + len
     }
 }
 
