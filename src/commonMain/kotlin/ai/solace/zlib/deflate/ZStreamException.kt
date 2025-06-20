@@ -42,11 +42,10 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 * and contributors of zlib.
 */
 
-package componentace.compression.libs.zlib.deflate
+package ai.solace.zlib.deflate
 
-import java.io.IOException
 
-class ZStreamException : IOException {
+class ZStreamException : Exception {
     constructor() : super()
     constructor(s: String) : super(s)
 }

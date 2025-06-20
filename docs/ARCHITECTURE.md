@@ -156,20 +156,22 @@ graph TD
         InfBlocks["InfBlocks.kt(Manages inflation blocks, windowing - uses InfBlocksUtils)"]
         InfCodes["InfCodes.kt(Huffman code processing)"]
         InfBlocksUtils["InfBlocksUtils.kt(e.g., inflate_flush)"]
+        Constants_Inf2["common/Constants.kt"]
+    end
+    subgraph "ZStream Handling"
+        direction LR
         ZStream_Inf["ZStream.kt(Stream state, Adler32 checksum)"]
         Adler32["Adler32.kt"]
-        Constants_Inf2["common/Constants.kt"] subgraph "ZStream Handling"
-        ZStream_Inf["ZStream.kt(Stream state, Adler32 checksum)"]
     end
 
     InflateCore --> InfBlocks
     InflateCore --> ZStream_Inf
-    InflateCore --> InfCodes % Indirectly via InfBlocks
+    InflateCore --> InfCodes %% Indirectly via InfBlocks
     InflateCore --> Constants_Inf2
 
     InfBlocks --> InfBlocksUtils
     InfBlocks --> InfCodes
-    InfBlocks --> ZStream_Inf % For Adler32 reference via z.istate.blocks.reset(z, z.istate.was)
+    InfBlocks --> ZStream_Inf %% For Adler32 reference via z.istate.blocks.reset(z, z.istate.was)
     InfBlocks --> Constants_Inf2
 
 

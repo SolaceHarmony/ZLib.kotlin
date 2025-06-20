@@ -1,9 +1,6 @@
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.*
-import componentace.compression.libs.zlib.deflate.Deflate
-import componentace.compression.libs.zlib.deflate.Tree
-import componentace.compression.libs.zlib.deflate.StaticTree
 
 // Utility functions for Tree operations
 
