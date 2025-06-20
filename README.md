@@ -17,6 +17,7 @@
 - [Features](#features)
 - [Installation](#installation)
 - [Usage](#usage)
+- [Documentation](#documentation)
 - [Compatibility](#compatibility)
 - [Credits & Lineage](#credits--lineage)
 - [License](#license)
@@ -90,7 +91,25 @@ val decompressed: ByteArray = ZLib.decompress(compressed)
 println(decompressed.decodeToString()) // Output: Hello, ZLib.kotlin!
 ```
 
-For more advanced usage, streaming, or custom options, see the [API documentation](docs/API.md) or [examples](examples/).
+For more advanced usage, streaming, or custom options, see the detailed [API documentation](docs/API.md) and practical [examples](examples/).
+
+---
+
+## Documentation
+
+### 📚 [API Reference](docs/API.md)
+Comprehensive API documentation covering:
+- Core classes (`ZStream`, `ZInputStream`, `ZStreamException`)
+- Compression and decompression methods
+- Configuration options and constants
+- Advanced usage patterns
+- Error handling and performance tips
+
+### 💡 [Examples](examples/)
+Practical examples demonstrating:
+- **Basic compression/decompression** - Simple operations with error handling
+- **Advanced techniques** - Performance comparison, streaming, custom parameters
+- **Best practices** - Memory management, buffer sizing, optimization tips
 
 ---
 
@@ -141,4 +160,3 @@ For questions or support, please [open an issue](https://github.com/SolaceHarmon
 ---
 
 > **Based on zlib.net and zlib-1.1.3. Credits to Jean-loup Gailly, Mark Adler, and all original contributors, as well as ComponentAce for zlib.net.**
-```
