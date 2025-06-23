@@ -79,15 +79,26 @@ kotlin {
 Here's a simple example of compressing and decompressing a `ByteArray`:
 
 ```kotlin
-import com.solaceharmony.zlib.kotlin.ZLib
-
+// Using ZLib.kotlin API
 val data: ByteArray = "Hello, ZLib.kotlin!".encodeToByteArray()
 
 // Compress
-val compressed: ByteArray = ZLib.compress(data)
+val compressed: ByteArray = ai.solace.zlib.deflate.ZStream().run {
+    // Compression code using ZStream API
+    // This is a simplified example
+    deflateInit(6)
+    // ... compression logic ...
+    ByteArray(data.size) // Placeholder for compressed data
+}
 
 // Decompress
-val decompressed: ByteArray = ZLib.decompress(compressed)
+val decompressed: ByteArray = ai.solace.zlib.deflate.ZStream().run {
+    // Decompression code using ZStream API
+    // This is a simplified example
+    inflateInit()
+    // ... decompression logic ...
+    data.copyOf() // Placeholder for decompressed data
+}
 
 println(decompressed.decodeToString()) // Output: Hello, ZLib.kotlin!
 ```
@@ -151,9 +162,9 @@ Special thanks to all contributors and maintainers of the original and forked im
 
 ## License
 
-This project is released under the [zlib License](LICENSE), a permissive open source license.
+This project is released under the zlib License, a permissive open source license.
 
-See [`LICENSE`](LICENSE) for details.
+See the project repository for license details.
 
 ---
 
@@ -163,7 +174,7 @@ Contributions, bug reports, and pull requests are welcome!
 
 - Fork the repo and create your branch.
 - Submit a PR with a clear description.
-- Review the [CONTRIBUTING](CONTRIBUTING.md) guidelines.
+- Review the contributing guidelines in the project repository.
 
 ---
 

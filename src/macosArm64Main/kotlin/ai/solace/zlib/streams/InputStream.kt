@@ -4,6 +4,7 @@ import kotlin.IllegalArgumentException
 
 actual abstract class InputStream {
     actual abstract fun read(): Int
+    @Suppress("UNUSED")
     actual open fun read(b: ByteArray): Int = read(b, 0, b.size)
 
     actual open fun read(b: ByteArray, off: Int, len: Int): Int {
@@ -30,11 +31,13 @@ actual abstract class InputStream {
                 b[off + i] = c2.toByte()
                 i++
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
+            // Ignore exceptions during reading
         }
         return i
     }
 
+    @Suppress("UNUSED")
     actual open fun skip(n: Long): Long {
         var remaining = n
         val size = if (n < 0) 0 else if (n > 2048) 2048 else n.toInt()

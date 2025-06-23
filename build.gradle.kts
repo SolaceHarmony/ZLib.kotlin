@@ -14,6 +14,9 @@ kotlin {
                 baseName = "zlib-cli"
             }
         }
+        compilations.all {
+            kotlinOptions.freeCompilerArgs += "-Xexpect-actual-classes"
+        }
     }
 
     linuxX64() {
@@ -23,8 +26,9 @@ kotlin {
                 baseName = "zlib-cli"
             }
         }
-        compilations.getByName("main").defaultSourceSet.dependsOn(sourceSets.getByName("commonMain"))
-        compilations.getByName("test").defaultSourceSet.dependsOn(sourceSets.getByName("commonTest"))
+        compilations.all {
+            kotlinOptions.freeCompilerArgs += "-Xexpect-actual-classes"
+        }
     }
 
     linuxArm64() {
@@ -34,8 +38,9 @@ kotlin {
                 baseName = "zlib-cli"
             }
         }
-        compilations.getByName("main").defaultSourceSet.dependsOn(sourceSets.getByName("commonMain"))
-        compilations.getByName("test").defaultSourceSet.dependsOn(sourceSets.getByName("commonTest"))
+        compilations.all {
+            kotlinOptions.freeCompilerArgs += "-Xexpect-actual-classes"
+        }
     }
 
     sourceSets {
@@ -49,22 +54,36 @@ kotlin {
                 implementation(kotlin("test"))
             }
         }
-        // Ensure no jvmMain or jvmTest source sets are defined
+
+        // Configure platform-specific source sets
         val macosArm64Main by getting {
+            dependsOn(commonMain)
             dependencies {
                 implementation(kotlin("stdlib-common"))
             }
         }
-        // Explicitly define macosArm64Test if not already present by convention,
-        // linking it to commonTest.
         val macosArm64Test by getting {
+            dependsOn(commonTest)
+        }
+
+        val linuxX64Main by getting {
+            dependsOn(commonMain)
+        }
+        val linuxX64Test by getting {
+            dependsOn(commonTest)
+        }
+
+        val linuxArm64Main by getting {
+            dependsOn(commonMain)
+        }
+        val linuxArm64Test by getting {
             dependsOn(commonTest)
         }
     }
 
     targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget> {
         binaries.all {
-            freeCompilerArgs += "-Xallocator=mimalloc"
+            freeCompilerArgs += listOf("-Xallocator=mimalloc", "-Xexpect-actual-classes")
         }
     }
 }

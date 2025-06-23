@@ -85,7 +85,9 @@ internal object InfTree {
         var p: Int // pointer into c[], b[], or v[]
         var q: Int // points to current table
         val r = IntArray(1) // table entry for structure assignment
-        val u = IntArray(hn[0]) // table stack
+        // Ensure u is large enough for all possible values of h
+        // h starts at -1 and can go up to MAX_BITS, so we need at least MAX_BITS + 1 elements
+        val u = IntArray(MAX_BITS + 1) // table stack
         var w: Int // bits before this table == (l * h)
         val x = IntArray(1) // bit length of current code
         var y: Int // number of dummy codes added
@@ -205,7 +207,11 @@ internal object InfTree {
                     hn[0] += z
 
                     // Create new table
-                    t[0] = hp.copyOf(t[0].size + z * 3)
+                    // Create a new array with the correct size and copy elements from t[0]
+                    val newSize = t[0].size + z * 3
+                    val newArray = IntArray(newSize)
+                    t[0].copyInto(newArray, 0, 0, t[0].size)
+                    t[0] = newArray
                     r[0] = q
                     // connect to last table, if there is one
                     if (h != 0) {

@@ -7,7 +7,7 @@ import platform.posix.*
  * Platform-specific implementation of file operations for macOS
  */
 
-@OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class)
 actual fun readFile(path: String): ByteArray {
     val file = fopen(path, "rb") ?: throw Exception("Could not open file for reading: $path")
 
@@ -43,7 +43,7 @@ actual fun readFile(path: String): ByteArray {
     }
 }
 
-@OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+@OptIn(ExperimentalForeignApi::class)
 actual fun writeFile(path: String, data: ByteArray) {
     val file = fopen(path, "wb") ?: throw Exception("Could not open file for writing: $path")
 
