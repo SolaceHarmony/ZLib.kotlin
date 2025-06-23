@@ -41,6 +41,7 @@ This library was originally ported from the C#/.NET [zlib.managed](https://githu
 - **API compatible:** Designed to be familiar to users of zlib, zlib.net, or zlib.managed.
 - **Fast and lightweight:** Efficient, battle-tested algorithms for compression and decompression.
 - **Zero dependencies:** No need for external libraries or system zlib installs.
+- **Command-line tool:** Includes a simple CLI tool for file compression and decompression.
 - **Actively maintained:** Open to improvements and contributions.
 
 ---
@@ -91,6 +92,20 @@ val decompressed: ByteArray = ZLib.decompress(compressed)
 println(decompressed.decodeToString()) // Output: Hello, ZLib.kotlin!
 ```
 
+### Command-line Tool
+
+ZLib.kotlin includes a command-line tool for compressing and decompressing files:
+
+```bash
+# Compress a file
+./zlib-cli compress myfile.txt myfile.txt.z
+
+# Decompress a file
+./zlib-cli decompress myfile.txt.z myfile.txt
+```
+
+For more information about the CLI tool, see the [ZipCliExample](examples/ZipCliExample.md).
+
 For more advanced usage, streaming, or custom options, see the detailed [API documentation](docs/API.md) and practical [examples](examples/).
 
 ---
@@ -109,6 +124,7 @@ Comprehensive API documentation covering:
 Practical examples demonstrating:
 - **Basic compression/decompression** - Simple operations with error handling
 - **Advanced techniques** - Performance comparison, streaming, custom parameters
+- **Command-line tool** - Using the CLI tool for file compression and decompression
 - **Best practices** - Memory management, buffer sizing, optimization tips
 
 ---

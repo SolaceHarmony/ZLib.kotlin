@@ -4,25 +4,35 @@ plugins {
 
 kotlin {
     // jvm() // JVM target removed
-    macosArm64("macos") {
+    macosArm64() {
         binaries {
             framework {
                 baseName = "ZLib" // Replace with your framework name
             }
+            executable {
+                entryPoint = "ai.solace.zlib.cli.main"
+                baseName = "zlib-cli"
+            }
         }
     }
 
-    linuxX64("linux") {
+    linuxX64() {
         binaries {
-            executable() // Defines a default executable
+            executable {
+                entryPoint = "ai.solace.zlib.cli.main"
+                baseName = "zlib-cli"
+            }
         }
         compilations.getByName("main").defaultSourceSet.dependsOn(sourceSets.getByName("commonMain"))
         compilations.getByName("test").defaultSourceSet.dependsOn(sourceSets.getByName("commonTest"))
     }
 
-    linuxArm64("linuxArm") {
+    linuxArm64() {
         binaries {
-            executable() // Defines a default executable
+            executable {
+                entryPoint = "ai.solace.zlib.cli.main"
+                baseName = "zlib-cli"
+            }
         }
         compilations.getByName("main").defaultSourceSet.dependsOn(sourceSets.getByName("commonMain"))
         compilations.getByName("test").defaultSourceSet.dependsOn(sourceSets.getByName("commonTest"))
@@ -40,14 +50,14 @@ kotlin {
             }
         }
         // Ensure no jvmMain or jvmTest source sets are defined
-        val macosMain by getting {
+        val macosArm64Main by getting {
             dependencies {
                 implementation(kotlin("stdlib-common"))
             }
         }
-        // Explicitly define macosTest if not already present by convention,
+        // Explicitly define macosArm64Test if not already present by convention,
         // linking it to commonTest.
-        val macosTest by getting {
+        val macosArm64Test by getting {
             dependsOn(commonTest)
         }
     }

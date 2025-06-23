@@ -28,6 +28,19 @@ Advanced compression techniques and performance analysis:
 ./gradlew run -Pmain=examples.AdvancedExampleKt
 ```
 
+### ZipCliExample.md
+Documentation for the command-line tool:
+- Building the CLI tool for different platforms
+- Compressing and decompressing files
+- Command-line options and usage examples
+- Best practices for using the CLI tool
+
+**Use the CLI tool:**
+```bash
+# After building the project
+./build/bin/macos/releaseExecutable/zlib-cli.kexe compress myfile.txt myfile.txt.z
+```
+
 ## Key Concepts Demonstrated
 
 ### Compression Levels
