@@ -253,8 +253,8 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     val storedNLen = (b ushr 16) and 0xffff
 
                     // The stored length and its one's complement must match
-                    // Using one's complement followed by masking with 0xFFFF to match C# implementation
-                    if (((b.inv() ushr 16) and 0xFFFF) != (b and 0xFFFF)) {
+                    // In C#: if (((SupportClass.URShift((~ b), 16)) & 0xffff) != (b & 0xffff))
+                    if (storedNLen != (storedLen.inv() and 0xFFFF)) {
                         mode = IBLK_BAD
                         z.msg = "invalid stored block lengths"
                         r = Z_DATA_ERROR
