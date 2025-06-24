@@ -158,6 +158,9 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         read = 0
         write = 0
 
+        // Clear the window buffer to prevent leftover data from appearing in output
+        window.fill(0)
+
         // Reset checksum if we have a checksum function
         if (checkfn != null && z != null) {
             z.adler = Adler32().adler32(0L, null, 0, 0)
@@ -258,19 +261,16 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     // Extract values for verification
                     val storedLen = bitb and 0xffff
                     val storedNLen = (bitb ushr 16) and 0xffff
-                    val inverseLen = ((bitb.inv()) ushr 16) and 0xffff
 
                     println("[DEBUG] Block length values:")
                     println("[DEBUG]   storedLen: ${storedLen.toString(16)} (${storedLen})")
                     println("[DEBUG]   storedNLen: ${storedNLen.toString(16)} (${storedNLen})")
-                    println("[DEBUG]   inverseLen: ${inverseLen.toString(16)} (${inverseLen})")
                     println("[DEBUG]   storedLen + storedNLen = ${(storedLen + storedNLen).toString(16)} (${storedLen + storedNLen})")
                     println("[DEBUG]   0xFFFF = ${0xffff.toString(16)} (${0xffff})")
 
-                    // Verify block length integrity using exactly the same approach as Pascal
-                    // In Pascal: if (((not b) shr 16) and $ffff) <> (b and $ffff) then
-                    if (inverseLen != storedLen) {
-                        println("[DEBUG] Block length check FAILED: inverseLen($inverseLen) != storedLen($storedLen)")
+                    // Verify block length integrity using the exact logic from Pascal translation
+                    if ((((b ushr 16) and 0xffff) xor b) and 0xffff != 0) {
+                        println("[DEBUG] Block length check FAILED: storedLen + storedNLen != 0xFFFF")
                         mode = IBLK_BAD
                         z.msg = "invalid stored block lengths"
                         r = Z_DATA_ERROR
@@ -283,9 +283,14 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     // Store the length (low 16 bits of b)
                     left = storedLen
 
-                    // Clear bit buffer as in Pascal
-                    b = 0; k = 0
-                    println("[DEBUG] Cleared bit buffer: b=$b, k=$k")
+                    // Clear bit buffer completely as in Pascal
+                    // In Pascal: k = 0; b = 0;  // Dump bits
+                    k = 0
+                    b = 0  // Explicitly clear local variables before continuing
+                    bitb = 0
+                    bitk = 0
+
+                    println("[DEBUG] Cleared bit buffer: b=$bitb, k=$bitk")
 
                     // Determine next state based on block content
                     mode = if (left != 0) IBLK_STORED else if (last != 0) IBLK_DRY else IBLK_TYPE
@@ -312,15 +317,37 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         }
                     }
                     r = Z_OK
+
+                    // Calculate how many bytes to copy in this iteration
                     var t = left
                     if (t > n) t = n
                     if (t > m) t = m
-                    z.nextIn!!.copyInto(window, q, p, p + t)
-                    p += t; n -= t
-                    q += t; m -= t
+
+                    println("[DEBUG] IBLK_STORED: Processing stored data")
+                    println("[DEBUG] left=$t, n=$n, m=$m")
+
+                    // Copy data from input directly to output window
+                    // In Pascal: zmemcpy(q, p, t);
+                    if (t > 0) {
+                        // Copy from the input buffer to the output window
+                        for (i in 0 until t) {
+                            window[q + i] = z.nextIn!![p + i]
+                        }
+                    }
+
+                    // Update pointers and counters
+                    p += t
+                    n -= t
+                    q += t
+                    m -= t
                     left -= t
+
+                    println("[DEBUG] After copy: left=$left, n=$n, m=$m, p=$p, q=$q")
+
+                    // If we've copied all data for this stored block, move to next state
                     if (left == 0) {
                         mode = if (last != 0) IBLK_DRY else IBLK_TYPE
+                        println("[DEBUG] Stored block fully processed, new mode: $mode")
                     }
                 }
                 IBLK_TABLE -> {
