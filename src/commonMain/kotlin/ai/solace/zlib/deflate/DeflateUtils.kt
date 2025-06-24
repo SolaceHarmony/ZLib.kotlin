@@ -151,8 +151,11 @@ internal fun copyBlock(d: Deflate, buf: Int, len: Int, header: Boolean) {
     biWindup(d)
     d.lastEobLen = 8
     if (header) {
-        putShort(d, len.toShort().toInt())
-        putShort(d, len.inv().toShort().toInt())
+        // Matching the original C# implementation:
+        // put_short((short) len);
+        // put_short((short) ~ len);
+        putShort(d, len)
+        putShort(d, len.inv() and 0xFFFF)
     }
     putByte(d, d.window, buf, len)
 }

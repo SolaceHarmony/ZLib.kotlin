@@ -22,21 +22,32 @@ class TreeUtilsTest {
     fun testDCode() {
         // Test cases based on RFC 1951, section 3.2.6 and typical d_code logic
         // TREE_DIST_CODE is used by d_code
+        println("[DEBUG_LOG] dCode(0) = ${dCode(0)}")
         assertEquals(0, dCode(0), "d_code(0) failed")
+        println("[DEBUG_LOG] dCode(1) = ${dCode(1)}")
         assertEquals(1, dCode(1), "d_code(1) failed")
+        println("[DEBUG_LOG] dCode(2) = ${dCode(2)}")
         assertEquals(2, dCode(2), "d_code(2) failed")
+        println("[DEBUG_LOG] dCode(3) = ${dCode(3)}")
         assertEquals(3, dCode(3), "d_code(3) failed")
+        println("[DEBUG_LOG] dCode(4) = ${dCode(4)}")
         assertEquals(4, dCode(4), "d_code(4) failed")
 
         // Based on typical zlib d_code mapping using TREE_DIST_CODE from Constants.kt
         // (Assuming TREE_DIST_CODE is populated as per standard zlib tables)
+        println("[DEBUG_LOG] dCode(6) = ${dCode(6)}")
         assertEquals(5, dCode(6), "d_code(6) failed") // Example
         // assertEquals(16, d_code(257), "d_code for dist 257 (actual value 257) failed") // d_code takes distance - 1
+        println("[DEBUG_LOG] dCode(257-1) = ${dCode(257-1)}")
         assertEquals(16, dCode(257-1), "d_code for dist 257 (idx 256) failed") // distance = 257, so dist_code index is 256
+        println("[DEBUG_LOG] dCode(300-1) = ${dCode(300-1)}")
         assertEquals(16, dCode(300-1), "d_code for dist 300 (idx 299) failed")
+        println("[DEBUG_LOG] dCode(385-1) = ${dCode(385-1)}")
         assertEquals(17, dCode(385-1), "d_code for dist 385 (idx 384) failed")
 
+        println("[DEBUG_LOG] dCode(24577-1) = ${dCode(24577-1)}")
         assertEquals(29, dCode(24577-1), "d_code for dist 24577 (idx 24576) failed")
+        println("[DEBUG_LOG] dCode(32768-1) = ${dCode(32768-1)}")
         assertEquals(29, dCode(32768-1), "d_code for dist 32768 (idx 32767) failed")
     }
 

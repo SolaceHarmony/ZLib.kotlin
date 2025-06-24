@@ -54,6 +54,7 @@ class InflateTest {
             // Z_BUF_ERROR is ok if we are out of output space, but this test assumes enough space.
             // Z_OK means progress was made.
             // Z_STREAM_END means we are done.
+            println("[DEBUG_LOG] Inflate result: $err, msg: ${stream.msg}")
             if (err < Z_OK && err != Z_BUF_ERROR) {
                 assertTrue(false, "Inflation failed with unexpected error: $err, msg: ${stream.msg}")
             }
