@@ -1,3 +1,7 @@
+@file:OptIn(ExperimentalKotlinGradlePluginApi::class)
+
+import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+
 plugins {
     kotlin("multiplatform") version "2.0.21" // Or your desired Kotlin version
 }
@@ -15,7 +19,9 @@ kotlin {
             }
         }
         compilations.all {
-            kotlinOptions.freeCompilerArgs += "-Xexpect-actual-classes"
+            this@macosArm64.compilerOptions {
+                freeCompilerArgs.add("-Xexpect-actual-classes")
+            }
         }
     }
 
@@ -27,7 +33,9 @@ kotlin {
             }
         }
         compilations.all {
-            kotlinOptions.freeCompilerArgs += "-Xexpect-actual-classes"
+            this@linuxX64.compilerOptions {
+                freeCompilerArgs.add("-Xexpect-actual-classes")
+            }
         }
     }
 
@@ -39,7 +47,9 @@ kotlin {
             }
         }
         compilations.all {
-            kotlinOptions.freeCompilerArgs += "-Xexpect-actual-classes"
+            this@linuxArm64.compilerOptions {
+                freeCompilerArgs.add("-Xexpect-actual-classes")
+            }
         }
     }
 
@@ -56,26 +66,30 @@ kotlin {
         }
 
         // Configure platform-specific source sets
+        @Suppress("unused")
         val macosArm64Main by getting {
             dependsOn(commonMain)
             dependencies {
                 implementation(kotlin("stdlib-common"))
             }
         }
+        @Suppress("unused")
         val macosArm64Test by getting {
             dependsOn(commonTest)
         }
-
+        @Suppress("unused")
         val linuxX64Main by getting {
             dependsOn(commonMain)
         }
+        @Suppress("unused")
         val linuxX64Test by getting {
             dependsOn(commonTest)
         }
-
+        @Suppress("unused")
         val linuxArm64Main by getting {
             dependsOn(commonMain)
         }
+        @Suppress("unused")
         val linuxArm64Test by getting {
             dependsOn(commonTest)
         }
