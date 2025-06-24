@@ -22,33 +22,72 @@ class TreeUtilsTest {
     fun testDCode() {
         // Test cases based on RFC 1951, section 3.2.6 and typical d_code logic
         // TREE_DIST_CODE is used by d_code
-        println("[DEBUG_LOG] dCode(0) = ${dCode(0)}")
-        assertEquals(0, dCode(0), "d_code(0) failed")
-        println("[DEBUG_LOG] dCode(1) = ${dCode(1)}")
-        assertEquals(1, dCode(1), "d_code(1) failed")
-        println("[DEBUG_LOG] dCode(2) = ${dCode(2)}")
-        assertEquals(2, dCode(2), "d_code(2) failed")
-        println("[DEBUG_LOG] dCode(3) = ${dCode(3)}")
-        assertEquals(3, dCode(3), "d_code(3) failed")
-        println("[DEBUG_LOG] dCode(4) = ${dCode(4)}")
-        assertEquals(4, dCode(4), "d_code(4) failed")
+        try {
+            println("[DEBUG_LOG] Starting testDCode")
 
-        // Based on typical zlib d_code mapping using TREE_DIST_CODE from Constants.kt
-        // (Assuming TREE_DIST_CODE is populated as per standard zlib tables)
-        println("[DEBUG_LOG] dCode(6) = ${dCode(6)}")
-        assertEquals(5, dCode(6), "d_code(6) failed") // Example
-        // assertEquals(16, d_code(257), "d_code for dist 257 (actual value 257) failed") // d_code takes distance - 1
-        println("[DEBUG_LOG] dCode(257-1) = ${dCode(257-1)}")
-        assertEquals(16, dCode(257-1), "d_code for dist 257 (idx 256) failed") // distance = 257, so dist_code index is 256
-        println("[DEBUG_LOG] dCode(300-1) = ${dCode(300-1)}")
-        assertEquals(16, dCode(300-1), "d_code for dist 300 (idx 299) failed")
-        println("[DEBUG_LOG] dCode(385-1) = ${dCode(385-1)}")
-        assertEquals(17, dCode(385-1), "d_code for dist 385 (idx 384) failed")
+            println("[DEBUG_LOG] Testing dCode(0)")
+            val result0 = dCode(0)
+            println("[DEBUG_LOG] dCode(0) = $result0")
+            assertEquals(0, result0, "d_code(0) failed")
 
-        println("[DEBUG_LOG] dCode(24577-1) = ${dCode(24577-1)}")
-        assertEquals(29, dCode(24577-1), "d_code for dist 24577 (idx 24576) failed")
-        println("[DEBUG_LOG] dCode(32768-1) = ${dCode(32768-1)}")
-        assertEquals(29, dCode(32768-1), "d_code for dist 32768 (idx 32767) failed")
+            println("[DEBUG_LOG] Testing dCode(1)")
+            val result1 = dCode(1)
+            println("[DEBUG_LOG] dCode(1) = $result1")
+            assertEquals(1, result1, "d_code(1) failed")
+
+            println("[DEBUG_LOG] Testing dCode(2)")
+            val result2 = dCode(2)
+            println("[DEBUG_LOG] dCode(2) = $result2")
+            assertEquals(2, result2, "d_code(2) failed")
+
+            println("[DEBUG_LOG] Testing dCode(3)")
+            val result3 = dCode(3)
+            println("[DEBUG_LOG] dCode(3) = $result3")
+            assertEquals(3, result3, "d_code(3) failed")
+
+            println("[DEBUG_LOG] Testing dCode(4)")
+            val result4 = dCode(4)
+            println("[DEBUG_LOG] dCode(4) = $result4")
+            assertEquals(4, result4, "d_code(4) failed")
+
+            // Based on typical zlib d_code mapping using TREE_DIST_CODE from Constants.kt
+            // (Assuming TREE_DIST_CODE is populated as per standard zlib tables)
+            println("[DEBUG_LOG] Testing dCode(6)")
+            val result6 = dCode(6)
+            println("[DEBUG_LOG] dCode(6) = $result6")
+            assertEquals(5, result6, "d_code(6) failed") // Example
+
+            // assertEquals(16, d_code(257), "d_code for dist 257 (actual value 257) failed") // d_code takes distance - 1
+            println("[DEBUG_LOG] Testing dCode(257-1)")
+            val result256 = dCode(257-1)
+            println("[DEBUG_LOG] dCode(257-1) = $result256")
+            assertEquals(16, result256, "d_code for dist 257 (idx 256) failed") // distance = 257, so dist_code index is 256
+
+            println("[DEBUG_LOG] Testing dCode(300-1)")
+            val result299 = dCode(300-1)
+            println("[DEBUG_LOG] dCode(300-1) = $result299")
+            assertEquals(16, result299, "d_code for dist 300 (idx 299) failed")
+
+            println("[DEBUG_LOG] Testing dCode(385-1)")
+            val result384 = dCode(385-1)
+            println("[DEBUG_LOG] dCode(385-1) = $result384")
+            assertEquals(17, result384, "d_code for dist 385 (idx 384) failed")
+
+            println("[DEBUG_LOG] Testing dCode(24577-1)")
+            val result24576 = dCode(24577-1)
+            println("[DEBUG_LOG] dCode(24577-1) = $result24576")
+            assertEquals(29, result24576, "d_code for dist 24577 (idx 24576) failed")
+
+            println("[DEBUG_LOG] Testing dCode(32768-1)")
+            val result32767 = dCode(32768-1)
+            println("[DEBUG_LOG] dCode(32768-1) = $result32767")
+            assertEquals(29, result32767, "d_code for dist 32768 (idx 32767) failed")
+
+            println("[DEBUG_LOG] testDCode completed successfully")
+        } catch (e: Exception) {
+            println("[DEBUG_LOG] Exception in testDCode: ${e.message}")
+            throw e
+        }
     }
 
     @Test

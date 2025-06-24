@@ -33,40 +33,64 @@ class InflateTest {
     }
 
     private fun inflateDataInternal(inputDeflated: ByteArray, originalSizeHint: Int): ByteArray {
-        val stream = ZStream()
+        try {
+            println("[DEBUG_LOG] Starting inflateDataInternal")
+            println("[DEBUG_LOG] inputDeflated size: ${inputDeflated.size}")
+            println("[DEBUG_LOG] originalSizeHint: $originalSizeHint")
 
-        // Default window bits for zlib is 15 (MAX_WBITS)
-        var err = stream.inflateInit(MAX_WBITS)
-        assertTrue(err == Z_OK, "inflateInit failed. Error: $err, Msg: ${stream.msg}")
+            val stream = ZStream()
 
-        stream.nextIn = inputDeflated
-        stream.availIn = inputDeflated.size
-        stream.nextInIndex = 0
+            // Default window bits for zlib is 15 (MAX_WBITS)
+            println("[DEBUG_LOG] Calling inflateInit")
+            var err = stream.inflateInit(MAX_WBITS)
+            println("[DEBUG_LOG] inflateInit result: $err, msg: ${stream.msg}")
+            assertTrue(err == Z_OK, "inflateInit failed. Error: $err, Msg: ${stream.msg}")
 
-        val outputBuffer = ByteArray(originalSizeHint * 2 + 100) // Ensure buffer is large enough
-        stream.nextOut = outputBuffer
-        stream.availOut = outputBuffer.size
-        stream.nextOutIndex = 0
+            stream.nextIn = inputDeflated
+            stream.availIn = inputDeflated.size
+            stream.nextInIndex = 0
 
-        // Loop to fully inflate the data
-        do {
-            err = stream.inflate(Z_NO_FLUSH)
-            // Z_BUF_ERROR is ok if we are out of output space, but this test assumes enough space.
-            // Z_OK means progress was made.
-            // Z_STREAM_END means we are done.
-            println("[DEBUG_LOG] Inflate result: $err, msg: ${stream.msg}")
-            if (err < Z_OK && err != Z_BUF_ERROR) {
-                assertTrue(false, "Inflation failed with unexpected error: $err, msg: ${stream.msg}")
-            }
-        } while (err != Z_STREAM_END)
+            val outputBuffer = ByteArray(originalSizeHint * 2 + 100) // Ensure buffer is large enough
+            stream.nextOut = outputBuffer
+            stream.availOut = outputBuffer.size
+            stream.nextOutIndex = 0
 
-        val inflatedSize = stream.totalOut.toInt()
-        val result = outputBuffer.copyOf(inflatedSize)
+            println("[DEBUG_LOG] Starting inflation loop")
+            // Loop to fully inflate the data
+            var loopCount = 0
+            do {
+                println("[DEBUG_LOG] Inflation loop iteration: ${++loopCount}")
+                println("[DEBUG_LOG] Before inflate: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
 
-        err = stream.inflateEnd()
-        assertTrue(err == Z_OK, "inflateEnd failed. Error: $err, Msg: ${stream.msg}")
+                err = stream.inflate(Z_NO_FLUSH)
 
-        return result
+                println("[DEBUG_LOG] After inflate: result=$err, msg=${stream.msg}, availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
+
+                // Z_BUF_ERROR is ok if we are out of output space, but this test assumes enough space.
+                // Z_OK means progress was made.
+                // Z_STREAM_END means we are done.
+                if (err < Z_OK && err != Z_BUF_ERROR) {
+                    println("[DEBUG_LOG] Inflation failed with error: $err, msg: ${stream.msg}")
+                    assertTrue(false, "Inflation failed with unexpected error: $err, msg: ${stream.msg}")
+                }
+            } while (err != Z_STREAM_END)
+
+            val inflatedSize = stream.totalOut.toInt()
+            println("[DEBUG_LOG] Inflation completed. Total output size: $inflatedSize")
+            val result = outputBuffer.copyOf(inflatedSize)
+
+            println("[DEBUG_LOG] Calling inflateEnd")
+            err = stream.inflateEnd()
+            println("[DEBUG_LOG] inflateEnd result: $err, msg: ${stream.msg}")
+            assertTrue(err == Z_OK, "inflateEnd failed. Error: $err, Msg: ${stream.msg}")
+
+            println("[DEBUG_LOG] inflateDataInternal completed successfully")
+            return result
+        } catch (e: Exception) {
+            println("[DEBUG_LOG] Exception in inflateDataInternal: ${e.message}")
+            e.printStackTrace()
+            throw e
+        }
     }
 
     @Test

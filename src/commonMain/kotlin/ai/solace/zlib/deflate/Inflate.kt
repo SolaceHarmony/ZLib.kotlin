@@ -436,7 +436,7 @@ internal class Inflate {
         // search
         while (n != 0 && m < 4) {
             m = when {
-                z.nextIn!![p] == INF_MARK[m] -> m + 1
+                z.nextIn!![p].toUByte() == INF_MARK[m] -> m + 1
                 z.nextIn!![p] != 0.toByte() -> 0
                 else -> 4 - m
             }

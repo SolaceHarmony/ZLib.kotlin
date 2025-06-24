@@ -151,11 +151,22 @@ internal fun copyBlock(d: Deflate, buf: Int, len: Int, header: Boolean) {
     biWindup(d)
     d.lastEobLen = 8
     if (header) {
-        // Matching the original C# implementation:
-        // put_short((short) len);
-        // put_short((short) ~ len);
-        putShort(d, len)
-        putShort(d, len.inv() and 0xFFFF)
+        // DEFLATE format requires length and its one's complement (~len)
+        // The Pascal implementation expects the 32-bit value to have:
+        // - Lower 16 bits = length
+        // - Upper 16 bits = one's complement of length
+        // This is checked with: ((not b) shr 16) and $ffff) <> (b and $ffff)
+
+        val lenLimited = len and 0xFFFF
+
+        // First write length (low 16 bits)
+        putByte(d, lenLimited.toByte())
+        putByte(d, (lenLimited ushr 8).toByte())
+
+        // Then write one's complement (high 16 bits)
+        val complement = lenLimited.inv() and 0xFFFF
+        putByte(d, complement.toByte())
+        putByte(d, (complement ushr 8).toByte())
     }
     putByte(d, d.window, buf, len)
 }

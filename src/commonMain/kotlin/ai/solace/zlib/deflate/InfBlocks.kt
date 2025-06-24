@@ -244,17 +244,33 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                 }
                 IBLK_LENS -> {
                     // Need 32 bits to read block length and check
+                    println("[DEBUG] IBLK_LENS: Starting block length verification")
+                    println("[DEBUG] Initial bit buffer state: b=${b.toString(16)}, k=$k bits")
+
                     if (!ensureBits(32, z, b, k, n, p, q)) {
+                        println("[DEBUG] Not enough bits available, returning")
                         return inflateFlush(r)
                     }
 
-                    // Verify block length integrity
-                    val storedLen = b and 0xffff
-                    val storedNLen = (b ushr 16) and 0xffff
+                    // After ensuring bits are available
+                    println("[DEBUG] After ensureBits: b=${bitb.toString(16)}, k=$bitk bits")
 
-                    // The stored length and its one's complement must match
-                    // In C#: if (((SupportClass.URShift((~ b), 16)) & 0xffff) != (b & 0xffff))
-                    if (storedNLen != (storedLen.inv() and 0xFFFF)) {
+                    // Extract values for verification
+                    val storedLen = bitb and 0xffff
+                    val storedNLen = (bitb ushr 16) and 0xffff
+                    val inverseLen = ((bitb.inv()) ushr 16) and 0xffff
+
+                    println("[DEBUG] Block length values:")
+                    println("[DEBUG]   storedLen: ${storedLen.toString(16)} (${storedLen})")
+                    println("[DEBUG]   storedNLen: ${storedNLen.toString(16)} (${storedNLen})")
+                    println("[DEBUG]   inverseLen: ${inverseLen.toString(16)} (${inverseLen})")
+                    println("[DEBUG]   storedLen + storedNLen = ${(storedLen + storedNLen).toString(16)} (${storedLen + storedNLen})")
+                    println("[DEBUG]   0xFFFF = ${0xffff.toString(16)} (${0xffff})")
+
+                    // Verify block length integrity using exactly the same approach as Pascal
+                    // In Pascal: if (((not b) shr 16) and $ffff) <> (b and $ffff) then
+                    if (inverseLen != storedLen) {
+                        println("[DEBUG] Block length check FAILED: inverseLen($inverseLen) != storedLen($storedLen)")
                         mode = IBLK_BAD
                         z.msg = "invalid stored block lengths"
                         r = Z_DATA_ERROR
@@ -262,11 +278,18 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         return inflateFlush(r)
                     }
 
+                    println("[DEBUG] Block length check PASSED, stored length: $storedLen")
+
+                    // Store the length (low 16 bits of b)
                     left = storedLen
-                    b = 0; k = 0  // Clear bit buffer
+
+                    // Clear bit buffer as in Pascal
+                    b = 0; k = 0
+                    println("[DEBUG] Cleared bit buffer: b=$b, k=$k")
 
                     // Determine next state based on block content
                     mode = if (left != 0) IBLK_STORED else if (last != 0) IBLK_DRY else IBLK_TYPE
+                    println("[DEBUG] New mode: $mode")
                 }
                 IBLK_STORED -> {
                     if (n == 0) {

@@ -3,7 +3,7 @@
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 
 plugins {
-    kotlin("multiplatform") version "2.0.21" // Or your desired Kotlin version
+    kotlin("multiplatform") version "2.1.20" // Updated to latest Kotlin version
 }
 
 kotlin {
@@ -97,7 +97,7 @@ kotlin {
 
     targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget> {
         binaries.all {
-            freeCompilerArgs += listOf("-Xallocator=mimalloc", "-Xexpect-actual-classes")
+            freeCompilerArgs += listOf("-Xexpect-actual-classes")
         }
     }
 }

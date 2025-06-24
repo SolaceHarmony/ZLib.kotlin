@@ -190,7 +190,6 @@ internal object InfTree {
         // Generate the Huffman codes and for each, make the table entries
         x[0] = 0
         i = 0 // current literal/length code
-        p = 0 // pointer to current code length
         h = -1 // current table number
         w = 0 // bits before this table
         u[0] = 0 // table stack
@@ -358,39 +357,47 @@ internal object InfTree {
         tl: Array<IntArray>,
         td: Array<IntArray>,
         z: ZStream
-    ) {
+    ): Int {
         if (!fixed_built) {
-            val l = IntArray(288)
-            var i = 0
-            while (i < 144) l[i] = 8
-            while (i < 256) l[i] = 9
-            while (i < 280) l[i] = 7
-            while (i < 288) l[i] = 8
+            // Build fixed tables if not already built
+            val c = IntArray(288)
+            val v = IntArray(288)
+            val hn = intArrayOf(0)
+
+            // Literal table
+            for (k in 0 until 144) c[k] = 8
+            for (k in 144 until 256) c[k] = 9
+            for (k in 256 until 280) c[k] = 7
+            for (k in 280 until 288) c[k] = 8
+
             fixed_bl[0] = 9
 
-            val hn = intArrayOf(0)
-            val v = IntArray(288)
-            val hp = IntArray(0)
+            // Create a temporary array for hufts
+            val tempHufts = IntArray(IBLK_MANY * 3)
 
-            var result = huftBuild(l, 0, 288, L_CODES, TREE_EXTRA_LBITS, TREE_BASE_LENGTH, fixed_tl, fixed_bl, hp, hn, v)
-            if (result != Z_OK) {
-                z.msg = "fixed length tree"
-                // handle error
-            }
+            // Build the literal/length tree
+            huftBuild(c, 0, 288, 257, TREE_EXTRA_LBITS, TREE_BASE_LENGTH,
+                    fixed_tl, fixed_bl, tempHufts, hn, v)
 
-            i = 0
-            while (i < 30) l[i] = 5
+            // Distance table
+            for (k in 0 until 30) c[k] = 5
+
             fixed_bd[0] = 5
-            result = huftBuild(l, 0, 30, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST, fixed_td, fixed_bd, hp, hn, v)
-            if (result != Z_OK) {
-                z.msg = "fixed distance tree"
-                // handle error
-            }
+
+            // Build the distance tree
+            huftBuild(c, 0, 30, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST,
+                    fixed_td, fixed_bd, tempHufts, hn, v)
+
+            // Mark as built
             fixed_built = true
         }
-        tl[0] = fixed_tl[0]
-        td[0] = fixed_td[0]
+
+        // Copy the tree data to the caller's arrays
         bl[0] = fixed_bl[0]
         bd[0] = fixed_bd[0]
+        tl[0] = fixed_tl[0]
+        td[0] = fixed_td[0]
+
+        return Z_OK
     }
 }

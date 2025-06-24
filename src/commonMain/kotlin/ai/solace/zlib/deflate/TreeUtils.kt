@@ -1,3 +1,4 @@
+@file:OptIn(ExperimentalUnsignedTypes::class)
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.*
@@ -6,14 +7,13 @@ import ai.solace.zlib.common.*
 
 // Originally Tree.d_code
 internal fun dCode(dist: Int): Int {
-    // Add special case for the problematic index 256
-    return if (dist == 256) {
-        16  // Hard-coding the correct value for index 256
-    } else if (dist < 256) {
+    // Simplified implementation that matches the Pascal approach
+    return if (dist < 256) {
         TREE_DIST_CODE[dist].toInt()
     } else {
-        // Use unsigned right shift (ushr) to match C#'s SupportClass.URShift
-        TREE_DIST_CODE[256 + (dist ushr 7)].toInt()
+        // For distances >= 256, the code is based on the top bits
+        // This matches the original Pascal macro: _dist_code[256+(dist shr 7)]
+        TREE_DIST_CODE[256 + (dist shr 7)].toInt()
     }
 }
 
