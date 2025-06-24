@@ -4,7 +4,7 @@ plugins {
 
 kotlin {
     // jvm() // JVM target removed
-    macosArm64() {
+    macosArm64 {
         binaries {
             framework {
                 baseName = "ZLib" // Replace with your framework name
@@ -19,7 +19,7 @@ kotlin {
         }
     }
 
-    linuxX64() {
+    linuxX64 {
         binaries {
             executable {
                 entryPoint = "ai.solace.zlib.cli.main"
@@ -31,7 +31,7 @@ kotlin {
         }
     }
 
-    linuxArm64() {
+    linuxArm64 {
         binaries {
             executable {
                 entryPoint = "ai.solace.zlib.cli.main"

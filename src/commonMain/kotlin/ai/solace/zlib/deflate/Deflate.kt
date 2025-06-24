@@ -53,9 +53,9 @@ class Deflate {
     internal var goodMatch: Int = 0
     internal var niceMatch: Int = 0
 
-    internal var dynLtree: ShortArray
-    internal var dynDtree: ShortArray
-    internal var blTree: ShortArray
+    internal var dynLtree: ShortArray = ShortArray(HEAP_SIZE * 2)
+    internal var dynDtree: ShortArray = ShortArray((2 * D_CODES + 1) * 2)
+    internal var blTree: ShortArray = ShortArray((2 * BL_CODES + 1) * 2)
 
     internal var lDesc = Tree()
     internal var dDesc = Tree()
@@ -76,12 +76,6 @@ class Deflate {
     internal var lastEobLen: Int = 0
     internal var biBuf: Short = 0
     internal var biValid: Int = 0
-
-    init {
-        dynLtree = ShortArray(HEAP_SIZE * 2)
-        dynDtree = ShortArray((2 * D_CODES + 1) * 2)
-        blTree = ShortArray((2 * BL_CODES + 1) * 2)
-    }
 
     internal fun lmInit() {
         windowSize = 2 * wSize
@@ -148,7 +142,6 @@ class Deflate {
     }
 
     internal fun scanTree(tree: ShortArray, maxCode: Int) {
-        var n: Int
         var prevlen = -1
         var curlen: Int
         var nextlen = tree[0 * 2 + 1].toInt()
@@ -162,7 +155,7 @@ class Deflate {
         }
         tree[(maxCode + 1) * 2 + 1] = 0xffff.toShort()
 
-        n = 0
+        var n = 0
         while(n <= maxCode) {
             curlen = nextlen
             nextlen = tree[(n + 1) * 2 + 1].toInt()
@@ -195,11 +188,10 @@ class Deflate {
     }
 
     internal fun buildBlTree(): Int {
-        var maxBlindex: Int
         scanTree(dynLtree, lDesc.maxCode)
         scanTree(dynDtree, dDesc.maxCode)
         blDesc.buildTree(this)
-        maxBlindex = BL_CODES - 1
+        var maxBlindex: Int = BL_CODES - 1
         while(maxBlindex >= 3) {
             if (blTree[TREE_BL_ORDER[maxBlindex] * 2 + 1].toInt() != 0) break
             maxBlindex--
@@ -209,11 +201,10 @@ class Deflate {
     }
 
     internal fun sendAllTrees(lcodes: Int, dcodes: Int, blcodes: Int) {
-        var rank: Int
         sendBits(this, lcodes - 257, 5)
         sendBits(this, dcodes - 1, 5)
         sendBits(this, blcodes - 4, 4)
-        rank = 0
+        var rank = 0
         while(rank < blcodes) {
             sendBits(this, blTree[TREE_BL_ORDER[rank] * 2 + 1].toInt(), 3)
             rank++
@@ -223,7 +214,6 @@ class Deflate {
     }
 
     internal fun sendTree(tree: ShortArray, maxCode: Int) {
-        var n: Int
         var prevlen = -1
         var curlen: Int
         var nextlen = tree[0 * 2 + 1].toInt()
@@ -235,7 +225,7 @@ class Deflate {
             maxCount = 138
             minCount = 3
         }
-        n = 0
+        var n = 0
         while(n <= maxCode) {
             curlen = nextlen
             nextlen = tree[(n + 1) * 2 + 1].toInt()
@@ -714,7 +704,6 @@ class Deflate {
     }
 
     internal fun deflate(strm: ZStream, flush: Int): Int {
-        val oldFlush: Int
         if (flush > Z_FINISH || flush < 0) {
             return Z_STREAM_ERROR
         }
@@ -727,7 +716,7 @@ class Deflate {
             return Z_BUF_ERROR
         }
         this.strm = strm
-        oldFlush = lastFlush
+        val oldFlush: Int = lastFlush
         lastFlush = flush
         if (status == INIT_STATE) {
             var header: Int = (Z_DEFLATED + ((wBits - 8) shl 4)) shl 8
@@ -760,7 +749,7 @@ class Deflate {
         }
         if (strm.availIn != 0 || lookAhead != 0 || (flush != Z_NO_FLUSH && status != FINISH_STATE)) {
             var bstate = -1
-            when (Companion.config_table[level].func) {
+            when (config_table[level].func) {
                 STORED -> bstate = deflateStored(flush)
                 FAST -> bstate = deflateFast(flush)
                 SLOW -> bstate = deflateSlow(flush)
@@ -804,21 +793,18 @@ class Deflate {
         private const val STORED = 0
         private const val FAST = 1
         private const val SLOW = 2
-        private val config_table: Array<Config>
-        init {
-            config_table = arrayOf(
-                Config(0, 0, 0, 0, STORED),
-                Config(4, 4, 8, 4, FAST),
-                Config(4, 5, 16, 8, FAST),
-                Config(4, 6, 32, 32, FAST),
-                Config(4, 4, 16, 16, SLOW),
-                Config(8, 16, 32, 32, SLOW),
-                Config(8, 16, 128, 128, SLOW),
-                Config(8, 32, 128, 256, SLOW),
-                Config(32, 128, 258, 1024, SLOW),
-                Config(32, 258, 258, 4096, SLOW)
-            )
-        }
+        private val config_table: Array<Config> = arrayOf(
+            Config(0, 0, 0, 0, STORED),
+            Config(4, 4, 8, 4, FAST),
+            Config(4, 5, 16, 8, FAST),
+            Config(4, 6, 32, 32, FAST),
+            Config(4, 4, 16, 16, SLOW),
+            Config(8, 16, 32, 32, SLOW),
+            Config(8, 16, 128, 128, SLOW),
+            Config(8, 32, 128, 256, SLOW),
+            Config(32, 128, 258, 1024, SLOW),
+            Config(32, 258, 258, 4096, SLOW)
+        )
 
         // smaller function moved to DeflateUtils.kt
     }

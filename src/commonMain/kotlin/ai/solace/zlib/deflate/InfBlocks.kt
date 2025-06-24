@@ -114,7 +114,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
     /** Sliding window for output */
     internal val window: ByteArray = ByteArray(w)
 
-    /** One byte after sliding window */
+    /** One byte after a sliding window */
     internal val end: Int = w
 
     /** Window read pointer */
@@ -185,6 +185,9 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
     fun proc(z: ZStream?, rIn: Int): Int {
         if (z == null) return Z_STREAM_ERROR
 
+        // Store the ZStream for use by inflateFlush
+        proc_z = z
+
         // Initialize local variables from the zstream and blocks state
         var p = z.nextInIndex
         var n = z.availIn
@@ -192,7 +195,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         var k = bitk
         var q = write
         var m = if (q < read) read - q - 1 else end - q
-        var result = rIn
+        var result: Int
         var r = rIn
 
         // Process input and output based on current state
@@ -201,7 +204,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                 IBLK_TYPE -> {
                     // Need at least 3 bits to determine block type
                     if (!ensureBits(3, z, b, k, n, p, q)) {
-                        return inflateFlush()
+                        return inflateFlush(r)
                     }
 
                     // Extract block type info
@@ -235,14 +238,14 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             z.msg = "invalid block type"
                             r = Z_DATA_ERROR
                             bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                            return inflateFlush()
+                            return inflateFlush(r)
                         }
                     }
                 }
                 IBLK_LENS -> {
                     // Need 32 bits to read block length and check
                     if (!ensureBits(32, z, b, k, n, p, q)) {
-                        return inflateFlush()
+                        return inflateFlush(r)
                     }
 
                     // Verify block length integrity
@@ -254,7 +257,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         z.msg = "invalid stored block lengths"
                         r = Z_DATA_ERROR
                         bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                        return inflateFlush()
+                        return inflateFlush(r)
                     }
 
                     left = storedLen
@@ -266,7 +269,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                 IBLK_STORED -> {
                     if (n == 0) {
                         bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                        return inflateFlush()
+                        return inflateFlush(r)
                     }
                     if (m == 0) {
                         if (q == end && read != 0) {
@@ -279,7 +282,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             }
                             if (m == 0) {
                                 bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                                return inflateFlush()
+                                return inflateFlush(r)
                             }
                         }
                     }
@@ -301,7 +304,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             r = Z_OK
                         } else {
                             bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                            return inflateFlush()
+                            return inflateFlush(r)
                         }
                         n--
                         b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
@@ -314,7 +317,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         z.msg = "too many length or distance symbols"
                         r = Z_DATA_ERROR
                         bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                        return inflateFlush()
+                        return inflateFlush(r)
                     }
                     val t2 = 258 + (t and 0x1f) + ((t ushr 5) and 0x1f)
                     blens = IntArray(t2)
@@ -329,7 +332,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                                 r = Z_OK
                             } else {
                                 bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                                return inflateFlush()
+                                return inflateFlush(r)
                             }
                             n--
                             b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
@@ -350,7 +353,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             mode = IBLK_BAD
                         }
                         bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                        return inflateFlush()
+                        return inflateFlush(r)
                     }
                     index = 0
                     mode = IBLK_DTREE
@@ -367,7 +370,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                                 r = Z_OK
                             } else {
                                 bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                                return inflateFlush()
+                                return inflateFlush(r)
                             }
                             n--
                             b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
@@ -386,7 +389,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                                     r = Z_OK
                                 } else {
                                     bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                                    return inflateFlush()
+                                    return inflateFlush(r)
                                 }
                                 n--
                                 b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
@@ -403,7 +406,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                                 z.msg = "invalid bit length repeat"
                                 r = Z_DATA_ERROR
                                 bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                                return inflateFlush()
+                                return inflateFlush(r)
                             }
                             c = if (c == 16) blens!![i - 1] else 0
                             do {
@@ -427,7 +430,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         }
                         r = inflateResult
                         bitb = b; bitk = k; z.availIn = n; z.totalIn += (p - z.nextInIndex).toLong(); z.nextInIndex = p; write = q
-                        return inflateFlush()
+                        return inflateFlush(r)
                     }
                     codes = InfCodes(bl_[0], bd_[0], hufts, tl_[0][0], hufts, td_[0][0])
                     blens = null
@@ -457,13 +460,13 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             z.msg = "invalid distance code"
                             result = Z_DATA_ERROR
                             saveState(z, b, k, n, p, q)
-                            return inflateFlush()
+                            return inflateFlush(result)
                         }
 
                         if (codesResult == Z_BUF_ERROR) {
                             // No progress is possible, need more input or output space
                             saveState(z, b, k, n, p, q)
-                            return inflateFlush()
+                            return inflateFlush(codesResult)
                         }
 
                         // Otherwise we got Z_OK, update our state from the saved values
@@ -472,7 +475,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         if (z.availIn == n && z.availOut == z.nextOut!!.size - z.nextOutIndex) {
                             result = Z_BUF_ERROR
                             saveState(z, b, k, n, p, q)
-                            return inflateFlush()
+                            return inflateFlush(result)
                         }
 
                         // Update our local variables
@@ -489,7 +492,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             z.totalIn += (p - z.nextInIndex).toLong()
                             z.nextInIndex = p
                             write = q
-                            return inflateFlush()
+                            return inflateFlush(r)
                         }
                     }
                 }
@@ -519,7 +522,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             // If still no space, return to try again later
                             if (m == 0) {
                                 saveState(z, b, k, n, p, q)
-                                return inflateFlush()
+                                return inflateFlush(result)
                             }
                         }
                     }
@@ -527,26 +530,26 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     // Mark as done and return
                     result = Z_STREAM_END
                     saveState(z, b, k, n, p, q)
-                    return inflateFlush()
+                    return inflateFlush(result)
                 }
 
                 IBLK_BAD -> {
                     result = Z_DATA_ERROR
                     saveState(z, b, k, n, p, q)
-                    return inflateFlush()
+                    return inflateFlush(result)
                 }
 
                 else -> {
                     result = Z_STREAM_ERROR
                     saveState(z, b, k, n, p, q)
-                    return inflateFlush()
+                    return inflateFlush(result)
                 }
             }
         }
 
         // Update the inflate blocks state and return
         saveState(z, b, k, n, p, q)
-        return inflateFlush()
+        return inflateFlush(r)
     }
 
     /**
@@ -634,14 +637,22 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
       * updates checksums, and handles window wrap-around. It's called at the end
       * of processing blocks or when more output space is needed.
       * 
+      * @param r The result code to return (typically Z_OK, Z_STREAM_END, Z_DATA_ERROR, etc.)
       * @return Updated result status code:
       *         - Z_OK if data remains to be flushed
       *         - Z_STREAM_END if all data has been flushed
       *         - Z_BUF_ERROR if the output buffer is full
+      *         - Z_DATA_ERROR if input data is corrupted
       *         - Z_STREAM_ERROR if the ZStream is invalid
      */
-    private fun inflateFlush(): Int {
-        val z = checkfn as? ZStream ?: return Z_STREAM_ERROR
+    private fun inflateFlush(r: Int = Z_OK): Int {
+        // Get the ZStream from the proc method
+        val z = proc_z ?: return Z_STREAM_ERROR
+
+        // If we have an error code other than Z_BUF_ERROR, return it after flushing
+        if (r != Z_OK && r != Z_STREAM_END && r != Z_BUF_ERROR) {
+            return r
+        }
 
         // Initialize positions
         var p = z.nextOutIndex
@@ -663,10 +674,21 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
             return Z_BUF_ERROR
         }
 
+        // Update counters
+        z.availOut -= n
+        z.totalOut += n.toLong()
+
+        // Update checksum if applicable
+        if (checkfn != null && n > 0) {
+            z.adler = z.adlerChecksum!!.adler32(check, window, q, n)
+            check = z.adler
+        }
+
         // Copy data to output buffer
         if (n > 0) {
-            copyToOutput(z, q, n)
-            q = read // read might have been updated in copyToOutput
+            window.copyInto(z.nextOut!!, p, q, q + n)
+            p += n
+            q += n
         }
 
         // Handle window wrap-around if needed
@@ -683,49 +705,35 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                 return Z_BUF_ERROR
             }
 
+            // Update counters for wrap-around data
+            z.availOut -= n
+            z.totalOut += n.toLong()
+
+            // Update checksum if applicable
+            if (checkfn != null && n > 0) {
+                z.adler = z.adlerChecksum!!.adler32(check, window, q, n)
+                check = z.adler
+            }
+
             // Copy remaining data after wrap-around
             if (n > 0) {
-                copyToOutput(z, q, n)
+                window.copyInto(z.nextOut!!, p, q, q + n)
+                p += n
+                q += n
             }
         }
+
+        // Update output index
+        z.nextOutIndex = p
+        read = q
 
         // Return status based on whether all data has been processed
         return if (read != write) Z_OK else Z_STREAM_END
     }
 
-    /**
-     * Helper method to copy data from the window to the output buffer.
-     * 
-     * This method copies a specified number of bytes from the sliding window
-     * to the output buffer, updates all relevant counters and position pointers,
-     * and recalculates checksums if applicable.
-     * 
-     * @param z The ZStream to receive the output data
-     * @param startPos Starting position in the sliding window
-     * @param length Number of bytes to copy to the output
-     */
-    private fun copyToOutput(z: ZStream, startPos: Int, length: Int) {
-        var p = z.nextOutIndex
-        var q = startPos
-        val n = length
+    // Store the ZStream from the proc method
+    private var proc_z: ZStream? = null
 
-        // Copy data to output buffer
-        window.copyInto(z.nextOut!!, p, q, q + n)
-        p += n
-        q += n
-
-        // Update counters
-        z.nextOutIndex = p
-        z.totalOut += n.toLong()
-        z.availOut -= n
-        read = q
-
-        // Update checksum if applicable
-        if (checkfn is Adler32) {
-            z.adler = (checkfn as Adler32).adler32(check, window, q - n, n)
-            check = z.adler
-        }
-    }
 
     /**
      * Releases allocated resources used by this InfBlocks instance.

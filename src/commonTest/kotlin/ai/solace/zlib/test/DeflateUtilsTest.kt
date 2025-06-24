@@ -6,7 +6,7 @@ import ai.solace.zlib.deflate.*
 import ai.solace.zlib.deflate.ZStream
 import kotlin.test.*
 
-private val DeflateUtilsTest.PENDING_BUF_SIZE: Int
+private val PENDING_BUF_SIZE: Int
     get() = 65536
 
 class DeflateUtilsTest {
