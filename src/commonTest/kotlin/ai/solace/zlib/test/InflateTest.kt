@@ -14,18 +14,18 @@ class InflateTest {
         var err = stream.deflateInit(level)
         assertTrue(err == Z_OK, "Test setup deflateInit failed. Error: $err, Msg: ${stream.msg}")
 
-        stream.next_in = input
-        stream.avail_in = input.size
+        stream.nextIn = input
+        stream.availIn = input.size
 
         // Ensure buffer is large enough for this simple test case
         val outputBuffer = ByteArray(input.size * 2 + 20)
-        stream.next_out = outputBuffer
-        stream.avail_out = outputBuffer.size
+        stream.nextOut = outputBuffer
+        stream.availOut = outputBuffer.size
 
         err = stream.deflate(Z_FINISH)
         assertTrue(err == Z_STREAM_END, "Test setup deflate failed, error: $err, msg: ${stream.msg}")
 
-        val result = outputBuffer.copyOf(stream.total_out.toInt())
+        val result = outputBuffer.copyOf(stream.totalOut.toInt())
 
         err = stream.deflateEnd()
         assertTrue(err == Z_OK, "Test setup deflateEnd failed. Error: $err, Msg: ${stream.msg}")
@@ -39,14 +39,14 @@ class InflateTest {
         var err = stream.inflateInit(MAX_WBITS)
         assertTrue(err == Z_OK, "inflateInit failed. Error: $err, Msg: ${stream.msg}")
 
-        stream.next_in = inputDeflated
-        stream.avail_in = inputDeflated.size
-        stream.next_in_index = 0
+        stream.nextIn = inputDeflated
+        stream.availIn = inputDeflated.size
+        stream.nextInIndex = 0
 
         val outputBuffer = ByteArray(originalSizeHint * 2 + 100) // Ensure buffer is large enough
-        stream.next_out = outputBuffer
-        stream.avail_out = outputBuffer.size
-        stream.next_out_index = 0
+        stream.nextOut = outputBuffer
+        stream.availOut = outputBuffer.size
+        stream.nextOutIndex = 0
 
         // Loop to fully inflate the data
         do {
@@ -59,7 +59,7 @@ class InflateTest {
             }
         } while (err != Z_STREAM_END)
 
-        val inflatedSize = stream.total_out.toInt()
+        val inflatedSize = stream.totalOut.toInt()
         val result = outputBuffer.copyOf(inflatedSize)
 
         err = stream.inflateEnd()

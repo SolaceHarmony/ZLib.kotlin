@@ -4,9 +4,9 @@ import ai.solace.zlib.common.END_BLOCK
 import ai.solace.zlib.common.L_CODES
 import ai.solace.zlib.common.MAX_BITS
 import ai.solace.zlib.deflate.StaticTree
-import ai.solace.zlib.deflate.bi_reverse
-import ai.solace.zlib.deflate.d_code
-import ai.solace.zlib.deflate.gen_codes
+import ai.solace.zlib.deflate.biReverse
+import ai.solace.zlib.deflate.dCode
+import ai.solace.zlib.deflate.genCodes
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -22,35 +22,35 @@ class TreeUtilsTest {
     fun testDCode() {
         // Test cases based on RFC 1951, section 3.2.6 and typical d_code logic
         // TREE_DIST_CODE is used by d_code
-        assertEquals(0, d_code(0), "d_code(0) failed")
-        assertEquals(1, d_code(1), "d_code(1) failed")
-        assertEquals(2, d_code(2), "d_code(2) failed")
-        assertEquals(3, d_code(3), "d_code(3) failed")
-        assertEquals(4, d_code(4), "d_code(4) failed")
+        assertEquals(0, dCode(0), "d_code(0) failed")
+        assertEquals(1, dCode(1), "d_code(1) failed")
+        assertEquals(2, dCode(2), "d_code(2) failed")
+        assertEquals(3, dCode(3), "d_code(3) failed")
+        assertEquals(4, dCode(4), "d_code(4) failed")
 
         // Based on typical zlib d_code mapping using TREE_DIST_CODE from Constants.kt
         // (Assuming TREE_DIST_CODE is populated as per standard zlib tables)
-        assertEquals(5, d_code(6), "d_code(6) failed") // Example
+        assertEquals(5, dCode(6), "d_code(6) failed") // Example
         // assertEquals(16, d_code(257), "d_code for dist 257 (actual value 257) failed") // d_code takes distance - 1
-        assertEquals(16, d_code(257-1), "d_code for dist 257 (idx 256) failed") // distance = 257, so dist_code index is 256
-        assertEquals(16, d_code(300-1), "d_code for dist 300 (idx 299) failed")
-        assertEquals(17, d_code(385-1), "d_code for dist 385 (idx 384) failed")
+        assertEquals(16, dCode(257-1), "d_code for dist 257 (idx 256) failed") // distance = 257, so dist_code index is 256
+        assertEquals(16, dCode(300-1), "d_code for dist 300 (idx 299) failed")
+        assertEquals(17, dCode(385-1), "d_code for dist 385 (idx 384) failed")
 
-        assertEquals(29, d_code(24577-1), "d_code for dist 24577 (idx 24576) failed")
-        assertEquals(29, d_code(32768-1), "d_code for dist 32768 (idx 32767) failed")
+        assertEquals(29, dCode(24577-1), "d_code for dist 24577 (idx 24576) failed")
+        assertEquals(29, dCode(32768-1), "d_code for dist 32768 (idx 32767) failed")
     }
 
     @Test
     fun testBiReverse() {
         // bi_reverse(code, len)
-        assertEquals(0b1011, bi_reverse(0b1101, 4), "bi_reverse(13, 4) failed") // 13 (1101) -> 11 (1011)
-        assertEquals(0b1, bi_reverse(0b1, 1), "bi_reverse(1, 1) failed")     // 1 (1) -> 1 (1)
-        assertEquals(0b0, bi_reverse(0b0, 1), "bi_reverse(0, 1) failed")     // 0 (0) -> 0 (0)
-        assertEquals(0b010, bi_reverse(0b010, 3), "bi_reverse(2, 3) failed") // 2 (010) -> 2 (010)
-        assertEquals(0b0001, bi_reverse(0b1000, 4), "bi_reverse(8, 4) failed") // 8 (1000) -> 1 (0001)
-        assertEquals(85, bi_reverse(85, 7), "bi_reverse(85, 7) failed")       // 85 (1010101) -> 85 (1010101)
-        assertEquals(64, bi_reverse(1, 7), "bi_reverse(1, 7) for len 7 failed") // 1 (0000001) -> 64 (1000000)
-        assertEquals(0, bi_reverse(0, 5), "bi_reverse(0,5) failed") // 0 (00000) -> 0 (00000)
+        assertEquals(0b1011, biReverse(0b1101, 4), "bi_reverse(13, 4) failed") // 13 (1101) -> 11 (1011)
+        assertEquals(0b1, biReverse(0b1, 1), "bi_reverse(1, 1) failed")     // 1 (1) -> 1 (1)
+        assertEquals(0b0, biReverse(0b0, 1), "bi_reverse(0, 1) failed")     // 0 (0) -> 0 (0)
+        assertEquals(0b010, biReverse(0b010, 3), "bi_reverse(2, 3) failed") // 2 (010) -> 2 (010)
+        assertEquals(0b0001, biReverse(0b1000, 4), "bi_reverse(8, 4) failed") // 8 (1000) -> 1 (0001)
+        assertEquals(85, biReverse(85, 7), "bi_reverse(85, 7) failed")       // 85 (1010101) -> 85 (1010101)
+        assertEquals(64, biReverse(1, 7), "bi_reverse(1, 7) for len 7 failed") // 1 (0000001) -> 64 (1000000)
+        assertEquals(0, biReverse(0, 5), "bi_reverse(0,5) failed") // 0 (00000) -> 0 (00000)
     }
 
     @Test
@@ -70,7 +70,7 @@ class TreeUtilsTest {
         blCount[1] = 1
         blCount[2] = 2
 
-        gen_codes(tree, maxCode, blCount)
+        genCodes(tree, maxCode, blCount)
 
         // Expected Huffman codes (after bi_reverse):
         // Code 0 (len 1): Initial code 0. bi_reverse(0, 1) = 0.
@@ -81,9 +81,9 @@ class TreeUtilsTest {
         // Code 2 (len 2): Initial code 3. bi_reverse(3, 2) = bi_reverse(0b11, 2) = 0b11 = 3.
 
         val expectedTree = shortArrayOf(
-            bi_reverse(0, 1).toShort(), 1,  // Code 0, Huffman code 0
-            bi_reverse(2, 2).toShort(), 2,  // Code 1, Huffman code 1
-            bi_reverse(3, 2).toShort(), 2   // Code 2, Huffman code 3
+            biReverse(0, 1).toShort(), 1,  // Code 0, Huffman code 0
+            biReverse(2, 2).toShort(), 2,  // Code 1, Huffman code 1
+            biReverse(3, 2).toShort(), 2   // Code 2, Huffman code 3
         )
         // Corrected assertion: tree elements are Short, ensure comparison is consistent
         val actualCodes = tree.map { it.toInt() }
@@ -114,7 +114,7 @@ class TreeUtilsTest {
 
         try {
             // gen_codes will populate staticLTreeCopy[i*2] with the huffman codes
-            gen_codes(staticLTreeCopy, staticLDesc.max_code, blCount)
+            genCodes(staticLTreeCopy, staticLDesc.maxCode, blCount)
 
             // Check a known code, e.g. END_BLOCK (value 256)
             // The length of END_BLOCK code in static_ltree is 7. (from StaticTree.static_ltree[END_BLOCK*2+1])

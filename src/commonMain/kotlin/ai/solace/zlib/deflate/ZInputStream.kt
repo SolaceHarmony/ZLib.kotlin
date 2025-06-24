@@ -1,4 +1,4 @@
-// Copyright (c) 2006, ComponentAce
+package ai.solace.zlib.deflate// Copyright (c) 2006, ComponentAce
 // http://www.componentace.com
 // All rights reserved.
 
@@ -42,8 +42,6 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 * and contributors of zlib.
 */
 import ai.solace.zlib.common.*
-import ai.solace.zlib.deflate.ZStream
-import ai.solace.zlib.deflate.ZStreamException
 import ai.solace.zlib.streams.InputStream
 
 class ZInputStream(private val `in`: InputStream) : InputStream() {
@@ -62,25 +60,25 @@ class ZInputStream(private val `in`: InputStream) : InputStream() {
         }
 
     val totalIn: Long
-        get() = z.total_in
+        get() = z.totalIn
 
     val totalOut: Long
-        get() = z.total_out
+        get() = z.totalOut
 
     init {
         z.inflateInit()
         compress = false
-        z.next_in = buf
-        z.next_in_index = 0
-        z.avail_in = 0
+        z.nextIn = buf
+        z.nextInIndex = 0
+        z.availIn = 0
     }
 
     constructor(`in`: InputStream, level: Int) : this(`in`) {
         z.deflateInit(level)
         compress = true
-        z.next_in = buf
-        z.next_in_index = 0
-        z.avail_in = 0
+        z.nextIn = buf
+        z.nextInIndex = 0
+        z.availIn = 0
     }
 
     override fun read(): Int {
@@ -94,15 +92,15 @@ class ZInputStream(private val `in`: InputStream) : InputStream() {
     override fun read(b: ByteArray, off: Int, len: Int): Int {
         if (len == 0) return 0
         var err: Int
-        z.next_out = b
-        z.next_out_index = off
-        z.avail_out = len
+        z.nextOut = b
+        z.nextOutIndex = off
+        z.availOut = len
         do {
-            if (z.avail_in == 0 && !nomoreinput) {
-                z.next_in_index = 0
-                z.avail_in = `in`.read(buf, 0, bufsize)
-                if (z.avail_in == -1) {
-                    z.avail_in = 0
+            if (z.availIn == 0 && !nomoreinput) {
+                z.nextInIndex = 0
+                z.availIn = `in`.read(buf, 0, bufsize)
+                if (z.availIn == -1) {
+                    z.availIn = 0
                     nomoreinput = true
                 }
             }
@@ -110,9 +108,9 @@ class ZInputStream(private val `in`: InputStream) : InputStream() {
             if (nomoreinput && err == Z_BUF_ERROR) return -1
             if (err != Z_OK && err != Z_STREAM_END)
                 throw ZStreamException((if (compress) "de" else "in") + "flating: " + z.msg)
-            if (nomoreinput && z.avail_out == len) return -1
-        } while (z.avail_out == len && err == Z_OK)
-        return len - z.avail_out
+            if (nomoreinput && z.availOut == len) return -1
+        } while (z.availOut == len && err == Z_OK)
+        return len - z.availOut
     }
 
     override fun close() {

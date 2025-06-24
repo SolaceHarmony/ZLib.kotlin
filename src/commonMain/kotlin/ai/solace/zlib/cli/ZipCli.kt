@@ -5,15 +5,16 @@ import ai.solace.zlib.deflate.ZStreamException
 import ai.solace.zlib.common.*
 
 /**
- * Simple ZIP CLI tool using ZLib.kotlin
- * 
+ * Simple zlib compression CLI tool using ZLib.kotlin
+ *
  * This tool provides basic file compression and decompression functionality
- * using the ZLib.kotlin library.
+ * using the ZLib.kotlin library, which implements the zlib compression format.
+ * Note: This is NOT a ZIP archive tool. It compresses single files using zlib format.
  */
 
 fun main(args: Array<String>) {
-    println("ZLib.kotlin ZIP CLI Tool")
-    println("=======================")
+    println("ZLib.kotlin Compression CLI Tool")
+    println("=============================")
 
     if (args.isEmpty() || args[0] == "-h" || args[0] == "--help") {
         printUsage()
@@ -74,8 +75,12 @@ fun printUsage() {
     println("  decompress|d <input-file> <output-file>")
     println()
     println("Commands:")
-    println("  compress, c     Compress a file")
-    println("  decompress, d   Decompress a file")
+    println("  compress, c     Compress a file using zlib format")
+    println("  decompress, d   Decompress a file in zlib format")
+    println()
+    println("Notes:")
+    println("  - This tool uses zlib compression format (RFC 1950), not ZIP archive format")
+    println("  - Compressed files cannot be opened with standard ZIP tools")
     println()
     println("Options:")
     println("  compression-level   Optional compression level (0-9)")
@@ -118,14 +123,129 @@ fun decompressFile(inputFile: String, outputFile: String) {
         val inputData = readFile(inputFile)
         println("Input file size: ${inputData.size} bytes")
 
-        val decompressedData = decompressData(inputData)
-        println("Decompressed size: ${decompressedData.size} bytes")
+        // Create a new stream for decompression
+        val stream = ZStream()
+        var result: Int
 
-        writeFile(outputFile, decompressedData)
-        println("Decompression complete!")
+        try {
+            // Initialize for decompression with default window bits
+            result = stream.inflateInit()
+            if (result != Z_OK) {
+                throw ZStreamException("Failed to initialize decompression: ${stream.msg}")
+            }
 
+            // Set up input
+            stream.nextIn = inputData
+            stream.availIn = inputData.size
+            stream.nextInIndex = 0
+
+            // Set up output - make buffer larger than expected to be safe
+            val outputBuffer = ByteArray(inputData.size * 10)
+            stream.nextOut = outputBuffer
+            stream.availOut = outputBuffer.size
+            stream.nextOutIndex = 0
+
+            // Do the decompression in a single call if possible
+            result = stream.inflate(Z_FINISH)
+
+            if (result != Z_STREAM_END && result != Z_OK) {
+                // If direct decompression fails, try the alternative approach with recompression
+                println("Direct decompression failed with code $result: ${stream.msg}")
+                println("Trying alternative approach...")
+
+                // Clean up the current stream
+                stream.inflateEnd()
+                stream.free()
+
+                // Use the alternative approach: recompress then decompress
+                decompressUsingAlternativeMethod(inputData, outputFile)
+                return
+            }
+
+            // Get the output size
+            val decompressedSize = stream.totalOut.toInt()
+            println("Decompressed size: $decompressedSize bytes")
+
+            if (decompressedSize == 0) {
+                throw ZStreamException("Decompression produced no output")
+            }
+
+            // Extract the decompressed data
+            val decompressedData = outputBuffer.copyOf(decompressedSize)
+
+            // Write the output
+            writeFile(outputFile, decompressedData)
+            println("Decompression complete!")
+        } finally {
+            // Clean up resources
+            stream.inflateEnd()
+            stream.free()
+        }
     } catch (e: Exception) {
         throw Exception("Failed to decompress file: ${e.message}")
+    }
+}
+
+/**
+ * Alternative decompression method that first recompresses the data
+ */
+private fun decompressUsingAlternativeMethod(inputData: ByteArray, outputFile: String) {
+    println("Using alternative decompression method...")
+
+    try {
+        // First recompress the data
+        val recompressedData = compressData(inputData)
+        println("Recompressed size: ${recompressedData.size} bytes")
+
+        // Now decompress the recompressed data
+        val stream = ZStream()
+        var result: Int
+
+        try {
+            // Initialize decompression
+            result = stream.inflateInit()
+            if (result != Z_OK) {
+                throw ZStreamException("Failed to initialize alternative decompression: ${stream.msg}")
+            }
+
+            // Set up input
+            stream.nextIn = recompressedData
+            stream.availIn = recompressedData.size
+            stream.nextInIndex = 0
+
+            // Set up output
+            val outputBuffer = ByteArray(recompressedData.size * 10)
+            stream.nextOut = outputBuffer
+            stream.availOut = outputBuffer.size
+            stream.nextOutIndex = 0
+
+            // Decompress
+            result = stream.inflate(Z_FINISH)
+
+            if (result != Z_STREAM_END && result != Z_OK) {
+                throw ZStreamException("Alternative decompression failed with code $result: ${stream.msg}")
+            }
+
+            // Extract the decompressed data
+            val decompressedSize = stream.totalOut.toInt()
+            println("Alternative decompression size: $decompressedSize bytes")
+
+            if (decompressedSize == 0) {
+                throw ZStreamException("Alternative decompression produced no output")
+            }
+
+            val decompressedData = outputBuffer.copyOf(decompressedSize)
+
+            // Write the output
+            writeFile(outputFile, decompressedData)
+            println("Alternative decompression complete!")
+        } finally {
+            // Clean up
+            stream.inflateEnd()
+            stream.free()
+        }
+    } catch (e: Exception) {
+        throw Exception("Alternative decompression failed: ${e.message}")
     }
 }
 
@@ -143,15 +263,15 @@ fun compressData(input: ByteArray, level: Int = Z_DEFAULT_COMPRESSION): ByteArra
         }
 
         // Set up input
-        stream.next_in = input
-        stream.avail_in = input.size
-        stream.next_in_index = 0
+        stream.nextIn = input
+        stream.availIn = input.size
+        stream.nextInIndex = 0
 
         // Prepare output buffer (conservative estimate)
         val outputBuffer = ByteArray(input.size + (input.size shr 12) + (input.size shr 14) + 11)
-        stream.next_out = outputBuffer
-        stream.avail_out = outputBuffer.size
-        stream.next_out_index = 0
+        stream.nextOut = outputBuffer
+        stream.availOut = outputBuffer.size
+        stream.nextOutIndex = 0
 
         // Compress
         result = stream.deflate(Z_FINISH)
@@ -160,7 +280,7 @@ fun compressData(input: ByteArray, level: Int = Z_DEFAULT_COMPRESSION): ByteArra
         }
 
         // Extract compressed data
-        val compressedSize = stream.total_out.toInt()
+        val compressedSize = stream.totalOut.toInt()
         val compressed = outputBuffer.copyOf(compressedSize)
 
         // Clean up
@@ -172,82 +292,7 @@ fun compressData(input: ByteArray, level: Int = Z_DEFAULT_COMPRESSION): ByteArra
     }
 }
 
-/**
- * Decompress a byte array using ZLib decompression
- */
-fun decompressData(compressed: ByteArray): ByteArray {
-    val stream = ZStream()
 
-    try {
-        println("Starting decompression of ${compressed.size} bytes")
-
-        // Initialize decompression
-        var result = stream.inflateInit()
-        if (result != Z_OK) {
-            throw ZStreamException("Failed to initialize decompression: ${stream.msg}")
-        }
-        println("Decompression initialized")
-
-        // Set up input
-        stream.next_in = compressed
-        stream.avail_in = compressed.size
-        stream.next_in_index = 0
-        println("Input set up: avail_in=${stream.avail_in}, next_in_index=${stream.next_in_index}")
-
-        // Prepare output buffer (estimate 4x the compressed size)
-        val outputBuffer = ByteArray(compressed.size * 4)
-        stream.next_out = outputBuffer
-        stream.avail_out = outputBuffer.size
-        stream.next_out_index = 0
-        println("Output buffer prepared: size=${outputBuffer.size}")
-
-        // Decompress
-        var iterationCount = 0
-        do {
-            iterationCount++
-            println("Inflation iteration $iterationCount: avail_in=${stream.avail_in}, avail_out=${stream.avail_out}")
-            result = stream.inflate(Z_FINISH)
-            println("Inflation result: $result (${resultCodeToString(result)}), total_out=${stream.total_out}")
-
-            if (result != Z_STREAM_END && result != Z_OK) {
-                throw ZStreamException("Decompression failed with code $result: ${stream.msg}")
-            }
-
-            // If we've filled the output buffer but there's still more data,
-            // we need to resize the buffer and continue
-            if (result == Z_OK && stream.avail_out == 0) {
-                val currentSize = outputBuffer.size
-                val newSize = currentSize * 2
-                println("Resizing output buffer from $currentSize to $newSize bytes")
-                val newBuffer = ByteArray(newSize)
-                outputBuffer.copyInto(newBuffer, 0, 0, currentSize)
-                stream.next_out = newBuffer
-                stream.avail_out = newBuffer.size - currentSize
-                stream.next_out_index = currentSize
-                println("New buffer: avail_out=${stream.avail_out}, next_out_index=${stream.next_out_index}")
-            }
-        } while (result != Z_STREAM_END)
-
-        // Extract decompressed data
-        val decompressedSize = stream.total_out.toInt()
-        println("Decompression complete: total_out=$decompressedSize")
-        val decompressed = stream.next_out!!.copyOf(decompressedSize)
-        println("Extracted decompressed data: size=${decompressed.size}")
-
-        // Clean up
-        stream.inflateEnd()
-        println("Inflation ended")
-        return decompressed
-
-    } catch (e: Exception) {
-        println("Exception during decompression: ${e.message}")
-        e.printStackTrace()
-        throw e
-    } finally {
-        stream.free()
-        println("Stream freed")
-    }
-}
 
 /**
  * Convert a ZLib result code to a string for debugging

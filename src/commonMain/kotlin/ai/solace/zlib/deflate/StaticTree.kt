@@ -46,12 +46,12 @@ package ai.solace.zlib.deflate
 import ai.solace.zlib.common.* // Import all constants
 
 internal class StaticTree(
-    internal val static_tree: ShortArray?, // static tree or null
-    internal val extra_bits: IntArray?, // extra bits for each code or null
-    internal val extra_base: Int, // base index for extra_bits
+    internal val staticTree: ShortArray?, // static tree or null
+    internal val extraBits: IntArray?, // extra bits for each code or null
+    internal val extraBase: Int, // base index for extra_bits
     internal val elems: Int, // max number of elements in the tree
-    internal val max_length: Int, // max bit length for the codes
-    internal val max_code: Int // largest code
+    internal val maxLength: Int, // max bit length for the codes
+    internal val maxCode: Int // largest code
 ) {
     companion object {
         // Constants previously defined here are now in ai.solace.zlib.common.Constants

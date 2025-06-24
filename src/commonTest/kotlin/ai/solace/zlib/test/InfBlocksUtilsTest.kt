@@ -6,7 +6,7 @@ import ai.solace.zlib.deflate.InfBlocks
 // import ai.solace.zlib.deflate.InfCodes
 import ai.solace.zlib.deflate.Inflate // Needed for ZStream.istate initialization
 import ai.solace.zlib.deflate.ZStream
-import ai.solace.zlib.deflate.inflate_flush // Direct import for the utility function
+import ai.solace.zlib.deflate.inflateFlush // Direct import for the utility function
 import kotlin.test.*
 
 class InfBlocksUtilsTest {
@@ -16,11 +16,11 @@ class InfBlocksUtilsTest {
         // Inflate.inflateInit creates the Inflate state (istate) and then InfBlocks.
 
         // Minimal ZStream setup if not already done by caller
-        if (stream.istate == null) {
-            stream.istate = Inflate() // Create the Inflate state object
+        if (stream.iState == null) {
+            stream.iState = Inflate() // Create the Inflate state object
             // Initialize basic fields in Inflate state that InfBlocks constructor or reset might need
-            stream.istate!!.nowrap = 0 // Assuming default nowrap = 0 (zlib header present)
-            stream.istate!!.wbits = windowSize.countTrailingZeroBits() // wbits is log2(window size)
+            stream.iState!!.nowrap = 0 // Assuming default nowrap = 0 (zlib header present)
+            stream.iState!!.wbits = windowSize.countTrailingZeroBits() // wbits is log2(window size)
                                                                     // A bit hacky; prefer passing wbits if available
                                                                     // Or use a known good default like 15 for MAX_WBITS
                                                                     // For this test, windowSize is passed, so derive wbits.
@@ -28,10 +28,10 @@ class InfBlocksUtilsTest {
                                                                     // Let's assume windowSize will be a power of 2 for testing.
             if (windowSize <= 0 || windowSize.countOneBits() != 1) {
                  // Default to MAX_WBITS if windowSize is not a power of 2
-                 stream.istate!!.wbits = MAX_WBITS
+                 stream.iState!!.wbits = MAX_WBITS
             }
         }
-        val istate = stream.istate!!
+        val istate = stream.iState!!
 
         // InfBlocks(z: ZStream, checkfn: Any?, w: Int)
         // 'checkfn' is an Adler32 instance from Inflate, or null if nowrap.
@@ -65,23 +65,23 @@ class InfBlocksUtilsTest {
         for (i in 0 until blocks.write) { blocks.window[i] = (i + 1).toByte() }
 
         val outputBufferSize = 10
-        stream.avail_out = outputBufferSize
-        stream.next_out = ByteArray(outputBufferSize)
-        stream.next_out_index = 0
-        val originalTotalOut = stream.total_out
+        stream.availOut = outputBufferSize
+        stream.nextOut = ByteArray(outputBufferSize)
+        stream.nextOutIndex = 0
+        val originalTotalOut = stream.totalOut
 
         // Call the utility function (it's in ai.solace.zlib.deflate package)
-        val result = inflate_flush(blocks, stream, Z_OK)
+        val result = inflateFlush(blocks, stream, Z_OK)
 
         assertEquals(Z_OK, result, "inflate_flush should return Z_OK")
-        assertEquals(bytesToWrite, stream.next_out_index, "next_out_index should advance by flushed bytes")
-        assertEquals(outputBufferSize - bytesToWrite, stream.avail_out, "avail_out should decrease by flushed bytes")
-        assertEquals(originalTotalOut + bytesToWrite, stream.total_out, "total_out should increase by flushed bytes")
+        assertEquals(bytesToWrite, stream.nextOutIndex, "next_out_index should advance by flushed bytes")
+        assertEquals(outputBufferSize - bytesToWrite, stream.availOut, "avail_out should decrease by flushed bytes")
+        assertEquals(originalTotalOut + bytesToWrite, stream.totalOut, "total_out should increase by flushed bytes")
         assertEquals(bytesToWrite, blocks.read, "blocks.read should advance to blocks.write")
 
         // Verify that the correct data was flushed
         for (i in 0 until bytesToWrite) {
-            assertEquals((i + 1).toByte(), stream.next_out!![i], "Flushed byte $i is incorrect")
+            assertEquals((i + 1).toByte(), stream.nextOut!![i], "Flushed byte $i is incorrect")
         }
     }
 
@@ -97,28 +97,28 @@ class InfBlocksUtilsTest {
         for (i in 0 until blocks.write) { blocks.window[i] = (i + 1).toByte() }
 
         val outputBufferAvailable = 2 // Not enough space for all 5 bytes
-        stream.avail_out = outputBufferAvailable
-        stream.next_out = ByteArray(outputBufferAvailable) // Output buffer exactly size of avail_out for this test
-        stream.next_out_index = 0
-        val originalTotalOut = stream.total_out
-        val originalAvailIn = stream.avail_in // Should be unchanged by inflate_flush
+        stream.availOut = outputBufferAvailable
+        stream.nextOut = ByteArray(outputBufferAvailable) // Output buffer exactly size of avail_out for this test
+        stream.nextOutIndex = 0
+        val originalTotalOut = stream.totalOut
+        val originalAvailIn = stream.availIn // Should be unchanged by inflate_flush
 
-        val result = inflate_flush(blocks, stream, Z_OK)
+        val result = inflateFlush(blocks, stream, Z_OK)
 
         // Z_OK is returned even if not all data could be flushed, as long as some progress was made
         // or if it was a Z_BUF_ERROR that got converted to Z_OK because n != 0.
         assertEquals(Z_OK, result, "inflate_flush should return Z_OK with partial flush if space available")
 
-        assertEquals(outputBufferAvailable, stream.next_out_index, "next_out_index should advance by available space")
-        assertEquals(0, stream.avail_out, "avail_out should be 0 as all provided space was used")
-        assertEquals(originalTotalOut + outputBufferAvailable, stream.total_out, "total_out should increase by flushed bytes")
+        assertEquals(outputBufferAvailable, stream.nextOutIndex, "next_out_index should advance by available space")
+        assertEquals(0, stream.availOut, "avail_out should be 0 as all provided space was used")
+        assertEquals(originalTotalOut + outputBufferAvailable, stream.totalOut, "total_out should increase by flushed bytes")
         assertEquals(outputBufferAvailable, blocks.read, "blocks.read should advance by bytes actually flushed")
-        assertEquals(originalAvailIn, stream.avail_in, "avail_in should be unchanged by inflate_flush")
+        assertEquals(originalAvailIn, stream.availIn, "avail_in should be unchanged by inflate_flush")
 
 
         // Verify that the correct data was flushed
         for (i in 0 until outputBufferAvailable) {
-            assertEquals((i + 1).toByte(), stream.next_out!![i], "Flushed byte $i is incorrect in partial flush")
+            assertEquals((i + 1).toByte(), stream.nextOut!![i], "Flushed byte $i is incorrect in partial flush")
         }
     }
 
@@ -140,23 +140,23 @@ class InfBlocksUtilsTest {
         dataPart2.copyInto(blocks.window, 0)
 
         val outputBufferSize = 10
-        stream.avail_out = outputBufferSize
-        stream.next_out = ByteArray(outputBufferSize)
-        stream.next_out_index = 0
-        val originalTotalOut = stream.total_out
+        stream.availOut = outputBufferSize
+        stream.nextOut = ByteArray(outputBufferSize)
+        stream.nextOutIndex = 0
+        val originalTotalOut = stream.totalOut
 
-        val result = inflate_flush(blocks, stream, Z_OK)
+        val result = inflateFlush(blocks, stream, Z_OK)
         assertEquals(Z_OK, result, "inflate_flush with wrapped window should return Z_OK")
 
         val totalBytesCopied = dataPart1.size + dataPart2.size
-        assertEquals(totalBytesCopied, stream.next_out_index, "next_out_index (wrapped) incorrect")
-        assertEquals(outputBufferSize - totalBytesCopied, stream.avail_out, "avail_out (wrapped) incorrect")
-        assertEquals(originalTotalOut + totalBytesCopied, stream.total_out, "total_out (wrapped) incorrect")
+        assertEquals(totalBytesCopied, stream.nextOutIndex, "next_out_index (wrapped) incorrect")
+        assertEquals(outputBufferSize - totalBytesCopied, stream.availOut, "avail_out (wrapped) incorrect")
+        assertEquals(originalTotalOut + totalBytesCopied, stream.totalOut, "total_out (wrapped) incorrect")
         assertEquals(blocks.write, blocks.read, "blocks.read should be equal to blocks.write after full flush (wrapped)")
 
         val expectedFlushedData = dataPart1 + dataPart2
         for (i in 0 until totalBytesCopied) {
-            assertEquals(expectedFlushedData[i], stream.next_out!![i], "Flushed byte $i (wrapped) is incorrect")
+            assertEquals(expectedFlushedData[i], stream.nextOut!![i], "Flushed byte $i (wrapped) is incorrect")
         }
     }
 }

@@ -54,11 +54,23 @@ internal object InfTree {
 
     private val fixed_bl = intArrayOf(9)
     private val fixed_bd = intArrayOf(5)
+
+    // Predefined fixed tables from the C# implementation
+    private val fixed_td = arrayOf(
+        intArrayOf(
+            80, 5, 1, 87, 5, 257, 83, 5, 17, 91, 5, 4097, 81, 5, 5, 89, 5, 1025, 85, 5, 65, 93, 5, 16385, 
+            80, 5, 3, 88, 5, 513, 84, 5, 33, 92, 5, 8193, 82, 5, 9, 90, 5, 2049, 86, 5, 129, 192, 5, 24577, 
+            80, 5, 2, 87, 5, 385, 83, 5, 25, 91, 5, 6145, 81, 5, 7, 89, 5, 1537, 85, 5, 97, 93, 5, 24577, 
+            80, 5, 4, 88, 5, 769, 84, 5, 49, 92, 5, 12289, 82, 5, 13, 90, 5, 3073, 86, 5, 193, 192, 5, 24577
+        )
+    )
+
+    // We'll still need to build the fixed_tl table at runtime since we don't have the full C# values
     private val fixed_tl = arrayOf(IntArray(0))
-    private val fixed_td = arrayOf(IntArray(0))
     private var fixed_built = false
 
-    private fun huft_build(
+    @Suppress("UNUSED_PARAMETER")
+    private fun huftBuild(
         b: IntArray,
         bIndex: Int,
         n: Int,
@@ -73,7 +85,6 @@ internal object InfTree {
     ): Int {
         var a: Int // counter for codes of length k
         val c = IntArray(MAX_BITS + 1) // bit length count table
-        var el: Int // length of EOB code (value 256)
         var f: Int // i repeats in table every f entries
         var g: Int // maximum code length
         var h: Int // table level
@@ -94,11 +105,16 @@ internal object InfTree {
         var z: Int // number of entries in current table
 
         // Generate counts for each bit length
-        el = if (n > 256) b[bIndex + 256] else MAX_BITS
         p = bIndex
         i = n
         do {
-            c[b[p++]]++
+            val index = b[p++]
+            if (index >= 0 && index <= MAX_BITS) {
+                c[index]++
+            } else {
+                println("huft_build: Invalid bit length index: $index, MAX_BITS: $MAX_BITS")
+                return Z_DATA_ERROR // Invalid bit length
+            }
         } while (--i > 0)
 
         if (c[0] == n) {
@@ -159,7 +175,14 @@ internal object InfTree {
         while (i < n) {
             j = b[bIndex + i]
             if (j != 0) {
-                v[c[j]++] = i
+                val index = c[j]
+                if (index >= 0 && index < v.size) {
+                    v[index] = i
+                    c[j]++
+                } else {
+                    println("huft_build: Invalid index for v array: $index, v.size: ${v.size}, j: $j, i: $i")
+                    return Z_DATA_ERROR // Index out of bounds
+                }
             }
             i++
         }
@@ -218,7 +241,13 @@ internal object InfTree {
                         x[0] = u[h - 1] + (x[0] ushr w)
                         // set up table entry in parent
                         r[0] = (l shl 24) or (j shl 16) or x[0]
-                        t[0][(u[h-1] + (x[0] and ((1 shl w) -1)))*3] = r[0]
+                        val index = (u[h-1] + (x[0] and ((1 shl w) -1)))*3
+                        if (index >= 0 && index < t[0].size) {
+                            t[0][index] = r[0]
+                        } else {
+                            println("huft_build: Invalid index for t[0] array (parent table): $index, t[0].size: ${t[0].size}, h: $h, w: $w, x[0]: ${x[0]}")
+                            return Z_DATA_ERROR // Index out of bounds
+                        }
                     }
                 }
 
@@ -229,7 +258,13 @@ internal object InfTree {
                     r[0] = r[0] or (1 shl (w + j))
                     j++
                 }
-                t[0][(q + (x[0] and ((1 shl (w + l)) - 1)))*3] = r[0]
+                val index = (q + (x[0] and ((1 shl (w + l)) - 1)))*3
+                if (index >= 0 && index < t[0].size) {
+                    t[0][index] = r[0]
+                } else {
+                    println("huft_build: Invalid index for t[0] array (current table): $index, t[0].size: ${t[0].size}, q: $q, w: $w, l: $l, x[0]: ${x[0]}")
+                    return Z_DATA_ERROR // Index out of bounds
+                }
 
                 // calculate next code
                 j = 1 shl (k - 1)
@@ -253,7 +288,7 @@ internal object InfTree {
         return if (y == 0 || g == 1) Z_OK else Z_DATA_ERROR
     }
 
-    internal fun inflate_trees_bits(
+    internal fun inflateTreesBits(
         c: IntArray,
         bb: IntArray,
         tb: Array<IntArray>,
@@ -263,7 +298,7 @@ internal object InfTree {
         var result: Int
         val hn = intArrayOf(0)
         val v = IntArray(19)
-        result = huft_build(c, 0, 19, 19, null, null, tb, bb, hp, hn, v)
+        result = huftBuild(c, 0, 19, 19, null, null, tb, bb, hp, hn, v)
         if (result == Z_DATA_ERROR) {
             z.msg = "oversubscribed dynamic bit lengths tree"
         } else if (result == Z_BUF_ERROR || bb[0] == 0) {
@@ -273,7 +308,7 @@ internal object InfTree {
         return result
     }
 
-    internal fun inflate_trees_dynamic(
+    internal fun inflateTreesDynamic(
         nl: Int,
         nd: Int,
         c: IntArray,
@@ -289,7 +324,7 @@ internal object InfTree {
         val v = IntArray(288)
 
         // build literal/length tree
-        result = huft_build(c, 0, nl, L_CODES, TREE_EXTRA_LBITS, TREE_BASE_LENGTH, tl, bl, hp, hn, v)
+        result = huftBuild(c, 0, nl, L_CODES, TREE_EXTRA_LBITS, TREE_BASE_LENGTH, tl, bl, hp, hn, v)
         if (result != Z_OK || bl[0] == 0) {
             if (result == Z_DATA_ERROR) {
                 z.msg = "oversubscribed literal/length tree"
@@ -301,7 +336,7 @@ internal object InfTree {
         }
 
         // build distance tree
-        result = huft_build(c, nl, nd, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST, td, bd, hp, hn, v)
+        result = huftBuild(c, nl, nd, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST, td, bd, hp, hn, v)
         if (result != Z_OK || (bd[0] == 0 && nl > 257)) {
             if (result == Z_DATA_ERROR) {
                 z.msg = "oversubscribed distance tree"
@@ -317,7 +352,7 @@ internal object InfTree {
         return Z_OK
     }
 
-    internal fun inflate_trees_fixed(
+    internal fun inflateTreesFixed(
         bl: IntArray,
         bd: IntArray,
         tl: Array<IntArray>,
@@ -333,11 +368,11 @@ internal object InfTree {
             while (i < 288) l[i] = 8
             fixed_bl[0] = 9
 
-            var hn = intArrayOf(0)
+            val hn = intArrayOf(0)
             val v = IntArray(288)
             val hp = IntArray(0)
 
-            var result = huft_build(l, 0, 288, L_CODES, TREE_EXTRA_LBITS, TREE_BASE_LENGTH, fixed_tl, fixed_bl, hp, hn, v)
+            var result = huftBuild(l, 0, 288, L_CODES, TREE_EXTRA_LBITS, TREE_BASE_LENGTH, fixed_tl, fixed_bl, hp, hn, v)
             if (result != Z_OK) {
                 z.msg = "fixed length tree"
                 // handle error
@@ -346,7 +381,7 @@ internal object InfTree {
             i = 0
             while (i < 30) l[i] = 5
             fixed_bd[0] = 5
-            result = huft_build(l, 0, 30, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST, fixed_td, fixed_bd, hp, hn, v)
+            result = huftBuild(l, 0, 30, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST, fixed_td, fixed_bd, hp, hn, v)
             if (result != Z_OK) {
                 z.msg = "fixed distance tree"
                 // handle error

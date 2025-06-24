@@ -11,153 +11,153 @@ internal fun smaller(tree: ShortArray, n: Int, m: Int, depth: ByteArray): Boolea
             (tree[n * 2].toInt() == tree[m * 2].toInt() && depth[n] <= depth[m])
 }
 
-internal fun put_byte(d: Deflate, p: ByteArray, start: Int, len: Int) {
-    p.copyInto(d.pending_buf, d.pending, start, start + len)
+internal fun putByte(d: Deflate, p: ByteArray, start: Int, len: Int) {
+    p.copyInto(d.pendingBuf, d.pending, start, start + len)
     d.pending += len
 }
 
-internal fun put_byte(d: Deflate, c: Byte) {
-    d.pending_buf[d.pending++] = c
+internal fun putByte(d: Deflate, c: Byte) {
+    d.pendingBuf[d.pending++] = c
 }
 
-internal fun put_short(d: Deflate, w: Int) {
-    put_byte(d, w.toByte())
-    put_byte(d, (w ushr 8).toByte())
+internal fun putShort(d: Deflate, w: Int) {
+    putByte(d, w.toByte())
+    putByte(d, (w ushr 8).toByte())
 }
 
 internal fun putShortMSB(d: Deflate, b: Int) {
-    put_byte(d, (b shr 8).toByte())
-    put_byte(d, b.toByte())
+    putByte(d, (b shr 8).toByte())
+    putByte(d, b.toByte())
 }
 
-internal fun send_bits(d: Deflate, value: Int, length: Int) {
+internal fun sendBits(d: Deflate, value: Int, length: Int) {
     if (length == 0) return
     val len = length
-    val old_bi_valid = d.bi_valid
-    if (old_bi_valid > 16 - len) {  // 16 is BUF_SIZE (bits in a Short * 2)
-        var bi_buf_val = d.bi_buf.toInt() and 0xffff
-        val val_shifted = value shl old_bi_valid
-        val val_shifted_masked = val_shifted and 0xffff
-        val combined_val_for_flush = bi_buf_val or val_shifted_masked
-        put_short(d, combined_val_for_flush)
+    val oldBiValid = d.biValid
+    if (oldBiValid > 16 - len) {  // 16 is BUF_SIZE (bits in a Short * 2)
+        var biBufVal = d.biBuf.toInt() and 0xffff
+        val valShifted = value shl oldBiValid
+        val valShiftedMasked = valShifted and 0xffff
+        val combinedValForFlush = biBufVal or valShiftedMasked
+        putShort(d, combinedValForFlush)
 
         // Place remaining bits in the buffer
-        val bits_already_written = 16 - old_bi_valid  // 16 is BUF_SIZE
-        d.bi_buf = (value ushr bits_already_written).toShort()
-        d.bi_valid = old_bi_valid + len - 16  // 16 is BUF_SIZE
+        val bitsAlreadyWritten = 16 - oldBiValid  // 16 is BUF_SIZE
+        d.biBuf = (value ushr bitsAlreadyWritten).toShort()
+        d.biValid = oldBiValid + len - 16  // 16 is BUF_SIZE
     } else {
-        val bi_buf_int = (d.bi_buf.toInt() and 0xffff) or (value shl old_bi_valid)
-        d.bi_buf = bi_buf_int.toShort()
-        d.bi_valid = old_bi_valid + len
+        val biBufInt = (d.biBuf.toInt() and 0xffff) or (value shl oldBiValid)
+        d.biBuf = biBufInt.toShort()
+        d.biValid = oldBiValid + len
     }
 }
 
-internal fun send_code(d: Deflate, c: Int, tree: ShortArray) {
-    send_bits(d, (tree[c * 2].toInt() and 0xffff), (tree[c * 2 + 1].toInt() and 0xffff))
+internal fun sendCode(d: Deflate, c: Int, tree: ShortArray) {
+    sendBits(d, (tree[c * 2].toInt() and 0xffff), (tree[c * 2 + 1].toInt() and 0xffff))
 }
 
-internal fun _tr_align(d: Deflate) {
-    send_bits(d, STATIC_TREES shl 1, 3)
-    send_code(d, END_BLOCK, StaticTree.static_ltree)
-    bi_flush(d)
-    if (1 + d.last_eob_len + 10 - d.bi_valid < 9) {
-        send_bits(d, STATIC_TREES shl 1, 3)
-        send_code(d, END_BLOCK, StaticTree.static_ltree)
-        bi_flush(d)
+internal fun trAlign(d: Deflate) {
+    sendBits(d, STATIC_TREES shl 1, 3)
+    sendCode(d, END_BLOCK, StaticTree.static_ltree)
+    biFlush(d)
+    if (1 + d.lastEobLen + 10 - d.biValid < 9) {
+        sendBits(d, STATIC_TREES shl 1, 3)
+        sendCode(d, END_BLOCK, StaticTree.static_ltree)
+        biFlush(d)
     }
-    d.last_eob_len = 7
+    d.lastEobLen = 7
 }
 
-internal fun compress_block(d: Deflate, ltree: ShortArray, dtree: ShortArray) {
+internal fun compressBlock(d: Deflate, ltree: ShortArray, dtree: ShortArray) {
     var dist: Int // distance of matched string
     var lc: Int // match length or unmatched char (if dist == 0)
     var lx = 0 // running index in l_buf
     var code: Int // the code to send
     var extra: Int // number of extra bits to send
 
-    if (d.last_lit != 0) {
+    if (d.lastLit != 0) {
         do {
-            dist = ((d.pending_buf[d.d_buf + lx * 2].toInt() shl 8 and 0xff00) or (d.pending_buf[d.d_buf + lx * 2 + 1].toInt() and 0xff))
-            lc = (d.pending_buf[d.l_buf + lx]).toInt() and 0xff
+            dist = ((d.pendingBuf[d.dBuf + lx * 2].toInt() shl 8 and 0xff00) or (d.pendingBuf[d.dBuf + lx * 2 + 1].toInt() and 0xff))
+            lc = (d.pendingBuf[d.lBuf + lx]).toInt() and 0xff
             lx++
 
             if (dist == 0) {
-                send_code(d, lc, ltree) // send a literal byte
+                sendCode(d, lc, ltree) // send a literal byte
             } else {
                 code = TREE_LENGTH_CODE[lc].toInt()
-                send_code(d, code + LITERALS + 1, ltree) // send the length code
+                sendCode(d, code + LITERALS + 1, ltree) // send the length code
                 extra = TREE_EXTRA_LBITS[code]
                 if (extra != 0) {
                     lc -= TREE_BASE_LENGTH[code]
-                    send_bits(d, lc, extra) // send the extra length bits
+                    sendBits(d, lc, extra) // send the extra length bits
                 }
                 dist--
-                code = d_code(dist) // d_code from TreeUtils
-                send_code(d, code, dtree) // send the distance code
+                code = dCode(dist) // d_code from TreeUtils
+                sendCode(d, code, dtree) // send the distance code
                 extra = TREE_EXTRA_DBITS[code]
                 if (extra != 0) {
                     dist -= TREE_BASE_DIST[code]
-                    send_bits(d, dist, extra) // send the extra distance bits
+                    sendBits(d, dist, extra) // send the extra distance bits
                 }
             }
-        } while (lx < d.last_lit)
+        } while (lx < d.lastLit)
     }
-    send_code(d, END_BLOCK, ltree)
-    d.last_eob_len = ltree[END_BLOCK * 2 + 1].toInt()
+    sendCode(d, END_BLOCK, ltree)
+    d.lastEobLen = ltree[END_BLOCK * 2 + 1].toInt()
 }
 
-internal fun set_data_type(d: Deflate) {
+internal fun setDataType(d: Deflate) {
     var n = 0
-    var ascii_freq = 0
-    var bin_freq = 0
+    var asciiFreq = 0
+    var binFreq = 0
     while (n < 7) {
-        bin_freq += d.dyn_ltree[n * 2]
+        binFreq += d.dynLtree[n * 2]
         n++
     }
     while (n < 128) {
-        ascii_freq += d.dyn_ltree[n * 2]
+        asciiFreq += d.dynLtree[n * 2]
         n++
     }
     while (n < LITERALS) {
-        bin_freq += d.dyn_ltree[n * 2]
+        binFreq += d.dynLtree[n * 2]
         n++
     }
-    d.data_type = if (bin_freq > ascii_freq ushr 2) Z_BINARY.toByte() else Z_ASCII.toByte()
+    d.dataType = if (binFreq > asciiFreq ushr 2) Z_BINARY.toByte() else Z_ASCII.toByte()
 }
 
-internal fun bi_flush(d: Deflate) {
-    if (d.bi_valid == 16) {
-        put_short(d, d.bi_buf.toInt())
-        d.bi_buf = 0
-        d.bi_valid = 0
-    } else if (d.bi_valid >= 8) {
-        put_byte(d, d.bi_buf.toByte())
-        d.bi_buf = (d.bi_buf.toInt() ushr 8).toShort()
-        d.bi_valid -= 8
+internal fun biFlush(d: Deflate) {
+    if (d.biValid == 16) {
+        putShort(d, d.biBuf.toInt())
+        d.biBuf = 0
+        d.biValid = 0
+    } else if (d.biValid >= 8) {
+        putByte(d, d.biBuf.toByte())
+        d.biBuf = (d.biBuf.toInt() ushr 8).toShort()
+        d.biValid -= 8
     }
 }
 
-internal fun bi_windup(d: Deflate) {
-    if (d.bi_valid > 8) {
-        put_short(d, d.bi_buf.toInt())
-    } else if (d.bi_valid > 0) {
-        put_byte(d, d.bi_buf.toByte())
+internal fun biWindup(d: Deflate) {
+    if (d.biValid > 8) {
+        putShort(d, d.biBuf.toInt())
+    } else if (d.biValid > 0) {
+        putByte(d, d.biBuf.toByte())
     }
-    d.bi_buf = 0
-    d.bi_valid = 0
+    d.biBuf = 0
+    d.biValid = 0
 }
 
-internal fun copy_block(d: Deflate, buf: Int, len: Int, header: Boolean) {
-    bi_windup(d)
-    d.last_eob_len = 8
+internal fun copyBlock(d: Deflate, buf: Int, len: Int, header: Boolean) {
+    biWindup(d)
+    d.lastEobLen = 8
     if (header) {
-        put_short(d, len.toShort().toInt())
-        put_short(d, len.inv().toShort().toInt())
+        putShort(d, len.toShort().toInt())
+        putShort(d, len.inv().toShort().toInt())
     }
-    put_byte(d, d.window, buf, len)
+    putByte(d, d.window, buf, len)
 }
 
-internal fun _tr_stored_block(d: Deflate, buf: Int, stored_len: Int, eof: Boolean) {
-    send_bits(d, (STORED_BLOCK shl 1) + if (eof) 1 else 0, 3)
-    copy_block(d, buf, stored_len, true)
+internal fun trStoredBlock(d: Deflate, buf: Int, storedLen: Int, eof: Boolean) {
+    sendBits(d, (STORED_BLOCK shl 1) + if (eof) 1 else 0, 3)
+    copyBlock(d, buf, storedLen, true)
 }

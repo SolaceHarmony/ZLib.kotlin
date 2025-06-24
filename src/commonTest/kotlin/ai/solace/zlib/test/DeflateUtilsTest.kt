@@ -18,13 +18,13 @@ class DeflateUtilsTest {
         // We need to manually set up the Deflate instance as DeflateUtils expect.
         val d = Deflate()
         d.strm = stream // Deflate instance methods might use this
-        stream.dstate = d // Link back
+        stream.dState = d // Link back
 
         d.status = INIT_STATE // A valid initial status (typically 42)
-        d.pending_buf = ByteArray(PENDING_BUF_SIZE) // From Constants.kt or Deflate companion
+        d.pendingBuf = ByteArray(PENDING_BUF_SIZE) // From Constants.kt or Deflate companion
         d.pending = 0
-        d.bi_buf = 0
-        d.bi_valid = 0
+        d.biBuf = 0
+        d.biValid = 0
 
         // Initialize other potentially accessed lateinit vars or important fields if necessary
         // For the functions being tested (put_short, putShortMSB, send_bits),
@@ -56,10 +56,10 @@ class DeflateUtilsTest {
         val d = createDeflateState()
         d.pending = 0
         val value = 0x1234
-        put_short(d, value)
+        putShort(d, value)
         assertEquals(2, d.pending, "Pending offset should advance by 2")
-        assertEquals(0x34.toByte(), d.pending_buf[0], "Byte 0 (little-endian)")
-        assertEquals(0x12.toByte(), d.pending_buf[1], "Byte 1 (little-endian)")
+        assertEquals(0x34.toByte(), d.pendingBuf[0], "Byte 0 (little-endian)")
+        assertEquals(0x12.toByte(), d.pendingBuf[1], "Byte 1 (little-endian)")
     }
 
     @Test
@@ -69,30 +69,30 @@ class DeflateUtilsTest {
         val value = 0x1234
         putShortMSB(d, value)
         assertEquals(2, d.pending, "Pending offset should advance by 2")
-        assertEquals(0x12.toByte(), d.pending_buf[0], "Byte 0 (big-endian)")
-        assertEquals(0x34.toByte(), d.pending_buf[1], "Byte 1 (big-endian)")
+        assertEquals(0x12.toByte(), d.pendingBuf[0], "Byte 0 (big-endian)")
+        assertEquals(0x34.toByte(), d.pendingBuf[1], "Byte 1 (big-endian)")
     }
 
     @Test
     fun testSendBits() {
         val d = createDeflateState()
-        d.bi_buf = 0
-        d.bi_valid = 0
+        d.biBuf = 0
+        d.biValid = 0
 
-        send_bits(d, 0b101, 3) // value, length
-        assertEquals(3, d.bi_valid)
-        assertEquals(0b101, d.bi_buf.toInt()) // bi_buf is Short, compare with Int
+        sendBits(d, 0b101, 3) // value, length
+        assertEquals(3, d.biValid)
+        assertEquals(0b101, d.biBuf.toInt()) // bi_buf is Short, compare with Int
 
-        send_bits(d, 0b11, 2) // value, length
-        assertEquals(5, d.bi_valid)
+        sendBits(d, 0b11, 2) // value, length
+        assertEquals(5, d.biValid)
         // Expected: existing bi_buf OR (new_value LSL current_bi_valid)
         // 0b101 | (0b11 << 3) = 0b101 | 0b11000 = 0b11101 (29)
-        assertEquals(0b11101, d.bi_buf.toInt())
+        assertEquals(0b11101, d.biBuf.toInt())
 
         // Test flushing the bit buffer
         // BUF_SIZE is 16 (bits in a Short * 2 / bytes in a Short, or 8 * 2)
-        d.bi_buf = 0 // Reset
-        d.bi_valid = 0
+        d.biBuf = 0 // Reset
+        d.biValid = 0
         d.pending = 0 // Reset pending for checking flushed output
 
         // Send 16 bits (0xAAAA). This should fill bi_buf but not necessarily flush yet
@@ -103,9 +103,9 @@ class DeflateUtilsTest {
         //    bi_valid = 0, len = 16.  0 > 16 - 16 (false).
         //    d.bi_buf = (0 | (0xAAAA << 0)) = 0xAAAA
         //    d.bi_valid = 16
-        send_bits(d, 0xAAAA, 16)
-        assertEquals(16, d.bi_valid)
-        assertEquals(0xAAAA, d.bi_buf.toInt() and 0xffff) // Masking to handle sign extension
+        sendBits(d, 0xAAAA, 16)
+        assertEquals(16, d.biValid)
+        assertEquals(0xAAAA, d.biBuf.toInt() and 0xffff) // Masking to handle sign extension
         assertEquals(0, d.pending, "Pending should be 0 before explicit flush condition")
 
         // 2. send_bits(d, 0x05, 3)
@@ -120,12 +120,12 @@ class DeflateUtilsTest {
         //    put_short(d, d.bi_buf) -> puts 0xAAAA
         //    d.bi_buf = (value_Renamed ushr (BUF_SIZE - d.bi_valid_old)).toShort() -> (0x05 ushr (16-16)) = 0x05
         //    d.bi_valid = d.bi_valid_old + len - BUF_SIZE = 16 + 3 - 16 = 3
-        send_bits(d, 0x05, 3)
+        sendBits(d, 0x05, 3)
 
-        assertEquals(3, d.bi_valid, "bi_valid after flush")
-        assertEquals(0x05, d.bi_buf.toInt(), "bi_buf after flush")
-        assertEquals(0xAA.toByte(), d.pending_buf[0], "Flushed byte 0") // LSB of 0xAAAA
-        assertEquals(0xAA.toByte(), d.pending_buf[1], "Flushed byte 1") // MSB of 0xAAAA
+        assertEquals(3, d.biValid, "bi_valid after flush")
+        assertEquals(0x05, d.biBuf.toInt(), "bi_buf after flush")
+        assertEquals(0xAA.toByte(), d.pendingBuf[0], "Flushed byte 0") // LSB of 0xAAAA
+        assertEquals(0xAA.toByte(), d.pendingBuf[1], "Flushed byte 1") // MSB of 0xAAAA
         assertEquals(2, d.pending, "Pending should be 2 after flush")
     }
 }

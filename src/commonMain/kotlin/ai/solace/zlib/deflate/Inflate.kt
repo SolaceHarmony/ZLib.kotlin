@@ -45,6 +45,12 @@ package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.*
 
+/**
+ * Internal implementation of the decompression algorithm.
+ * 
+ * This class handles the state machine for decompression of zlib-compressed data.
+ * It processes the zlib header, manages decompression blocks, and verifies checksums.
+ */
 internal class Inflate {
 
     // Constants previously defined here are now in ai.solace.zlib.common.Constants
@@ -55,35 +61,56 @@ internal class Inflate {
     // Mode constants (METHOD, FLAG, etc.) are now INF_METHOD, INF_FLAG, etc. in Constants.kt
     // mark array is now INF_MARK in Constants.kt
 
-    internal var mode = 0 // current inflate mode
+    /** Current inflate mode (INF_METHOD, INF_FLAG, etc.) */
+    internal var mode = 0
 
-    // mode dependent information
-    internal var method = 0 // if FLAGS, method byte
+    /** Compression method byte from the zlib header */
+    internal var method = 0
 
-    // if CHECK, check values to compare
-    internal var was = longArrayOf(0) // computed check value
-    internal var need: Long = 0 // stream check value
+    /** Computed Adler-32 checksum value */
+    internal var was = longArrayOf(0)
 
-    // if BAD, inflateSync's marker bytes count
+    /** Expected checksum value from the stream */
+    internal var need: Long = 0
+
+    /** Marker bytes count for inflateSync */
     internal var marker = 0
 
-    // mode independent information
-    internal var nowrap = 0 // flag for no wrapper
-    internal var wbits = 0 // log2(window size)  (8..15, defaults to 15)
+    /** Flag for no zlib wrapper (1 = no header/trailer) */
+    internal var nowrap = 0
 
-    internal var blocks: InfBlocks? = null // current inflate_blocks state
+    /** Log2 of the window size (8..15, defaults to 15) */
+    internal var wbits = 0
 
+    /** Current inflate_blocks state for processing compressed blocks */
+    internal var blocks: InfBlocks? = null
+
+    /**
+     * Resets the decompression state.
+     * 
+     * This method resets counters and state variables to prepare for a new decompression
+     * session or to recover from an error.
+     * 
+     * @param z The ZStream containing the decompression state
+     * @return Z_OK on success, Z_STREAM_ERROR if z or z.istate is null
+     */
     internal fun inflateReset(z: ZStream?): Int {
-        if (z == null || z.istate == null) return Z_STREAM_ERROR
+        if (z == null || z.iState == null) return Z_STREAM_ERROR
 
-        z.total_in = 0
-        z.total_out = 0
+        z.totalIn = 0
+        z.totalOut = 0
         z.msg = null
-        z.istate!!.mode = if (z.istate!!.nowrap != 0) INF_BLOCKS else INF_METHOD
-        z.istate!!.blocks!!.reset(z, null)
+        z.iState!!.mode = if (z.iState!!.nowrap != 0) INF_BLOCKS else INF_METHOD
+        z.iState!!.blocks!!.reset(z, null)
         return Z_OK
     }
 
+    /**
+     * Ends the decompression process and releases resources.
+     * 
+     * @param z The ZStream containing the decompression state
+     * @return Z_OK on success
+     */
     internal fun inflateEnd(z: ZStream?): Int {
         blocks?.free(z)
         blocks = null
@@ -91,6 +118,16 @@ internal class Inflate {
         return Z_OK
     }
 
+    /**
+     * Initializes the decompression process.
+     * 
+     * This method sets up the decompression state, handles the nowrap option,
+     * and initializes the inflate blocks.
+     * 
+     * @param z The ZStream to initialize for decompression
+     * @param w The window bits parameter (8-15), or negative for nowrap mode
+     * @return Z_OK on success, Z_STREAM_ERROR if parameters are invalid
+     */
     internal fun inflateInit(z: ZStream, w: Int): Int {
         z.msg = null
         blocks = null
@@ -110,177 +147,222 @@ internal class Inflate {
         }
         wbits = wMut
 
-        z.istate!!.blocks = InfBlocks(z, if (z.istate!!.nowrap != 0) null else this, 1 shl wMut)
+        z.iState!!.blocks = InfBlocks(z, if (z.iState!!.nowrap != 0) null else this, 1 shl wMut)
 
         // reset state
         inflateReset(z)
         return Z_OK
     }
 
+    /**
+     * Performs decompression on the input stream.
+     * 
+     * This is the main decompression method that implements a state machine to process
+     * compressed data. It handles the zlib header, processes compressed blocks, and
+     * verifies checksums.
+     * 
+     * @param z The ZStream containing input data and decompression state
+     * @param f The flush mode (Z_NO_FLUSH, Z_SYNC_FLUSH, Z_FINISH, etc.)
+     * @return Z_OK on success, Z_STREAM_END when decompression is complete,
+     *         or an error code (Z_STREAM_ERROR, Z_DATA_ERROR, etc.)
+     */
     internal fun inflate(z: ZStream?, f: Int): Int {
         var r: Int
         var b: Int
-        if (z == null || z.istate == null || z.next_in == null) return Z_STREAM_ERROR
+
+        if (z == null || z.iState == null || z.nextIn == null) {
+            return Z_STREAM_ERROR
+        }
+
+        // Initialize with appropriate value based on flush parameter
         val fMut = if (f == Z_FINISH) Z_BUF_ERROR else Z_OK
         r = Z_BUF_ERROR
+
+        // Safety counter to prevent infinite loops
+        var iterations = 0
+        val maxIterations = 1000
+
         while (true) {
-            when (z.istate!!.mode) {
+            // Safety check to prevent infinite loops
+            iterations++
+            if (iterations > maxIterations) {
+                z.msg = "Too many iterations during inflation, possible corrupt data"
+                z.iState!!.mode = INF_BAD
+                return Z_DATA_ERROR
+            }
+
+            // Check for exhausted output buffer before processing
+            if (z.availOut == 0 && z.iState!!.mode != INF_BAD) {
+                return Z_BUF_ERROR
+            }
+
+            when (z.iState!!.mode) {
                 INF_METHOD -> {
-                    if (z.avail_in == 0) return r
+                    if (z.availIn == 0) return r
                     r = fMut
-                    z.avail_in--
-                    z.total_in++
-                    z.istate!!.method = z.next_in!![z.next_in_index++].toInt() and 0xff
-                    if ((z.istate!!.method and 0xf) != Z_DEFLATED) {
-                        z.istate!!.mode = INF_BAD
+                    z.availIn--
+                    z.totalIn++
+                    z.iState!!.method = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    if ((z.iState!!.method and 0xf) != Z_DEFLATED) {
+                        z.iState!!.mode = INF_BAD
                         z.msg = "unknown compression method"
-                        z.istate!!.marker = 5 // can't try inflateSync
+                        z.iState!!.marker = 5 // can't try inflateSync
                         break
                     }
-                    if ((z.istate!!.method shr 4) + 8 > z.istate!!.wbits) {
-                        z.istate!!.mode = INF_BAD
+                    if ((z.iState!!.method shr 4) + 8 > z.iState!!.wbits) {
+                        z.iState!!.mode = INF_BAD
                         z.msg = "invalid window size"
-                        z.istate!!.marker = 5 // can't try inflateSync
+                        z.iState!!.marker = 5 // can't try inflateSync
                         break
                     }
-                    z.istate!!.mode = INF_FLAG
+                    z.iState!!.mode = INF_FLAG
                 }
 
                 INF_FLAG -> {
-                    if (z.avail_in == 0) return r
+                    if (z.availIn == 0) return r
                     r = fMut
 
-                    z.avail_in--
-                    z.total_in++
-                    b = z.next_in!![z.next_in_index++].toInt() and 0xff
+                    z.availIn--
+                    z.totalIn++
+                    b = z.nextIn!![z.nextInIndex++].toInt() and 0xff
 
-                    if (((z.istate!!.method shl 8) + b) % 31 != 0) {
-                        z.istate!!.mode = INF_BAD
+                    if (((z.iState!!.method shl 8) + b) % 31 != 0) {
+                        z.iState!!.mode = INF_BAD
                         z.msg = "incorrect header check"
-                        z.istate!!.marker = 5 // can't try inflateSync
+                        z.iState!!.marker = 5 // can't try inflateSync
                         break
                     }
 
                     if (b and PRESET_DICT == 0) {
-                        z.istate!!.mode = INF_BLOCKS
+                        z.iState!!.mode = INF_BLOCKS
                         break
                     }
-                    z.istate!!.mode = INF_DICT4
+                    z.iState!!.mode = INF_DICT4
                 }
 
                 INF_DICT4 -> {
-                    if (z.avail_in == 0) return r
+                    if (z.availIn == 0) return r
                     r = fMut
 
-                    z.avail_in--
-                    z.total_in++
-                    z.istate!!.need = ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 24).toLong()
-                    z.istate!!.mode = INF_DICT3
+                    z.availIn--
+                    z.totalIn++
+                    z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 24).toLong()
+                    z.iState!!.mode = INF_DICT3
                 }
 
                 INF_DICT3 -> {
-                    if (z.avail_in == 0) return r
+                    if (z.availIn == 0) return r
                     r = fMut
 
-                    z.avail_in--
-                    z.total_in++
-                    z.istate!!.need += ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 16).toLong()
-                    z.istate!!.mode = INF_DICT2
+                    z.availIn--
+                    z.totalIn++
+                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 16).toLong()
+                    z.iState!!.mode = INF_DICT2
                 }
 
                 INF_DICT2 -> {
-                    if (z.avail_in == 0) return r
+                    if (z.availIn == 0) return r
                     r = fMut
 
-                    z.avail_in--
-                    z.total_in++
-                    z.istate!!.need += ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 8).toLong()
-                    z.istate!!.mode = INF_DICT1
+                    z.availIn--
+                    z.totalIn++
+                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 8).toLong()
+                    z.iState!!.mode = INF_DICT1
                 }
 
                 INF_DICT1 -> {
-                    if (z.avail_in == 0) return r
+                    if (z.availIn == 0) return r
                     r = fMut
 
-                    z.avail_in--
-                    z.total_in++
-                    z.istate!!.need += (z.next_in!![z.next_in_index++].toInt() and 0xff).toLong()
-                    z.adler = z.istate!!.need
-                    z.istate!!.mode = INF_DICT0
+                    z.availIn--
+                    z.totalIn++
+                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong()
+                    z.adler = z.iState!!.need
+                    z.iState!!.mode = INF_DICT0
                     return Z_NEED_DICT
                 }
 
                 INF_DICT0 -> {
-                    z.istate!!.mode = INF_BAD
+                    z.iState!!.mode = INF_BAD
                     z.msg = "need dictionary"
-                    z.istate!!.marker = 0 // can try inflateSync
+                    z.iState!!.marker = 0 // can try inflateSync
                     return Z_STREAM_ERROR
                 }
 
                 INF_BLOCKS -> {
-                    r = z.istate!!.blocks!!.proc(z, r)
+                    r = z.iState!!.blocks!!.proc(z, r)
                     if (r == Z_DATA_ERROR) {
-                        z.istate!!.mode = INF_BAD
-                        z.istate!!.marker = 0 // can try inflateSync
+                        z.iState!!.mode = INF_BAD
+                        z.iState!!.marker = 0 // can try inflateSync
                         break
                     }
                     if (r == Z_OK) {
                         r = fMut
                     }
+
+                    // Handle output buffer exhaustion
+                    if (z.availOut == 0) {
+                        // If we can't output any more data but still have input to process
+                        // return with buffer error so caller can provide more output space
+                        if (z.availIn > 0) {
+                            return Z_BUF_ERROR
+                        }
+                    }
+
                     if (r != Z_STREAM_END) {
                         return r
                     }
                     r = fMut
-                    z.istate!!.blocks!!.reset(z, z.istate!!.was)
-                    z.istate!!.mode = if (z.istate!!.nowrap != 0) INF_DONE else INF_CHECK4
+                    z.iState!!.blocks!!.reset(z, z.iState!!.was)
+                    z.iState!!.mode = if (z.iState!!.nowrap != 0) INF_DONE else INF_CHECK4
                 }
 
                 INF_CHECK4 -> {
-                    if (z.avail_in == 0) return r
+                    if (z.availIn == 0) return r
                     r = fMut
 
-                    z.avail_in--
-                    z.total_in++
-                    z.istate!!.need = ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 24).toLong()
-                    z.istate!!.mode = INF_CHECK3
+                    z.availIn--
+                    z.totalIn++
+                    z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 24).toLong()
+                    z.iState!!.mode = INF_CHECK3
                 }
 
                 INF_CHECK3 -> {
-                    if (z.avail_in == 0) return r
+                    if (z.availIn == 0) return r
                     r = fMut
 
-                    z.avail_in--
-                    z.total_in++
-                    z.istate!!.need += ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 16).toLong()
-                    z.istate!!.mode = INF_CHECK2
+                    z.availIn--
+                    z.totalIn++
+                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 16).toLong()
+                    z.iState!!.mode = INF_CHECK2
                 }
 
                 INF_CHECK2 -> {
-                    if (z.avail_in == 0) return r
+                    if (z.availIn == 0) return r
                     r = fMut
 
-                    z.avail_in--
-                    z.total_in++
-                    z.istate!!.need += ((z.next_in!![z.next_in_index++].toInt() and 0xff) shl 8).toLong()
-                    z.istate!!.mode = INF_CHECK1
+                    z.availIn--
+                    z.totalIn++
+                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 8).toLong()
+                    z.iState!!.mode = INF_CHECK1
                 }
 
                 INF_CHECK1 -> {
-                    if (z.avail_in == 0) return r
+                    if (z.availIn == 0) return r
                     r = fMut
 
-                    z.avail_in--
-                    z.total_in++
-                    z.istate!!.need += (z.next_in!![z.next_in_index++].toInt() and 0xff).toLong()
+                    z.availIn--
+                    z.totalIn++
+                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong()
 
-                    if (z.istate!!.was[0] != z.istate!!.need) {
-                        z.istate!!.mode = INF_BAD
+                    if (z.iState!!.was[0] != z.iState!!.need) {
+                        z.iState!!.mode = INF_BAD
                         z.msg = "incorrect data check"
-                        z.istate!!.marker = 5 // can't try inflateSync
+                        z.iState!!.marker = 5 // can't try inflateSync
                         break
                     }
 
-                    z.istate!!.mode = INF_DONE
+                    z.iState!!.mode = INF_DONE
                 }
 
                 INF_DONE -> return Z_STREAM_END
@@ -291,28 +373,49 @@ internal class Inflate {
         return Z_OK
     }
 
+    /**
+     * Sets a dictionary for decompression.
+     * 
+     * This method is called when a preset dictionary is required for decompression.
+     * It verifies the dictionary's checksum and sets it up for use by the decompression blocks.
+     * 
+     * @param z The ZStream containing the decompression state
+     * @param dictionary The byte array containing the dictionary
+     * @param dictLength The length of the dictionary
+     * @return Z_OK on success, Z_STREAM_ERROR if state is invalid, Z_DATA_ERROR if checksum fails
+     */
     internal fun inflateSetDictionary(z: ZStream?, dictionary: ByteArray?, dictLength: Int): Int {
         var lengthMut = dictLength
         var index = 0
 
-        if (z == null || z.istate == null || z.istate!!.mode != INF_DICT0) return Z_STREAM_ERROR
+        if (z == null || z.iState == null || z.iState!!.mode != INF_DICT0) return Z_STREAM_ERROR
 
-        if (z._adler!!.adler32(1L, dictionary, 0, dictLength) != z.adler) {
+        if (z.adlerChecksum!!.adler32(1L, dictionary, 0, dictLength) != z.adler) {
             return Z_DATA_ERROR
         }
 
-        z.adler = z._adler!!.adler32(0, null, 0, 0)
+        z.adler = z.adlerChecksum!!.adler32(0, null, 0, 0)
 
-        val wsize = 1 shl z.istate!!.wbits
+        val wsize = 1 shl z.iState!!.wbits
         if (lengthMut >= wsize) {
             lengthMut = wsize
             index = dictLength - lengthMut
         }
-        z.istate!!.blocks!!.set_dictionary(dictionary!!, index, lengthMut)
-        z.istate!!.mode = INF_BLOCKS
+        z.iState!!.blocks!!.setDictionary(dictionary!!, index, lengthMut)
+        z.iState!!.mode = INF_BLOCKS
         return Z_OK
     }
 
+    /**
+     * Attempts to recover synchronization after corrupt data.
+     * 
+     * This method searches for a specific marker pattern in the input stream
+     * to resynchronize the decompression process after encountering corrupt data.
+     * 
+     * @param z The ZStream containing the decompression state
+     * @return Z_OK on successful resynchronization, Z_STREAM_ERROR if state is invalid,
+     *         Z_BUF_ERROR if no input is available, Z_DATA_ERROR if sync pattern not found
+     */
     internal fun inflateSync(z: ZStream?): Int {
         var n: Int // number of bytes to look at
         var p: Int // pointer to bytes
@@ -321,20 +424,20 @@ internal class Inflate {
         var w: Long
 
         // set up
-        if (z == null || z.istate == null) return Z_STREAM_ERROR
-        if (z.istate!!.mode != INF_BAD) {
-            z.istate!!.mode = INF_BAD
-            z.istate!!.marker = 0
+        if (z == null || z.iState == null) return Z_STREAM_ERROR
+        if (z.iState!!.mode != INF_BAD) {
+            z.iState!!.mode = INF_BAD
+            z.iState!!.marker = 0
         }
-        n = z.avail_in.takeIf { it != 0 } ?: return Z_BUF_ERROR
-        p = z.next_in_index
-        m = z.istate!!.marker
+        n = z.availIn.takeIf { it != 0 } ?: return Z_BUF_ERROR
+        p = z.nextInIndex
+        m = z.iState!!.marker
 
         // search
         while (n != 0 && m < 4) {
             m = when {
-                z.next_in!![p] == INF_MARK[m] -> m + 1
-                z.next_in!![p] != 0.toByte() -> 0
+                z.nextIn!![p] == INF_MARK[m] -> m + 1
+                z.nextIn!![p] != 0.toByte() -> 0
                 else -> 4 - m
             }
             p++
@@ -342,31 +445,22 @@ internal class Inflate {
         }
 
         // restore
-        z.total_in += p - z.next_in_index
-        z.next_in_index = p
-        z.avail_in = n
-        z.istate!!.marker = m
+        z.totalIn += p - z.nextInIndex
+        z.nextInIndex = p
+        z.availIn = n
+        z.iState!!.marker = m
 
         // return no joy or set up to restart on a new block
         if (m != 4) {
             return Z_DATA_ERROR
         }
-        r = z.total_in
-        w = z.total_out
+        r = z.totalIn
+        w = z.totalOut
         inflateReset(z)
-        z.total_in = r
-        z.total_out = w
-        z.istate!!.mode = INF_BLOCKS
+        z.totalIn = r
+        z.totalOut = w
+        z.iState!!.mode = INF_BLOCKS
         return Z_OK
     }
 
-    // Returns true if inflate is currently at the end of a block generated
-    // by Z_SYNC_FLUSH or Z_FULL_FLUSH. This function is used by one PPP
-    // implementation to provide an additional safety check. PPP uses Z_SYNC_FLUSH
-    // but removes the length bytes of the resulting empty stored block. When
-    // decompressing, PPP checks that at the end of the packet, inflate is
-    // waiting for these length bytes.
-    internal fun inflateSyncPoint(z: ZStream?): Boolean {
-        return z?.istate?.blocks?.sync_point == 1
-    }
 }

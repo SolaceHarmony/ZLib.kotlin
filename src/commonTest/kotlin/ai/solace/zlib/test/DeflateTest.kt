@@ -4,7 +4,6 @@ import ai.solace.zlib.deflate.ZStream // Deflate class is not directly used by t
 import ai.solace.zlib.common.*
 import kotlin.test.Test
 import kotlin.test.assertTrue
-import kotlin.test.assertEquals // Added for potential future use
 
 class DeflateTest {
 
@@ -14,23 +13,23 @@ class DeflateTest {
         var err = stream.deflateInit(level) // Use ZStream's method
         assertTrue(err == Z_OK, "deflateInit failed. Error: $err, Msg: ${stream.msg}")
 
-        stream.next_in = input
-        stream.avail_in = input.size
-        stream.next_in_index = 0
+        stream.nextIn = input
+        stream.availIn = input.size
+        stream.nextInIndex = 0
 
         // Initial buffer, might need to be larger or handled with looping for general case
         val outputBufferInitialSize = if (input.isEmpty()) 100 else input.size * 2
         val outputBuffer = ByteArray(outputBufferInitialSize)
-        stream.next_out = outputBuffer
-        stream.avail_out = outputBuffer.size
-        stream.next_out_index = 0
+        stream.nextOut = outputBuffer
+        stream.availOut = outputBuffer.size
+        stream.nextOutIndex = 0
 
         err = stream.deflate(Z_FINISH)
         // For very small inputs or certain compression levels, Z_STREAM_END might not be immediate
         // if output buffer is too small. The current setup assumes outputBuffer is large enough.
         assertTrue(err == Z_STREAM_END, "deflate failed, error: $err, msg: ${stream.msg}")
 
-        val deflatedSize = stream.total_out.toInt()
+        val deflatedSize = stream.totalOut.toInt()
         val result = outputBuffer.copyOf(deflatedSize)
 
         err = stream.deflateEnd()

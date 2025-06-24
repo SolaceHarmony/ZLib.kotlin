@@ -59,7 +59,7 @@ internal class InfCodes {
     private var lit: Int = 0
 
     // if EXT or COPY, where and how much
-    private var get_Renamed: Int = 0 // bits to get for extra
+    private var getRenamed: Int = 0 // bits to get for extra
     private var dist: Int = 0 // distance back to copy from
 
     private var lbits: Byte = 0 // ltree bits decoded per branch
@@ -69,7 +69,7 @@ internal class InfCodes {
     private var dtree: IntArray = IntArray(0)
     private var dtreeIndex: Int = 0 // distance tree
 
-    constructor(bl: Int, bd: Int, tl: IntArray, tlIndex: Int, td: IntArray, tdIndex: Int, z: ZStream) {
+    constructor(bl: Int, bd: Int, tl: IntArray, tlIndex: Int, td: IntArray, tdIndex: Int) {
         mode = ICODES_START
         lbits = bl.toByte()
         dbits = bd.toByte()
@@ -79,7 +79,7 @@ internal class InfCodes {
         dtreeIndex = tdIndex
     }
 
-    constructor(bl: Int, bd: Int, tl: IntArray, td: IntArray, z: ZStream) {
+    constructor(bl: Int, bd: Int, tl: IntArray, td: IntArray) {
         mode = ICODES_START
         lbits = bl.toByte()
         dbits = bd.toByte()
@@ -89,29 +89,44 @@ internal class InfCodes {
         dtreeIndex = 0
     }
 
+    /**
+     * Process literal/length/distance codes
+     */
     internal fun proc(s: InfBlocks, z: ZStream, r: Int): Int {
         var result = r
         var j: Int // temporary storage
         var tindex: Int // temporary pointer
         var e: Int // extra bits or operation
-        var b = 0 // bit buffer
-        var k = 0 // bits in bit buffer
-        var p = 0 // input data pointer
+        var b: Int // bit buffer
+        var k: Int // bits in bit buffer
+        var p: Int // input data pointer
         var n: Int // bytes available there
         var q: Int // output window write pointer
         var m: Int // bytes to end of window or read pointer
         var f: Int // pointer to copy strings from
 
         // copy input/output information to locals (UPDATE macro restores)
-        p = z.next_in_index
-        n = z.avail_in
+        p = z.nextInIndex
+        n = z.availIn
         b = s.bitb
         k = s.bitk
         q = s.write
         m = if (q < s.read) s.read - q - 1 else s.end - q
 
+        // Safety check: max iterations to prevent infinite loops
+        val maxIterations = 10000
+        var iterationCount = 0
+
         // process input and output based on current state
         while (true) {
+            iterationCount++
+
+            // Safety check to prevent hanging
+            if (iterationCount > maxIterations) {
+                z.msg = "Too many iterations in InfCodes.proc, possible corrupt data"
+                return Z_DATA_ERROR
+            }
+
             when (mode) {
 
                 // waiting for "i:"=input, "o:"=output, "x:"=nothing
@@ -120,14 +135,14 @@ internal class InfCodes {
 
                         s.bitb = b
                         s.bitk = k
-                        z.avail_in = n
-                        z.total_in += p - z.next_in_index
-                        z.next_in_index = p
+                        z.availIn = n
+                        z.totalIn += p - z.nextInIndex
+                        z.nextInIndex = p
                         s.write = q
-                        result = inflate_fast(lbits.toInt(), dbits.toInt(), ltree, ltreeIndex, dtree, dtreeIndex, s, z)
+                        result = inflateFast(lbits.toInt(), dbits.toInt(), ltree, ltreeIndex, dtree, dtreeIndex, s, z)
 
-                        p = z.next_in_index
-                        n = z.avail_in
+                        p = z.nextInIndex
+                        n = z.availIn
                         b = s.bitb
                         k = s.bitk
                         q = s.write
@@ -155,14 +170,14 @@ internal class InfCodes {
 
                             s.bitb = b
                             s.bitk = k
-                            z.avail_in = n
-                            z.total_in += p - z.next_in_index
-                            z.next_in_index = p
+                            z.availIn = n
+                            z.totalIn += p - z.nextInIndex
+                            z.nextInIndex = p
                             s.write = q
-                            return inflate_flush(s, z, result)
+                            return inflateFlush(s, z, result)
                         }
                         n--
-                        b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
+                        b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
                         k += 8
                     }
 
@@ -181,7 +196,7 @@ internal class InfCodes {
                     }
                     if (e and 16 != 0) {
                         // length
-                        get_Renamed = e and 15
+                        getRenamed = e and 15
                         len = tree[tindex + 2]
                         mode = ICODES_LENEXT
                         break
@@ -203,15 +218,15 @@ internal class InfCodes {
 
                     s.bitb = b
                     s.bitk = k
-                    z.avail_in = n
-                    z.total_in += p - z.next_in_index
-                    z.next_in_index = p
+                    z.availIn = n
+                    z.totalIn += p - z.nextInIndex
+                    z.nextInIndex = p
                     s.write = q
-                    return inflate_flush(s, z, result)
+                    return inflateFlush(s, z, result)
                 }
 
                 ICODES_LENEXT -> {  // i: getting length extra (have base)
-                    j = get_Renamed
+                    j = getRenamed
 
                     while (k < j) {
                         if (n != 0) result = Z_OK
@@ -219,14 +234,14 @@ internal class InfCodes {
 
                             s.bitb = b
                             s.bitk = k
-                            z.avail_in = n
-                            z.total_in += p - z.next_in_index
-                            z.next_in_index = p
+                            z.availIn = n
+                            z.totalIn += p - z.nextInIndex
+                            z.nextInIndex = p
                             s.write = q
-                            return inflate_flush(s, z, result)
+                            return inflateFlush(s, z, result)
                         }
                         n--
-                        b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
+                        b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
                         k += 8
                     }
 
@@ -251,14 +266,14 @@ internal class InfCodes {
 
                             s.bitb = b
                             s.bitk = k
-                            z.avail_in = n
-                            z.total_in += p - z.next_in_index
-                            z.next_in_index = p
+                            z.availIn = n
+                            z.totalIn += p - z.nextInIndex
+                            z.nextInIndex = p
                             s.write = q
-                            return inflate_flush(s, z, result)
+                            return inflateFlush(s, z, result)
                         }
                         n--
-                        b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
+                        b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
                         k += 8
                     }
 
@@ -270,7 +285,7 @@ internal class InfCodes {
                     e = tree[tindex]
                     if (e and 16 != 0) {
                         // distance
-                        get_Renamed = e and 15
+                        getRenamed = e and 15
                         dist = tree[tindex + 2]
                         mode = ICODES_DISTEXT
                         break
@@ -287,15 +302,15 @@ internal class InfCodes {
 
                     s.bitb = b
                     s.bitk = k
-                    z.avail_in = n
-                    z.total_in += p - z.next_in_index
-                    z.next_in_index = p
+                    z.availIn = n
+                    z.totalIn += p - z.nextInIndex
+                    z.nextInIndex = p
                     s.write = q
-                    return inflate_flush(s, z, result)
+                    return inflateFlush(s, z, result)
                 }
 
                 ICODES_DISTEXT -> {  // i: getting distance extra
-                    j = get_Renamed
+                    j = getRenamed
 
                     while (k < j) {
                         if (n != 0) result = Z_OK
@@ -303,14 +318,14 @@ internal class InfCodes {
 
                             s.bitb = b
                             s.bitk = k
-                            z.avail_in = n
-                            z.total_in += p - z.next_in_index
-                            z.next_in_index = p
+                            z.availIn = n
+                            z.totalIn += p - z.nextInIndex
+                            z.nextInIndex = p
                             s.write = q
-                            return inflate_flush(s, z, result)
+                            return inflateFlush(s, z, result)
                         }
                         n--
-                        b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
+                        b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
                         k += 8
                     }
 
@@ -338,7 +353,7 @@ internal class InfCodes {
                             }
                             if (m == 0) {
                                 s.write = q
-                                result = inflate_flush(s, z, result)
+                                result = inflateFlush(s, z, result)
                                 q = s.write
                                 m = if (q < s.read) s.read - q - 1 else s.end - q
 
@@ -350,11 +365,11 @@ internal class InfCodes {
                                 if (m == 0) {
                                     s.bitb = b
                                     s.bitk = k
-                                    z.avail_in = n
-                                    z.total_in += p - z.next_in_index
-                                    z.next_in_index = p
+                                    z.availIn = n
+                                    z.totalIn += p - z.nextInIndex
+                                    z.nextInIndex = p
                                     s.write = q
-                                    return inflate_flush(s, z, result)
+                                    return inflateFlush(s, z, result)
                                 }
                             }
                         }
@@ -376,7 +391,7 @@ internal class InfCodes {
                         }
                         if (m == 0) {
                             s.write = q
-                            result = inflate_flush(s, z, result)
+                            result = inflateFlush(s, z, result)
                             q = s.write
                             m = if (q < s.read) s.read - q - 1 else s.end - q
 
@@ -387,11 +402,11 @@ internal class InfCodes {
                             if (m == 0) {
                                 s.bitb = b
                                 s.bitk = k
-                                z.avail_in = n
-                                z.total_in += p - z.next_in_index
-                                z.next_in_index = p
+                                z.availIn = n
+                                z.totalIn += p - z.nextInIndex
+                                z.nextInIndex = p
                                 s.write = q
-                                return inflate_flush(s, z, result)
+                                return inflateFlush(s, z, result)
                             }
                         }
                     }
@@ -412,18 +427,18 @@ internal class InfCodes {
                     }
 
                     s.write = q
-                    result = inflate_flush(s, z, result)
+                    result = inflateFlush(s, z, result)
                     q = s.write
                     m = if (q < s.read) s.read - q - 1 else s.end - q
 
                     if (s.read != s.write) {
                         s.bitb = b
                         s.bitk = k
-                        z.avail_in = n
-                        z.total_in += p - z.next_in_index
-                        z.next_in_index = p
+                        z.availIn = n
+                        z.totalIn += p - z.nextInIndex
+                        z.nextInIndex = p
                         s.write = q
-                        return inflate_flush(s, z, result)
+                        return inflateFlush(s, z, result)
                     }
                     mode = ICODES_END
                     continue
@@ -433,11 +448,11 @@ internal class InfCodes {
                     result = Z_STREAM_END
                     s.bitb = b
                     s.bitk = k
-                    z.avail_in = n
-                    z.total_in += p - z.next_in_index
-                    z.next_in_index = p
+                    z.availIn = n
+                    z.totalIn += p - z.nextInIndex
+                    z.nextInIndex = p
                     s.write = q
-                    return inflate_flush(s, z, result)
+                    return inflateFlush(s, z, result)
                 }
 
                 ICODES_BADCODE -> {  // x: got error
@@ -446,11 +461,11 @@ internal class InfCodes {
 
                     s.bitb = b
                     s.bitk = k
-                    z.avail_in = n
-                    z.total_in += p - z.next_in_index
-                    z.next_in_index = p
+                    z.availIn = n
+                    z.totalIn += p - z.nextInIndex
+                    z.nextInIndex = p
                     s.write = q
-                    return inflate_flush(s, z, result)
+                    return inflateFlush(s, z, result)
                 }
 
                 else -> {
@@ -458,18 +473,18 @@ internal class InfCodes {
 
                     s.bitb = b
                     s.bitk = k
-                    z.avail_in = n
-                    z.total_in += p - z.next_in_index
-                    z.next_in_index = p
+                    z.availIn = n
+                    z.totalIn += p - z.nextInIndex
+                    z.nextInIndex = p
                     s.write = q
-                    return inflate_flush(s, z, result)
+                    return inflateFlush(s, z, result)
                 }
             }
         }
         return Z_OK // Should be unreachable
     }
 
-    internal fun free(z: ZStream?) {
+    internal fun free() {
         //  ZFREE(z, c);
     }
 
@@ -478,7 +493,7 @@ internal class InfCodes {
     // at least ten. The ten bytes are six bytes for the longest length/
     // distance pair plus four bytes for overloading the bit buffer.
 
-    internal fun inflate_fast(
+    internal fun inflateFast(
         bl: Int,
         bd: Int,
         tl: IntArray,
@@ -505,8 +520,8 @@ internal class InfCodes {
         var r: Int // copy source pointer
 
         // load input, output, bit values
-        p = z.next_in_index
-        n = z.avail_in
+        p = z.nextInIndex
+        n = z.availIn
         b = s.bitb
         k = s.bitk
         q = s.write
@@ -523,7 +538,7 @@ internal class InfCodes {
             while (k < 20) {
                 // max bits for literal/length code
                 n--
-                b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
+                b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
                 k += 8
             }
 
@@ -555,7 +570,7 @@ internal class InfCodes {
                     while (k < 15) {
                         // max bits for distance code
                         n--
-                        b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
+                        b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
                         k += 8
                     }
 
@@ -575,7 +590,7 @@ internal class InfCodes {
                             while (k < e) {
                                 // get extra bits (up to 13)
                                 n--
-                                b = b or ((z.next_in!![p++].toInt() and 0xff) shl k)
+                                b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
                                 k += 8
                             }
 
@@ -618,8 +633,6 @@ internal class InfCodes {
                                     } else {
                                         s.window.copyInto(s.window, q, r, r + e)
                                         q += e
-                                        r += e
-                                        e = 0
                                     }
                                     r = 0 // copy rest from start of window
                                 }
@@ -633,8 +646,6 @@ internal class InfCodes {
                             } else {
                                 s.window.copyInto(s.window, q, r, r + c)
                                 q += c
-                                r += c
-                                c = 0
                             }
                             break
                         } else if ((e and 64) == 0) {
@@ -644,7 +655,7 @@ internal class InfCodes {
                         } else {
                             z.msg = "invalid distance code"
 
-                            c = z.avail_in - n
+                            c = z.availIn - n
                             c = (k ushr 3).coerceAtMost(c)
                             n += c
                             p -= c
@@ -652,9 +663,9 @@ internal class InfCodes {
 
                             s.bitb = b
                             s.bitk = k
-                            z.avail_in = n
-                            z.total_in += p - z.next_in_index
-                            z.next_in_index = p
+                            z.availIn = n
+                            z.totalIn += p - z.nextInIndex
+                            z.nextInIndex = p
                             s.write = q
 
                             return Z_DATA_ERROR
@@ -677,7 +688,7 @@ internal class InfCodes {
                     }
                 } else if (tp[(tpIndex + t) * 3] and 32 != 0) {
 
-                    c = z.avail_in - n
+                    c = z.availIn - n
                     c = (k ushr 3).coerceAtMost(c)
                     n += c
                     p -= c
@@ -685,16 +696,16 @@ internal class InfCodes {
 
                     s.bitb = b
                     s.bitk = k
-                    z.avail_in = n
-                    z.total_in += p - z.next_in_index
-                    z.next_in_index = p
+                    z.availIn = n
+                    z.totalIn += p - z.nextInIndex
+                    z.nextInIndex = p
                     s.write = q
 
                     return Z_STREAM_END
                 } else {
                     z.msg = "invalid literal/length code"
 
-                    c = z.avail_in - n
+                    c = z.availIn - n
                     c = (k ushr 3).coerceAtMost(c)
                     n += c
                     p -= c
@@ -702,9 +713,9 @@ internal class InfCodes {
 
                     s.bitb = b
                     s.bitk = k
-                    z.avail_in = n
-                    z.total_in += p - z.next_in_index
-                    z.next_in_index = p
+                    z.availIn = n
+                    z.totalIn += p - z.nextInIndex
+                    z.nextInIndex = p
                     s.write = q
 
                     return Z_DATA_ERROR
@@ -713,7 +724,7 @@ internal class InfCodes {
         } while (m >= 258 && n >= 10)
 
         // not enough input or output--restore pointers and return
-        c = z.avail_in - n
+        c = z.availIn - n
         c = (k ushr 3).coerceAtMost(c)
         n += c
         p -= c
@@ -721,9 +732,9 @@ internal class InfCodes {
 
         s.bitb = b
         s.bitk = k
-        z.avail_in = n
-        z.total_in += p - z.next_in_index
-        z.next_in_index = p
+        z.availIn = n
+        z.totalIn += p - z.nextInIndex
+        z.nextInIndex = p
         s.write = q
 
         return Z_OK

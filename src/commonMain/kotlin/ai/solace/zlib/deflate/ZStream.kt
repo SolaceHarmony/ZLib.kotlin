@@ -46,103 +46,164 @@ package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.* // Import all constants
 
+/**
+ * Core class for ZLib compression and decompression operations.
+ * 
+ * This class provides the primary interface for compression and decompression
+ * functionality, managing input and output buffers, tracking progress, and
+ * maintaining state for both inflation and deflation operations.
+ */
 class ZStream {
 
     // All constants previously defined here (MAX_WBITS, DEF_WBITS, Z_NO_FLUSH, etc., MAX_MEM_LEVEL, Z_OK, etc.)
     // are now expected to be used from ai.solace.zlib.common.Constants
 
-    var next_in: ByteArray? = null // next input byte
-    var next_in_index = 0
-    var avail_in = 0 // number of bytes available at next_in
-    var total_in: Long = 0 // total nb of input bytes read so far
+    /** Next input byte array to be processed */
+    var nextIn: ByteArray? = null
 
-    var next_out: ByteArray? = null // next output byte should be put there
-    var next_out_index = 0
-    var avail_out = 0 // remaining free space at next_out
-    var total_out: Long = 0 // total nb of bytes output so far
+    /** Current position in the input buffer */
+    var nextInIndex = 0
 
+    /** Number of bytes available at next_in */
+    var availIn = 0
+
+    /** Total number of input bytes read so far */
+    var totalIn: Long = 0
+
+    /** Next output byte array where processed data should be written */
+    var nextOut: ByteArray? = null
+
+    /** Current position in the output buffer */
+    var nextOutIndex = 0
+
+    /** Remaining free space at next_out */
+    var availOut = 0
+
+    /** Total number of bytes output so far */
+    var totalOut: Long = 0
+
+    /** Error message if an operation fails */
     var msg: String? = null
 
-    internal var dstate: Deflate? = null
-    internal var istate: Inflate? = null
+    /** Internal deflate state */
+    internal var dState: Deflate? = null
 
-    internal var data_type = 0 // best guess about the data type: ascii or binary
+    /** Internal inflate state */
+    internal var iState: Inflate? = null
 
+    /** Best guess about the data type: ascii or binary */
+    internal var dataType = 0
+
+    /** Adler-32 checksum value */
     var adler: Long = 0
-    internal var _adler: Adler32? = Adler32()
 
+    /** Adler-32 checksum calculator */
+    internal var adlerChecksum: Adler32? = Adler32()
+
+    /**
+     * Initializes the decompression stream with default window bits.
+     * 
+     * @return Z_OK on success, negative value on failure
+     */
     fun inflateInit(): Int {
-        return inflateInit(MAX_WBITS) // DEF_WBITS was MAX_WBITS
+        return inflateInit(MAX_WBITS) // Using the correct constant defined in the Kotlin code
     }
 
+    /**
+     * Initializes the decompression stream with specified window bits.
+     * 
+     * @param w The window bits parameter, which should be between 8 and 15
+     * @return Z_OK on success, negative value on failure
+     */
     fun inflateInit(w: Int): Int {
-        istate = Inflate()
-        return istate!!.inflateInit(this, w)
+        iState = Inflate()
+        return iState!!.inflateInit(this, w)
     }
 
+    /**
+     * Decompresses data from the input buffer to the output buffer.
+     * 
+     * @param f The flush mode (Z_NO_FLUSH, Z_SYNC_FLUSH, Z_FINISH, etc.)
+     * @return Z_OK, Z_STREAM_END, or error code
+     */
     fun inflate(f: Int): Int {
-        if (istate == null) return Z_STREAM_ERROR
-        return istate!!.inflate(this, f)
+        if (iState == null) return Z_STREAM_ERROR
+        return iState!!.inflate(this, f)
     }
 
+    /**
+     * Ends the decompression process and releases resources.
+     * 
+     * @return Z_OK on success, error code on failure
+     */
     fun inflateEnd(): Int {
-        if (istate == null) return Z_STREAM_ERROR
-        val ret = istate!!.inflateEnd(this)
-        istate = null
+        if (iState == null) return Z_STREAM_ERROR
+        val ret = iState!!.inflateEnd(this)
+        iState = null
         return ret
     }
 
-    fun inflateSync(): Int {
-        if (istate == null) return Z_STREAM_ERROR
-        return istate!!.inflateSync(this)
-    }
 
-    fun inflateSetDictionary(dictionary: ByteArray, dictLength: Int): Int {
-        if (istate == null) return Z_STREAM_ERROR
-        return istate!!.inflateSetDictionary(this, dictionary, dictLength)
-    }
 
+    /**
+     * Initializes the compression stream with the specified compression level.
+     * 
+     * @param level The compression level (0-9, or Z_DEFAULT_COMPRESSION)
+     * @return Z_OK on success, error code on failure
+     */
     fun deflateInit(level: Int): Int {
         return deflateInit(level, MAX_WBITS)
     }
 
+    /**
+     * Initializes the compression stream with the specified compression level and window bits.
+     * 
+     * @param level The compression level (0-9, or Z_DEFAULT_COMPRESSION)
+     * @param bits The window bits parameter, which should be between 8 and 15
+     * @return Z_OK on success, error code on failure
+     */
     fun deflateInit(level: Int, bits: Int): Int {
-        dstate = Deflate()
-        return dstate!!.deflateInit(this, level, bits)
+        dState = Deflate()
+        return dState!!.deflateInit(this, level, bits)
     }
 
+    /**
+     * Compresses data from the input buffer to the output buffer.
+     * 
+     * @param flush The flush mode (Z_NO_FLUSH, Z_SYNC_FLUSH, Z_FINISH, etc.)
+     * @return Z_OK, Z_STREAM_END, or error code
+     */
     fun deflate(flush: Int): Int {
-        if (dstate == null) {
+        if (dState == null) {
             return Z_STREAM_ERROR
         }
-        return dstate!!.deflate(this, flush)
+        return dState!!.deflate(this, flush)
     }
 
+    /**
+     * Ends the compression process and releases resources.
+     * 
+     * @return Z_OK on success, error code on failure
+     */
     fun deflateEnd(): Int {
-        if (dstate == null) return Z_STREAM_ERROR
-        val ret = dstate!!.deflateEnd()
-        dstate = null
+        if (dState == null) return Z_STREAM_ERROR
+        val ret = dState!!.deflateEnd()
+        dState = null
         return ret
     }
 
-    fun deflateParams(level: Int, strategy: Int): Int {
-        if (dstate == null) return Z_STREAM_ERROR
-        return dstate!!.deflateParams(this, level, strategy)
-    }
 
-    fun deflateSetDictionary(dictionary: ByteArray, dictLength: Int): Int {
-        if (dstate == null) return Z_STREAM_ERROR
-        return dstate!!.deflateSetDictionary(this, dictionary, dictLength)
-    }
 
-    // Flush as much pending output as possible. All deflate() output goes
-    // through this function so some applications may wish to modify it
-    // to avoid allocating a large strm->next_out buffer and copying into it.
-    // (See also read_buf()).
-    internal fun flush_pending() {
-        var len = dstate!!.pending
+    /**
+     * Flushes as much pending output as possible.
+     * 
+     * All deflate() output goes through this function. Some applications may wish to modify it
+     * to avoid allocating a large next_out buffer and copying into it.
+     */
+    internal fun flushPending() {
+        var len = dState!!.pending
 
-        if (len > avail_out) len = avail_out
+        if (len > availOut) len = availOut
         if (len == 0) return
 
         /*
@@ -152,44 +213,55 @@ class ZStream {
         }
         */
 
-        dstate!!.pending_buf.copyInto(next_out!!, next_out_index, dstate!!.pending_out, dstate!!.pending_out + len)
+        dState!!.pendingBuf.copyInto(nextOut!!, nextOutIndex, dState!!.pendingOut, dState!!.pendingOut + len)
 
-        next_out_index += len
-        dstate!!.pending_out += len
-        total_out += len.toLong()
-        avail_out -= len
-        dstate!!.pending -= len
-        if (dstate!!.pending == 0) {
-            dstate!!.pending_out = 0
+        nextOutIndex += len
+        dState!!.pendingOut += len
+        totalOut += len.toLong()
+        availOut -= len
+        dState!!.pending -= len
+        if (dState!!.pending == 0) {
+            dState!!.pendingOut = 0
         }
     }
 
-    // Read a new buffer from the current input stream, update the adler32
-    // and total number of bytes read.  All deflate() input goes through
-    // this function so some applications may wish to modify it to avoid
-    // allocating a large strm->next_in buffer and copying from it.
-    // (See also flush_pending()).
-    internal fun read_buf(buf: ByteArray, start: Int, size: Int): Int {
-        var len = avail_in
+    /**
+     * Reads a new buffer from the current input stream and updates the Adler-32 checksum.
+     * 
+     * All deflate() input goes through this function. Some applications may wish to modify it
+     * to avoid allocating a large next_in buffer and copying from it.
+     * 
+     * @param buf The buffer to read into
+     * @param start The starting position in the buffer
+     * @param size The maximum number of bytes to read
+     * @return The number of bytes actually read
+     */
+    internal fun readBuf(buf: ByteArray, start: Int, size: Int): Int {
+        var len = availIn
 
         if (len > size) len = size
         if (len == 0) return 0
 
-        avail_in -= len
+        availIn -= len
 
-        if (dstate!!.noheader == 0) {
-            adler = _adler!!.adler32(adler, next_in, next_in_index, len)
+        if (dState!!.noheader == 0) {
+            adler = adlerChecksum!!.adler32(adler, nextIn, nextInIndex, len)
         }
-        next_in!!.copyInto(buf, start, next_in_index, next_in_index + len)
-        next_in_index += len
-        total_in += len.toLong()
+        nextIn!!.copyInto(buf, start, nextInIndex, nextInIndex + len)
+        nextInIndex += len
+        totalIn += len.toLong()
         return len
     }
 
+    /**
+     * Releases all resources used by this ZStream instance.
+     * 
+     * This method should be called when the stream is no longer needed to prevent memory leaks.
+     */
     fun free() {
-        next_in = null
-        next_out = null
+        nextIn = null
+        nextOut = null
         msg = null
-        _adler = null
+        adlerChecksum = null
     }
 }

@@ -61,9 +61,9 @@ class Tree internal constructor() {
         // d_code, gen_codes, and bi_reverse were moved to TreeUtils.kt
     }
 
-    lateinit var dyn_tree: ShortArray // the dynamic tree
-    var max_code: Int = 0 // largest code with non zero frequency
-    internal lateinit var stat_desc: StaticTree // the corresponding static tree
+    lateinit var dynTree: ShortArray // the dynamic tree
+    var maxCode: Int = 0 // largest code with non zero frequency
+    internal lateinit var statDesc: StaticTree // the corresponding static tree
 
     // Compute the optimal bit lengths for a tree and update the total bit length
     // for the current block.
@@ -75,9 +75,9 @@ class Tree internal constructor() {
     //     not null.
     // gen_bitlen moved to TreeUtils.kt; called via wrapper below
     // Call wrapper:
-    internal fun gen_bitlen(s: Deflate) {
+    internal fun genBitlen(s: Deflate) {
         // Calls TreeUtils.gen_bitlen (same package)
-        gen_bitlen(this, s)
+        genBitten(this, s)
     }
 
     // Construct one Huffman tree and assigns the code bit strings and lengths.
@@ -88,8 +88,8 @@ class Tree internal constructor() {
     //     also updated if stree is not null. The field max_code is set.
     // build_tree moved to TreeUtils.kt; called via wrapper below
     // Call wrapper:
-    internal fun build_tree(s: Deflate) {
+    internal fun buildTree(s: Deflate) {
         // Calls TreeUtils.build_tree (same package)
-        build_tree(this, s)
+        buildTree(this, s)
     }
 }
