@@ -32,23 +32,50 @@ internal fun putShortMSB(d: Deflate, b: Int) {
 
 internal fun sendBits(d: Deflate, value: Int, length: Int) {
     if (length == 0) return
-    val len = length
-    val oldBiValid = d.biValid
-    if (oldBiValid > 16 - len) {  // 16 is BUF_SIZE (bits in a Short * 2)
-        var biBufVal = d.biBuf.toInt() and 0xffff
-        val valShifted = value shl oldBiValid
-        val valShiftedMasked = valShifted and 0xffff
-        val combinedValForFlush = biBufVal or valShiftedMasked
-        putShort(d, combinedValForFlush)
 
-        // Place remaining bits in the buffer
-        val bitsAlreadyWritten = 16 - oldBiValid  // 16 is BUF_SIZE
-        d.biBuf = (value ushr bitsAlreadyWritten).toShort()
-        d.biValid = oldBiValid + len - 16  // 16 is BUF_SIZE
+    val bufSize = 16  // Bits in a Short * 2
+    val oldBiValid = d.biValid
+
+    // If there's not enough room in the current buffer for all the bits
+    if (oldBiValid > bufSize - length) {
+        // First, fill the current buffer with as many bits as will fit
+        val bitsInCurrentBuf = bufSize - oldBiValid
+        val bitsForNextBuf = length - bitsInCurrentBuf
+
+        // Fill the current buffer with the low-order bits that fit
+        // Fix: Better handling of potential overflow when shifting
+        val lowBits = if (bitsInCurrentBuf >= 30) {
+            value and ((1 shl 30) - 1)  // Limit to 30 bits to prevent overflow
+        } else {
+            value and ((1 shl bitsInCurrentBuf) - 1)
+        }
+
+        val biBufVal = d.biBuf.toInt() and 0xffff
+        val combinedVal = biBufVal or (lowBits shl oldBiValid)
+
+        // Flush the full buffer
+        putShort(d, combinedVal)
+
+        // Store remaining high-order bits in the new buffer
+        // Fix: Safer handling of bit shifting for the next buffer
+        d.biBuf = if (bitsInCurrentBuf == 0) {
+            value.toShort()
+        } else {
+            (value ushr bitsInCurrentBuf).toShort()
+        }
+        d.biValid = bitsForNextBuf
     } else {
-        val biBufInt = (d.biBuf.toInt() and 0xffff) or (value shl oldBiValid)
+        // Enough room in the current buffer, just add the bits
+        // Fix: Better handling of potential overflow when shifting
+        val mask = if (length >= 30) {
+            0x3FFFFFFF  // Use explicit 30-bit mask (2^30-1) to prevent overflow
+        } else {
+            (1 shl length) - 1
+        }
+
+        val biBufInt = (d.biBuf.toInt() and 0xffff) or ((value and mask) shl oldBiValid)
         d.biBuf = biBufInt.toShort()
-        d.biValid = oldBiValid + len
+        d.biValid = oldBiValid + length
     }
 }
 
@@ -147,26 +174,35 @@ internal fun biWindup(d: Deflate) {
     d.biValid = 0
 }
 
+/**
+ * Writes a stored block length and its one's complement in the format expected by the
+ * Pascal ZLib implementation for validation. This ensures all stored blocks in the
+ * compressed stream have consistent and correct length formatting.
+ *
+ * @param d The Deflate object to write bytes to
+ * @param len The length to write (will be limited to 16 bits)
+ */
+internal fun writeStoredBlockLength(d: Deflate, len: Int) {
+    val lenLimited = len and 0xFFFF
+    val complement = lenLimited.inv() and 0xFFFF
+
+    // Write len and its complement directly in little-endian order
+    // 1. Low byte of len
+    // 2. High byte of len
+    // 3. Low byte of complement
+    // 4. High byte of complement
+    putByte(d, lenLimited.toByte())
+    putByte(d, (lenLimited ushr 8).toByte())
+    putByte(d, complement.toByte())
+    putByte(d, (complement ushr 8).toByte())
+}
+
 internal fun copyBlock(d: Deflate, buf: Int, len: Int, header: Boolean) {
     biWindup(d)
     d.lastEobLen = 8
     if (header) {
-        // DEFLATE format requires length and its one's complement (~len)
-        // The Pascal implementation expects the 32-bit value to have:
-        // - Lower 16 bits = length
-        // - Upper 16 bits = one's complement of length
-        // This is checked with: ((not b) shr 16) and $ffff) <> (b and $ffff)
-
-        val lenLimited = len and 0xFFFF
-
-        // First write length (low 16 bits)
-        putByte(d, lenLimited.toByte())
-        putByte(d, (lenLimited ushr 8).toByte())
-
-        // Then write one's complement (high 16 bits)
-        val complement = lenLimited.inv() and 0xFFFF
-        putByte(d, complement.toByte())
-        putByte(d, (complement ushr 8).toByte())
+        // Use the common function for writing a stored block length header
+        writeStoredBlockLength(d, len)
     }
     putByte(d, d.window, buf, len)
 }

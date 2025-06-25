@@ -52,22 +52,42 @@ import ai.solace.zlib.common.* // Import all constants
  * This class provides the primary interface for compression and decompression
  * functionality, managing input and output buffers, tracking progress, and
  * maintaining state for both inflation and deflation operations.
+ *
+ * WHY THIS APPROACH: In the original C zlib implementation, this structure is defined as a 'z_stream' struct.
+ * We've implemented it as a class in Kotlin to provide a more idiomatic object-oriented approach and to leverage
+ * Kotlin's null safety and other language features. This class centralizes the state management that's needed
+ * across both compression and decompression operations, following the same pattern as the original zlib design.
  */
 class ZStream {
 
     // All constants previously defined here (MAX_WBITS, DEF_WBITS, Z_NO_FLUSH, etc., MAX_MEM_LEVEL, Z_OK, etc.)
     // are now expected to be used from ai.solace.zlib.common.Constants
 
-    /** Next input byte array to be processed */
+    /**
+     * Next input byte array to be processed
+     *
+     * WHY NULLABLE: This is nullable to match the zlib's ability to handle a NULL pointer scenario,
+     * where the application can initialize the stream without immediately providing input data.
+     */
     var nextIn: ByteArray? = null
 
-    /** Current position in the input buffer */
+    /**
+     * Current position in the input buffer
+     *
+     * WHY INDEX-BASED: Unlike C's direct pointer arithmetic, we use an index-based approach
+     * which is safer and more idiomatic in Kotlin while achieving the same functionality.
+     */
     var nextInIndex = 0
 
     /** Number of bytes available at next_in */
     var availIn = 0
 
-    /** Total number of input bytes read so far */
+    /**
+     * Total number of input bytes read so far
+     *
+     * WHY LONG INSTEAD OF INT: We use Long to handle potentially large files that might exceed
+     * the 2GB limit of an Int, which is an improvement over the original uLong in C.
+     */
     var totalIn: Long = 0
 
     /** Next output byte array where processed data should be written */
@@ -82,22 +102,43 @@ class ZStream {
     /** Total number of bytes output so far */
     var totalOut: Long = 0
 
-    /** Error message if an operation fails */
+    /**
+     * Error message if an operation fails
+     *
+     * WHY NULLABLE STRING: This follows zlib's pattern where msg is NULL when there's no error,
+     * but provides a readable message when something goes wrong.
+     */
     var msg: String? = null
 
-    /** Internal deflate state */
+    /**
+     * Internal deflate state
+     *
+     * WHY INTERNAL VISIBILITY: This restricts access to implementation details while allowing
+     * access from within the package, maintaining encapsulation while still permitting the
+     * necessary interactions between components.
+     */
     internal var dState: Deflate? = null
 
     /** Internal inflate state */
     internal var iState: Inflate? = null
 
-    /** Best guess about the data type: ascii or binary */
+    /**
+     * Best guess about the data type: ascii or binary
+     *
+     * WHY INT INSTEAD OF ENUM: This maintains compatibility with the zlib constants for data types
+     * (Z_BINARY, Z_TEXT, Z_UNKNOWN) defined in the manual.
+     */
     internal var dataType = 0
 
     /** Adler-32 checksum value */
     var adler: Long = 0
 
-    /** Adler-32 checksum calculator */
+    /**
+     * Adler-32 checksum calculator
+     *
+     * WHY SEPARATE OBJECT: This separates the checksum calculation logic from the stream handling,
+     * following good object-oriented design principles.
+     */
     internal var adlerChecksum: Adler32? = Adler32()
 
     /**
@@ -159,12 +200,68 @@ class ZStream {
      * Initializes the compression stream with the specified compression level and window bits.
      * 
      * @param level The compression level (0-9, or Z_DEFAULT_COMPRESSION)
-     * @param bits The window bits parameter, which should be between 8 and 15
+     * @param bits The logarithm of the window size (8-15)
      * @return Z_OK on success, error code on failure
      */
     fun deflateInit(level: Int, bits: Int): Int {
+        return deflateInit(level, bits, DEF_MEM_LEVEL)
+    }
+
+    /**
+     * Initializes the compression stream with the specified parameters.
+     *
+     * @param level The compression level (0-9, or Z_DEFAULT_COMPRESSION)
+     * @param bits The logarithm of the window size (8-15)
+     * @param memLevel How much memory to allocate for the internal compression state (1-9)
+     * @return Z_OK on success, error code on failure
+     */
+    fun deflateInit(level: Int, bits: Int, memLevel: Int): Int {
+        return deflateInit2(level, Z_DEFLATED, bits, memLevel, Z_DEFAULT_STRATEGY)
+    }
+
+    /**
+     * Fully configurable initialization of the compression stream.
+     *
+     * @param level The compression level (0-9, or Z_DEFAULT_COMPRESSION)
+     * @param method The compression method (only Z_DEFLATED is supported)
+     * @param windowBits The logarithm of the window size (8-15, or negative for raw deflate)
+     * @param memLevel How much memory to allocate (1-9)
+     * @param strategy The compression strategy
+     * @return Z_OK on success, error code on failure
+     */
+    fun deflateInit2(level: Int, method: Int, windowBits: Int, memLevel: Int, strategy: Int): Int {
+        var err = Z_OK
+        var newLevel : Int = level
+        var newWindowBits : Int = windowBits
+        if (newLevel == Z_DEFAULT_COMPRESSION) {
+            newLevel = 6
+        }
+
+        if (newWindowBits < 0) { // suppress zlib header
+            val versionInt = 0
+            if (newWindowBits < -15) {
+                return Z_STREAM_ERROR
+            }
+            newWindowBits = -newWindowBits
+        }
+
+        if (memLevel < 1 || memLevel > MAX_MEM_LEVEL || method != Z_DEFLATED || newWindowBits < 8 ||
+            newWindowBits > 15 || newLevel < 0 || newLevel > 9 || strategy < 0 || strategy > Z_HUFFMAN_ONLY) {
+            return Z_STREAM_ERROR
+        }
+
         dState = Deflate()
-        return dState!!.deflateInit(this, level, bits)
+        dState!!.strm = this
+        dState!!.status = BUSY_STATE
+
+        // Handle window size and ensure correct initialization per the Pascal implementation
+        err = dState!!.deflateInit2(this, newLevel, method, newWindowBits, memLevel, strategy)
+
+        if (err != Z_OK) {
+            dState = null
+        }
+
+        return err
     }
 
     /**
@@ -186,13 +283,49 @@ class ZStream {
      * @return Z_OK on success, error code on failure
      */
     fun deflateEnd(): Int {
-        if (dState == null) return Z_STREAM_ERROR
+        if (dState == null) {
+            return Z_STREAM_ERROR
+        }
         val ret = dState!!.deflateEnd()
         dState = null
         return ret
     }
 
+    /**
+     * Resets the compression stream without releasing memory.
+     *
+     * @return Z_OK on success, error code on failure
+     */
+    fun deflateReset(): Int {
+        if (dState == null) {
+            return Z_STREAM_ERROR
+        }
+        return dState!!.deflateReset(this)
+    }
 
+    /**
+     * Reads a new buffer from the current input stream and updates the Adler-32 checksum.
+     *
+     * All deflate() input goes through this function. Some applications may wish to modify it
+     * to avoid allocating a large next_in buffer and copying from it.
+     *
+     * @param buf The buffer to read into
+     * @param start The starting position in the buffer
+     * @param size The maximum number of bytes to read
+     * @return The number of bytes actually read
+     */
+    internal fun readBuf(buf: ByteArray, start: Int, size: Int): Int {
+        var len = size
+        if (availIn <= 0) return 0
+        if (len > availIn) len = availIn
+        availIn -= len
+        if (len != 0) {
+            nextIn!!.copyInto(buf, start, nextInIndex, nextInIndex + len)
+            nextInIndex += len
+            totalIn += len.toLong()
+        }
+        return len
+    }
 
     /**
      * Flushes as much pending output as possible.
@@ -202,19 +335,17 @@ class ZStream {
      */
     internal fun flushPending() {
         var len = dState!!.pending
-
         if (len > availOut) len = availOut
         if (len == 0) return
 
-        /*
-        if (dstate!!.pending_buf.size <= dstate!!.pending_out || next_out!!.size <= next_out_index || dstate!!.pending_buf.size < dstate!!.pending_out + len || next_out!!.size < next_out_index + len) {
-            //System.Console.Out.WriteLine(dstate.pending_buf.Length + ", " + dstate.pending_out + ", " + next_out.Length + ", " + next_out_index + ", " + len);
-            //System.Console.Out.WriteLine("avail_out=" + avail_out);
+        if (dState!!.pendingBuf.size <= dState!!.pendingOut ||
+            nextOut == null ||
+            dState!!.pendingOut < 0 ||
+            dState!!.pending < 0) {
+            return
         }
-        */
 
         dState!!.pendingBuf.copyInto(nextOut!!, nextOutIndex, dState!!.pendingOut, dState!!.pendingOut + len)
-
         nextOutIndex += len
         dState!!.pendingOut += len
         totalOut += len.toLong()
@@ -223,34 +354,6 @@ class ZStream {
         if (dState!!.pending == 0) {
             dState!!.pendingOut = 0
         }
-    }
-
-    /**
-     * Reads a new buffer from the current input stream and updates the Adler-32 checksum.
-     * 
-     * All deflate() input goes through this function. Some applications may wish to modify it
-     * to avoid allocating a large next_in buffer and copying from it.
-     * 
-     * @param buf The buffer to read into
-     * @param start The starting position in the buffer
-     * @param size The maximum number of bytes to read
-     * @return The number of bytes actually read
-     */
-    internal fun readBuf(buf: ByteArray, start: Int, size: Int): Int {
-        var len = availIn
-
-        if (len > size) len = size
-        if (len == 0) return 0
-
-        availIn -= len
-
-        if (dState!!.noheader == 0) {
-            adler = adlerChecksum!!.adler32(adler, nextIn, nextInIndex, len)
-        }
-        nextIn!!.copyInto(buf, start, nextInIndex, nextInIndex + len)
-        nextInIndex += len
-        totalIn += len.toLong()
-        return len
     }
 
     /**

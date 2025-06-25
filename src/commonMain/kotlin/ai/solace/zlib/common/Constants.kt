@@ -220,8 +220,9 @@ val TREE_BASE_LENGTH = intArrayOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20,
 // Base distance for each distance code
 val TREE_BASE_DIST = intArrayOf(0, 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576)
 
-// Tree dist code list
+// Tree dist code list - matches Pascal _dist_code array exactly
 internal val TREE_DIST_CODE = ubyteArrayOf(
+    // First 256 values correspond to distances 0-255 (direct lookup)
     0u, 1u, 2u, 3u, 4u, 4u, 5u, 5u, 6u, 6u, 6u, 6u, 7u, 7u, 7u, 7u, 8u, 8u, 8u, 8u, 8u, 8u, 8u, 8u, 9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u,
     10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u,
     11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u,
@@ -232,16 +233,17 @@ internal val TREE_DIST_CODE = ubyteArrayOf(
     14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u,
     15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u,
     15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u,
-    15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 0u, 0u, 16u, 17u, 18u, 18u, 19u, 19u, 20u, 20u, 20u, 20u,
-    21u, 21u, 21u, 21u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 24u, 24u, 24u, 24u,
-    24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u,
-    25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u,
+    15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 
+    // Second 256 values for distances >= 256, using (dist >> 7) for lookup
+    0u, 0u, 16u, 17u, 18u, 18u, 19u, 19u, 20u, 20u, 20u, 20u, 21u, 21u, 21u, 21u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u,
+    23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+    25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u,
     26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u,
-    26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u,
-    27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+    27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u,
+    27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
     28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
     28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
-    28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
+    29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
     29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
     29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u
 )

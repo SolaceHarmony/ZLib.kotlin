@@ -50,17 +50,17 @@ internal class InfCodes {
     private var mode: Int = 0 // current inflate_codes mode
 
     // mode dependent information
-    private var len: Int = 0
+    private var length: Int = 0
 
     private var tree: IntArray = IntArray(0)
     private var treeIndex: Int = 0
-    private var need: Int = 0 // bits needed
+    private var bitsNeeded: Int = 0 // bits needed
 
-    private var lit: Int = 0
+    private var literal: Int = 0
 
     // if EXT or COPY, where and how much
-    private var getRenamed: Int = 0 // bits to get for extra
-    private var dist: Int = 0 // distance back to copy from
+    private var extraBitsNeeded: Int = 0 // bits to get for extra
+    private var distance: Int = 0 // distance back to copy from
 
     private var lbits: Byte = 0 // ltree bits decoded per branch
     private var dbits: Byte = 0 // dtree bits decoder per branch
@@ -94,24 +94,24 @@ internal class InfCodes {
      */
     internal fun proc(s: InfBlocks, z: ZStream, r: Int): Int {
         var result = r
-        var j: Int // temporary storage
-        var tindex: Int // temporary pointer
-        var e: Int // extra bits or operation
-        var b: Int // bit buffer
-        var k: Int // bits in bit buffer
-        var p: Int // input data pointer
-        var n: Int // bytes available there
-        var q: Int // output window write pointer
-        var m: Int // bytes to end of window or read pointer
-        var f: Int // pointer to copy strings from
+        var tempStorage: Int // temporary storage
+        var tableIndex: Int // temporary pointer
+        var extraBitsOrOperation: Int // extra bits or operation
+        var bitBuffer: Int // bit buffer
+        var bitsInBuffer: Int // bits in bit buffer
+        var inputPointer: Int // input data pointer
+        var bytesAvailable: Int // bytes available there
+        var outputWritePointer: Int // output window write pointer
+        var outputBytesLeft: Int // bytes to end of window or read pointer
+        var outputPointer: Int // pointer to copy strings from
 
         // copy input/output information to locals (UPDATE macro restores)
-        p = z.nextInIndex
-        n = z.availIn
-        b = s.bitb
-        k = s.bitk
-        q = s.write
-        m = if (q < s.read) s.read - q - 1 else s.end - q
+        inputPointer = z.nextInIndex
+        bytesAvailable = z.availIn
+        bitBuffer = s.bitb
+        bitsInBuffer = s.bitk
+        outputWritePointer = s.write
+        outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
 
         // Safety check: max iterations to prevent infinite loops
         val maxIterations = 10000
@@ -131,29 +131,29 @@ internal class InfCodes {
 
                 // waiting for "i:"=input, "o:"=output, "x:"=nothing
                 ICODES_START -> { // x: set up for LEN
-                    if (m >= 258 && n >= 10) {
+                    if (outputBytesLeft >= 258 && bytesAvailable >= 10) {
 
-                        s.bitb = b
-                        s.bitk = k
-                        z.availIn = n
-                        z.totalIn += p - z.nextInIndex
-                        z.nextInIndex = p
-                        s.write = q
+                        s.bitb = bitBuffer
+                        s.bitk = bitsInBuffer
+                        z.availIn = bytesAvailable
+                        z.totalIn += inputPointer - z.nextInIndex
+                        z.nextInIndex = inputPointer
+                        s.write = outputWritePointer
                         result = inflateFast(lbits.toInt(), dbits.toInt(), ltree, ltreeIndex, dtree, dtreeIndex, s, z)
 
-                        p = z.nextInIndex
-                        n = z.availIn
-                        b = s.bitb
-                        k = s.bitk
-                        q = s.write
-                        m = if (q < s.read) s.read - q - 1 else s.end - q
+                        inputPointer = z.nextInIndex
+                        bytesAvailable = z.availIn
+                        bitBuffer = s.bitb
+                        bitsInBuffer = s.bitk
+                        outputWritePointer = s.write
+                        outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
 
                         if (result != Z_OK) {
                             mode = if (result == Z_STREAM_END) ICODES_WASH else ICODES_BADCODE
                             break
                         }
                     }
-                    need = lbits.toInt()
+                    bitsNeeded = lbits.toInt()
                     tree = ltree
                     treeIndex = ltreeIndex
 
@@ -162,52 +162,62 @@ internal class InfCodes {
                 }
 
                 ICODES_LEN -> {  // i: get length/literal/eob next
-                    j = need
+                    tempStorage = bitsNeeded
 
-                    while (k < j) {
-                        if (n != 0) result = Z_OK
+                    while (bitsInBuffer < tempStorage) {
+                        if (bytesAvailable != 0) result = Z_OK
                         else {
 
-                            s.bitb = b
-                            s.bitk = k
-                            z.availIn = n
-                            z.totalIn += p - z.nextInIndex
-                            z.nextInIndex = p
-                            s.write = q
+                            s.bitb = bitBuffer
+                            s.bitk = bitsInBuffer
+                            z.availIn = bytesAvailable
+                            z.totalIn += inputPointer - z.nextInIndex
+                            z.nextInIndex = inputPointer
+                            s.write = outputWritePointer
                             return inflateFlush(s, z, result)
                         }
-                        n--
-                        b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
-                        k += 8
+                        bytesAvailable--
+                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitsInBuffer += 8
                     }
 
-                    tindex = (treeIndex + (b and IBLK_INFLATE_MASK[j])) * 3
+                    val maskedB = bitBuffer and IBLK_INFLATE_MASK[tempStorage]
+                    
+                    val normalTindex = (treeIndex + maskedB) * 3
+                    tableIndex = normalTindex
+                    
+                    if (maskedB == 126) {  // Only debug the problematic lookup
+                        println("[TABLE_DEBUG] Table lookup: treeIndex=$treeIndex, mask=${IBLK_INFLATE_MASK[tempStorage]}, b=$bitBuffer, k=$bitsInBuffer bits, maskedB=$maskedB, tindex=$tableIndex")
+                        println("[TABLE_DEBUG] Input code bits: ${maskedB.toString(2).padStart(tempStorage, '0')} (${maskedB} in $tempStorage bits)")
+                        println("[TABLE_DEBUG] Table entry: [${tree[tableIndex]}, ${tree[tableIndex + 1]}, ${tree[tableIndex + 2]}]")
+                    }
 
-                    b = b ushr tree[tindex + 1]
-                    k -= tree[tindex + 1]
+                    bitBuffer = bitBuffer ushr tree[tableIndex + 1]
+                    bitsInBuffer -= tree[tableIndex + 1]
 
-                    e = tree[tindex]
+                    extraBitsOrOperation = tree[tableIndex]
 
-                    if (e == 0) {
+                    if (extraBitsOrOperation == 0) {
                         // literal
-                        lit = tree[tindex + 2]
+                        literal = tree[tableIndex + 2]
+                        println("[SYMBOL_DEBUG] Found literal: $literal (char: '${literal.toChar()}') from table entry [${ tree[tableIndex]}, ${tree[tableIndex + 1]}, ${tree[tableIndex + 2]}]")
                         mode = ICODES_LIT
                         break
                     }
-                    if (e and 16 != 0) {
+                    if (extraBitsOrOperation and 16 != 0) {
                         // length
-                        getRenamed = e and 15
-                        len = tree[tindex + 2]
+                        extraBitsNeeded = extraBitsOrOperation and 15
+                        length = tree[tableIndex + 2]
                         mode = ICODES_LENEXT
                         break
                     }
-                    if (e and 64 == 0) {
+                    if (extraBitsOrOperation and 64 == 0) {
                         // next table
-                        need = e
-                        treeIndex = tindex / 3 + tree[tindex + 2]
+                        bitsNeeded = extraBitsOrOperation
+                        treeIndex = tableIndex / 3 + tree[tableIndex + 2]
                         break
                     }
-                    if (e and 32 != 0) {
+                    if (extraBitsOrOperation and 32 != 0) {
                         // end of block
                         mode = ICODES_WASH
                         break
@@ -216,41 +226,41 @@ internal class InfCodes {
                     z.msg = "invalid literal/length code"
                     result = Z_DATA_ERROR
 
-                    s.bitb = b
-                    s.bitk = k
-                    z.availIn = n
-                    z.totalIn += p - z.nextInIndex
-                    z.nextInIndex = p
-                    s.write = q
+                    s.bitb = bitBuffer
+                    s.bitk = bitsInBuffer
+                    z.availIn = bytesAvailable
+                    z.totalIn += inputPointer - z.nextInIndex
+                    z.nextInIndex = inputPointer
+                    s.write = outputWritePointer
                     return inflateFlush(s, z, result)
                 }
 
                 ICODES_LENEXT -> {  // i: getting length extra (have base)
-                    j = getRenamed
+                    tempStorage = extraBitsNeeded
 
-                    while (k < j) {
-                        if (n != 0) result = Z_OK
+                    while (bitsInBuffer < tempStorage) {
+                        if (bytesAvailable != 0) result = Z_OK
                         else {
 
-                            s.bitb = b
-                            s.bitk = k
-                            z.availIn = n
-                            z.totalIn += p - z.nextInIndex
-                            z.nextInIndex = p
-                            s.write = q
+                            s.bitb = bitBuffer
+                            s.bitk = bitsInBuffer
+                            z.availIn = bytesAvailable
+                            z.totalIn += inputPointer - z.nextInIndex
+                            z.nextInIndex = inputPointer
+                            s.write = outputWritePointer
                             return inflateFlush(s, z, result)
                         }
-                        n--
-                        b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
-                        k += 8
+                        bytesAvailable--
+                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitsInBuffer += 8
                     }
 
-                    len += b and IBLK_INFLATE_MASK[j]
+                    length += bitBuffer and IBLK_INFLATE_MASK[tempStorage]
 
-                    b = b ushr j
-                    k -= j
+                    bitBuffer = bitBuffer ushr tempStorage
+                    bitsInBuffer -= tempStorage
 
-                    need = dbits.toInt()
+                    bitsNeeded = dbits.toInt()
                     tree = dtree
                     treeIndex = dtreeIndex
                     mode = ICODES_DIST
@@ -258,186 +268,187 @@ internal class InfCodes {
                 }
 
                 ICODES_DIST -> {  // i: get distance next
-                    j = need
+                    tempStorage = bitsNeeded
 
-                    while (k < j) {
-                        if (n != 0) result = Z_OK
+                    while (bitsInBuffer < tempStorage) {
+                        if (bytesAvailable != 0) result = Z_OK
                         else {
 
-                            s.bitb = b
-                            s.bitk = k
-                            z.availIn = n
-                            z.totalIn += p - z.nextInIndex
-                            z.nextInIndex = p
-                            s.write = q
+                            s.bitb = bitBuffer
+                            s.bitk = bitsInBuffer
+                            z.availIn = bytesAvailable
+                            z.totalIn += inputPointer - z.nextInIndex
+                            z.nextInIndex = inputPointer
+                            s.write = outputWritePointer
                             return inflateFlush(s, z, result)
                         }
-                        n--
-                        b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
-                        k += 8
+                        bytesAvailable--
+                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitsInBuffer += 8
                     }
 
-                    tindex = (treeIndex + (b and IBLK_INFLATE_MASK[j])) * 3
+                    tableIndex = (treeIndex + (bitBuffer and IBLK_INFLATE_MASK[tempStorage])) * 3
 
-                    b = b ushr tree[tindex + 1]
-                    k -= tree[tindex + 1]
+                    bitBuffer = bitBuffer ushr tree[tableIndex + 1]
+                    bitsInBuffer -= tree[tableIndex + 1]
 
-                    e = tree[tindex]
-                    if (e and 16 != 0) {
+                    extraBitsOrOperation = tree[tableIndex]
+                    if (extraBitsOrOperation and 16 != 0) {
                         // distance
-                        getRenamed = e and 15
-                        dist = tree[tindex + 2]
+                        extraBitsNeeded = extraBitsOrOperation and 15
+                        distance = tree[tableIndex + 2]
                         mode = ICODES_DISTEXT
                         break
                     }
-                    if (e and 64 == 0) {
+                    if (extraBitsOrOperation and 64 == 0) {
                         // next table
-                        need = e
-                        treeIndex = tindex / 3 + tree[tindex + 2]
+                        bitsNeeded = extraBitsOrOperation
+                        treeIndex = tableIndex / 3 + tree[tableIndex + 2]
                         break
                     }
                     mode = ICODES_BADCODE // invalid code
                     z.msg = "invalid distance code"
                     result = Z_DATA_ERROR
 
-                    s.bitb = b
-                    s.bitk = k
-                    z.availIn = n
-                    z.totalIn += p - z.nextInIndex
-                    z.nextInIndex = p
-                    s.write = q
+                    s.bitb = bitBuffer
+                    s.bitk = bitsInBuffer
+                    z.availIn = bytesAvailable
+                    z.totalIn += inputPointer - z.nextInIndex
+                    z.nextInIndex = inputPointer
+                    s.write = outputWritePointer
                     return inflateFlush(s, z, result)
                 }
 
                 ICODES_DISTEXT -> {  // i: getting distance extra
-                    j = getRenamed
+                    tempStorage = extraBitsNeeded
 
-                    while (k < j) {
-                        if (n != 0) result = Z_OK
+                    while (bitsInBuffer < tempStorage) {
+                        if (bytesAvailable != 0) result = Z_OK
                         else {
 
-                            s.bitb = b
-                            s.bitk = k
-                            z.availIn = n
-                            z.totalIn += p - z.nextInIndex
-                            z.nextInIndex = p
-                            s.write = q
+                            s.bitb = bitBuffer
+                            s.bitk = bitsInBuffer
+                            z.availIn = bytesAvailable
+                            z.totalIn += inputPointer - z.nextInIndex
+                            z.nextInIndex = inputPointer
+                            s.write = outputWritePointer
                             return inflateFlush(s, z, result)
                         }
-                        n--
-                        b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
-                        k += 8
+                        bytesAvailable--
+                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitsInBuffer += 8
                     }
 
-                    dist += b and IBLK_INFLATE_MASK[j]
+                    distance += bitBuffer and IBLK_INFLATE_MASK[tempStorage]
 
-                    b = b ushr j
-                    k -= j
+                    bitBuffer = bitBuffer ushr tempStorage
+                    bitsInBuffer -= tempStorage
 
                     mode = ICODES_COPY
                     continue
                 }
 
                 ICODES_COPY -> {  // o: copying bytes in window, waiting for space
-                    f = q - dist
-                    while (f < 0) {
+                    outputPointer = outputWritePointer - distance
+                    while (outputPointer < 0) {
                         // modulo window size-"while" instead
-                        f += s.end // of "if" handles invalid distances
+                        outputPointer += s.end // of "if" handles invalid distances
                     }
-                    while (len != 0) {
+                    while (length != 0) {
 
-                        if (m == 0) {
-                            if (q == s.end && s.read != 0) {
-                                q = 0
-                                m = if (q < s.read) s.read - q - 1 else s.end - q
+                        if (outputBytesLeft == 0) {
+                            if (outputWritePointer == s.end && s.read != 0) {
+                                outputWritePointer = 0
+                                outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
                             }
-                            if (m == 0) {
-                                s.write = q
+                            if (outputBytesLeft == 0) {
+                                s.write = outputWritePointer
                                 result = inflateFlush(s, z, result)
-                                q = s.write
-                                m = if (q < s.read) s.read - q - 1 else s.end - q
+                                outputWritePointer = s.write
+                                outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
 
-                                if (q == s.end && s.read != 0) {
-                                    q = 0
-                                    m = if (q < s.read) s.read - q - 1 else s.end - q
+                                if (outputWritePointer == s.end && s.read != 0) {
+                                    outputWritePointer = 0
+                                    outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
                                 }
 
-                                if (m == 0) {
-                                    s.bitb = b
-                                    s.bitk = k
-                                    z.availIn = n
-                                    z.totalIn += p - z.nextInIndex
-                                    z.nextInIndex = p
-                                    s.write = q
+                                if (outputBytesLeft == 0) {
+                                    s.bitb = bitBuffer
+                                    s.bitk = bitsInBuffer
+                                    z.availIn = bytesAvailable
+                                    z.totalIn += inputPointer - z.nextInIndex
+                                    z.nextInIndex = inputPointer
+                                    s.write = outputWritePointer
                                     return inflateFlush(s, z, result)
                                 }
                             }
                         }
 
-                        s.window[q++] = s.window[f++]
-                        m--
+                        s.window[outputWritePointer++] = s.window[outputPointer++]
+                        outputBytesLeft--
 
-                        if (f == s.end) f = 0
-                        len--
+                        if (outputPointer == s.end) outputPointer = 0
+                        length--
                     }
                     mode = ICODES_START
                 }
 
                 ICODES_LIT -> {  // o: got literal, waiting for output space
-                    if (m == 0) {
-                        if (q == s.end && s.read != 0) {
-                            q = 0
-                            m = if (q < s.read) s.read - q - 1 else s.end - q
+                    if (outputBytesLeft == 0) {
+                        if (outputWritePointer == s.end && s.read != 0) {
+                            outputWritePointer = 0
+                            outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
                         }
-                        if (m == 0) {
-                            s.write = q
+                        if (outputBytesLeft == 0) {
+                            s.write = outputWritePointer
                             result = inflateFlush(s, z, result)
-                            q = s.write
-                            m = if (q < s.read) s.read - q - 1 else s.end - q
+                            outputWritePointer = s.write
+                            outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
 
-                            if (q == s.end && s.read != 0) {
-                                q = 0
-                                m = if (q < s.read) s.read - q - 1 else s.end - q
+                            if (outputWritePointer == s.end && s.read != 0) {
+                                outputWritePointer = 0
+                                outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
                             }
-                            if (m == 0) {
-                                s.bitb = b
-                                s.bitk = k
-                                z.availIn = n
-                                z.totalIn += p - z.nextInIndex
-                                z.nextInIndex = p
-                                s.write = q
+                            if (outputBytesLeft == 0) {
+                                s.bitb = bitBuffer
+                                s.bitk = bitsInBuffer
+                                z.availIn = bytesAvailable
+                                z.totalIn += inputPointer - z.nextInIndex
+                                z.nextInIndex = inputPointer
+                                s.write = outputWritePointer
                                 return inflateFlush(s, z, result)
                             }
                         }
                     }
                     result = Z_OK
 
-                    s.window[q++] = lit.toByte()
-                    m--
+                    println("[SYMBOL_DEBUG] Writing literal byte: $literal (char: '${literal.toChar()}') to output at position $outputWritePointer")
+                    s.window[outputWritePointer++] = literal.toByte()
+                    outputBytesLeft--
 
                     mode = ICODES_START
                 }
 
                 ICODES_WASH -> {  // o: got eob, possibly more output
-                    if (k > 7) {
+                    if (bitsInBuffer > 7) {
                         // return unused byte, if any
-                        k -= 8
-                        n++
-                        p-- // can always return one
+                        bitsInBuffer -= 8
+                        bytesAvailable++
+                        inputPointer-- // can always return one
                     }
 
-                    s.write = q
+                    s.write = outputWritePointer
                     result = inflateFlush(s, z, result)
-                    q = s.write
-                    m = if (q < s.read) s.read - q - 1 else s.end - q
+                    outputWritePointer = s.write
+                    outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
 
                     if (s.read != s.write) {
-                        s.bitb = b
-                        s.bitk = k
-                        z.availIn = n
-                        z.totalIn += p - z.nextInIndex
-                        z.nextInIndex = p
-                        s.write = q
+                        s.bitb = bitBuffer
+                        s.bitk = bitsInBuffer
+                        z.availIn = bytesAvailable
+                        z.totalIn += inputPointer - z.nextInIndex
+                        z.nextInIndex = inputPointer
+                        s.write = outputWritePointer
                         return inflateFlush(s, z, result)
                     }
                     mode = ICODES_END
@@ -446,12 +457,12 @@ internal class InfCodes {
 
                 ICODES_END -> {
                     result = Z_STREAM_END
-                    s.bitb = b
-                    s.bitk = k
-                    z.availIn = n
-                    z.totalIn += p - z.nextInIndex
-                    z.nextInIndex = p
-                    s.write = q
+                    s.bitb = bitBuffer
+                    s.bitk = bitsInBuffer
+                    z.availIn = bytesAvailable
+                    z.totalIn += inputPointer - z.nextInIndex
+                    z.nextInIndex = inputPointer
+                    s.write = outputWritePointer
                     return inflateFlush(s, z, result)
                 }
 
@@ -459,24 +470,24 @@ internal class InfCodes {
 
                     result = Z_DATA_ERROR
 
-                    s.bitb = b
-                    s.bitk = k
-                    z.availIn = n
-                    z.totalIn += p - z.nextInIndex
-                    z.nextInIndex = p
-                    s.write = q
+                    s.bitb = bitBuffer
+                    s.bitk = bitsInBuffer
+                    z.availIn = bytesAvailable
+                    z.totalIn += inputPointer - z.nextInIndex
+                    z.nextInIndex = inputPointer
+                    s.write = outputWritePointer
                     return inflateFlush(s, z, result)
                 }
 
                 else -> {
                     result = Z_STREAM_ERROR
 
-                    s.bitb = b
-                    s.bitk = k
-                    z.availIn = n
-                    z.totalIn += p - z.nextInIndex
-                    z.nextInIndex = p
-                    s.write = q
+                    s.bitb = bitBuffer
+                    s.bitk = bitsInBuffer
+                    z.availIn = bytesAvailable
+                    z.totalIn += inputPointer - z.nextInIndex
+                    z.nextInIndex = inputPointer
+                    s.write = outputWritePointer
                     return inflateFlush(s, z, result)
                 }
             }
@@ -488,11 +499,21 @@ internal class InfCodes {
         //  ZFREE(z, c);
     }
 
-    // Called with number of bytes left to write in window at least 258
-    // (the maximum string length) and number of input bytes available
-    // at least ten. The ten bytes are six bytes for the longest length/
-    // distance pair plus four bytes for overloading the bit buffer.
-
+    /**
+     * Fast inflation routine called when sufficient input and output space is available.
+     * This optimized version processes data more efficiently when we have at least 258 bytes
+     * of output space (maximum string length) and 10 bytes of input available.
+     *
+     * @param bl Literal/length tree bits per table lookup
+     * @param bd Distance tree bits per table lookup  
+     * @param tl Literal/length decode table
+     * @param tlIndex Starting index in literal/length table
+     * @param td Distance decode table
+     * @param tdIndex Starting index in distance table
+     * @param s InfBlocks state containing buffers and pointers
+     * @param z ZStream containing input data and compression state
+     * @return Z_OK on success, error code on failure
+     */
     internal fun inflateFast(
         bl: Int,
         bd: Int,
@@ -503,170 +524,171 @@ internal class InfCodes {
         s: InfBlocks,
         z: ZStream
     ): Int {
-        var t: Int // temporary pointer
-        var tp: IntArray // temporary pointer
-        var tpIndex: Int // temporary pointer
-        var e: Int // extra bits or operation
-        var b: Int // bit buffer
-        var k: Int // bits in bit buffer
-        var p: Int // input data pointer
-        var n: Int // bytes available there
-        var q: Int // output window write pointer
-        var m: Int // bytes to end of window or read pointer
-        var ml: Int // mask for literal/length tree
-        var md: Int // mask for distance tree
-        var c: Int // bytes to copy
-        var d: Int // distance back to copy from
-        var r: Int // copy source pointer
+        var tempPointer: Int // Temporary table index
+        var tempTable: IntArray // Temporary table reference
+        var tempTableIndex: Int // Temporary table starting index
+        var extraBitsOrOperation: Int // Extra bits needed or operation type
+        var bitBuffer: Int // Bit accumulation buffer
+        var bitsInBuffer: Int // Number of valid bits in buffer
+        var inputPointer: Int // Current position in input data
+        var bytesAvailable: Int // Bytes available for reading
+        var outputWritePointer: Int // Current position in output window
+        var outputBytesLeft: Int // Bytes remaining in output window
+        var literalLengthMask: Int // Bit mask for literal/length tree lookups
+        var distanceMask: Int // Bit mask for distance tree lookups
+        var bytesToCopy: Int // Number of bytes to copy for match
+        var copyDistance: Int // Distance back to copy from
+        var copySourcePointer: Int // Source pointer for copying data
 
-        // load input, output, bit values
-        p = z.nextInIndex
-        n = z.availIn
-        b = s.bitb
-        k = s.bitk
-        q = s.write
-        m = if (q < s.read) s.read - q - 1 else s.end - q
+        // Initialize local variables from input parameters and stream state
+        inputPointer = z.nextInIndex
+        bytesAvailable = z.availIn
+        bitBuffer = s.bitb
+        bitsInBuffer = s.bitk
+        outputWritePointer = s.write
+        outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
 
-        // initialize masks
-        ml = IBLK_INFLATE_MASK[bl]
-        md = IBLK_INFLATE_MASK[bd]
+        // Precompute bit masks for table lookups
+        literalLengthMask = IBLK_INFLATE_MASK[bl]
+        distanceMask = IBLK_INFLATE_MASK[bd]
 
-        // do until not enough input or output space for fast loop
+        // Main processing loop - continue until insufficient input or output space
         do {
-            // assume called with m >= 258 && n >= 10
-            // get literal/length code
-            while (k < 20) {
-                // max bits for literal/length code
-                n--
-                b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
-                k += 8
+            // Assumption: called with outputBytesLeft >= 258 && bytesAvailable >= 10
+            // Get literal/length code
+            while (bitsInBuffer < 20) {
+                // Ensure we have enough bits for literal/length code (max 15 bits + extra)
+                bytesAvailable--
+                bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                bitsInBuffer += 8
             }
 
-            t = b and ml
-            tp = tl
-            tpIndex = tlIndex
-            if (tp[(tpIndex + t) * 3] == 0) {
-                b = b ushr tp[(tpIndex + t) * 3 + 1]
-                k -= tp[(tpIndex + t) * 3 + 1]
+            tempPointer = bitBuffer and literalLengthMask
+            tempTable = tl
+            tempTableIndex = tlIndex
+            if (tempTable[(tempTableIndex + tempPointer) * 3] == 0) {
+                // Direct literal - no extra table lookup needed
+                bitBuffer = bitBuffer ushr tempTable[(tempTableIndex + tempPointer) * 3 + 1]
+                bitsInBuffer -= tempTable[(tempTableIndex + tempPointer) * 3 + 1]
 
-                s.window[q++] = tp[(tpIndex + t) * 3 + 2].toByte()
-                m--
+                s.window[outputWritePointer++] = tempTable[(tempTableIndex + tempPointer) * 3 + 2].toByte()
+                outputBytesLeft--
                 continue
             }
 
             do {
+                bitBuffer = bitBuffer ushr tempTable[(tempTableIndex + tempPointer) * 3 + 1]
+                bitsInBuffer -= tempTable[(tempTableIndex + tempPointer) * 3 + 1]
 
-                b = b ushr tp[(tpIndex + t) * 3 + 1]
-                k -= tp[(tpIndex + t) * 3 + 1]
+                if (tempTable[(tempTableIndex + tempPointer) * 3] and 16 != 0) {
+                    // Length code - extract extra bits for length calculation
+                    extraBitsOrOperation = tempTable[(tempTableIndex + tempPointer) * 3] and 15
+                    bytesToCopy = tempTable[(tempTableIndex + tempPointer) * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsOrOperation])
 
-                if (tp[(tpIndex + t) * 3] and 16 != 0) {
-                    e = tp[(tpIndex + t) * 3] and 15
-                    c = tp[(tpIndex + t) * 3 + 2] + (b and IBLK_INFLATE_MASK[e])
+                    bitBuffer = bitBuffer ushr extraBitsOrOperation
+                    bitsInBuffer -= extraBitsOrOperation
 
-                    b = b ushr e
-                    k -= e
-
-                    // decode distance base of block to copy
-                    while (k < 15) {
-                        // max bits for distance code
-                        n--
-                        b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
-                        k += 8
+                    // Decode distance base of block to copy
+                    while (bitsInBuffer < 15) {
+                        // Ensure we have enough bits for distance code (max 15 bits)
+                        bytesAvailable--
+                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitsInBuffer += 8
                     }
 
-                    t = b and md
-                    tp = td
-                    tpIndex = tdIndex
-                    e = tp[(tpIndex + t) * 3]
+                    tempPointer = bitBuffer and distanceMask
+                    tempTable = td
+                    tempTableIndex = tdIndex
+                    extraBitsOrOperation = tempTable[(tempTableIndex + tempPointer) * 3]
 
                     do {
+                        bitBuffer = bitBuffer ushr tempTable[(tempTableIndex + tempPointer) * 3 + 1]
+                        bitsInBuffer -= tempTable[(tempTableIndex + tempPointer) * 3 + 1]
 
-                        b = b ushr tp[(tpIndex + t) * 3 + 1]
-                        k -= tp[(tpIndex + t) * 3 + 1]
-
-                        if ((e and 16) != 0) {
-                            // get extra bits to add to distance base
-                            e = e and 15
-                            while (k < e) {
-                                // get extra bits (up to 13)
-                                n--
-                                b = b or ((z.nextIn!![p++].toInt() and 0xff) shl k)
-                                k += 8
+                        if ((extraBitsOrOperation and 16) != 0) {
+                            // Get extra bits to add to distance base
+                            extraBitsOrOperation = extraBitsOrOperation and 15
+                            while (bitsInBuffer < extraBitsOrOperation) {
+                                // Get extra bits for distance (up to 13)
+                                bytesAvailable--
+                                bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                                bitsInBuffer += 8
                             }
 
-                            d = tp[(tpIndex + t) * 3 + 2] + (b and IBLK_INFLATE_MASK[e])
+                            copyDistance = tempTable[(tempTableIndex + tempPointer) * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsOrOperation])
 
-                            b = b ushr e
-                            k -= e
+                            bitBuffer = bitBuffer ushr extraBitsOrOperation
+                            bitsInBuffer -= extraBitsOrOperation
 
-                            // do the copy
-                            m -= c
-                            if (q >= d) {
-                                // offset before dest
-                                //  just copy
-                                r = q - d
-                                if (q - r > 0 && 2 > (q - r)) {
-                                    s.window[q++] = s.window[r++]
-                                    c-- // minimum count is three,
-                                    s.window[q++] = s.window[r++]
-                                    c-- // so unroll loop a little
+                            // Perform the copy operation
+                            outputBytesLeft -= bytesToCopy
+                            if (outputWritePointer >= copyDistance) {
+                                // Source offset is before destination - straightforward copy
+                                copySourcePointer = outputWritePointer - copyDistance
+                                if (outputWritePointer - copySourcePointer > 0 && 2 > (outputWritePointer - copySourcePointer)) {
+                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                    bytesToCopy-- // minimum count is three,
+                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                    bytesToCopy-- // so unroll loop a little
                                 } else {
-                                    s.window.copyInto(s.window, q, r, r + 2)
-                                    q += 2
-                                    r += 2
-                                    c -= 2
+                                    s.window.copyInto(s.window, outputWritePointer, copySourcePointer, copySourcePointer + 2)
+                                    outputWritePointer += 2
+                                    copySourcePointer += 2
+                                    bytesToCopy -= 2
                                 }
                             } else {
-                                // else offset after destination
-                                r = q - d
+                                // Source offset crosses window boundary - handle wraparound
+                                copySourcePointer = outputWritePointer - copyDistance
                                 do {
-                                    r += s.end // force pointer in window
-                                } while (r < 0) // covers invalid distances
-                                e = s.end - r
-                                if (c > e) {
-                                    // if source crosses,
-                                    c -= e // wrapped copy
-                                    if (q - r > 0 && e > (q - r)) {
+                                    copySourcePointer += s.end // Force pointer within window
+                                } while (copySourcePointer < 0) // Covers invalid distances
+                                extraBitsOrOperation = s.end - copySourcePointer
+                                if (bytesToCopy > extraBitsOrOperation) {
+                                    // Source crosses window boundary - wrapped copy
+                                    bytesToCopy -= extraBitsOrOperation
+                                    if (outputWritePointer - copySourcePointer > 0 && extraBitsOrOperation > (outputWritePointer - copySourcePointer)) {
                                         do {
-                                            s.window[q++] = s.window[r++]
-                                        } while (--e != 0)
+                                            s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                        } while (--extraBitsOrOperation != 0)
                                     } else {
-                                        s.window.copyInto(s.window, q, r, r + e)
-                                        q += e
+                                        s.window.copyInto(s.window, outputWritePointer, copySourcePointer, copySourcePointer + extraBitsOrOperation)
+                                        outputWritePointer += extraBitsOrOperation
                                     }
-                                    r = 0 // copy rest from start of window
+                                    copySourcePointer = 0 // Copy rest from start of window
                                 }
                             }
 
-                            // copy all or what's left
-                            if (q - r > 0 && c > (q - r)) {
+                            // Copy all remaining bytes or what's left
+                            if (outputWritePointer - copySourcePointer > 0 && bytesToCopy > (outputWritePointer - copySourcePointer)) {
                                 do {
-                                    s.window[q++] = s.window[r++]
-                                } while (--c != 0)
+                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                } while (--bytesToCopy != 0)
                             } else {
-                                s.window.copyInto(s.window, q, r, r + c)
-                                q += c
+                                s.window.copyInto(s.window, outputWritePointer, copySourcePointer, copySourcePointer + bytesToCopy)
+                                outputWritePointer += bytesToCopy
                             }
                             break
-                        } else if ((e and 64) == 0) {
-                            t += tp[(tpIndex + t) * 3 + 2]
-                            t += (b and IBLK_INFLATE_MASK[e])
-                            e = tp[(tpIndex + t) * 3]
+                        } else if ((extraBitsOrOperation and 64) == 0) {
+                            // Another level of indirection needed for distance
+                            tempPointer += tempTable[(tempTableIndex + tempPointer) * 3 + 2]
+                            tempPointer += (bitBuffer and IBLK_INFLATE_MASK[extraBitsOrOperation])
+                            extraBitsOrOperation = tempTable[(tempTableIndex + tempPointer) * 3]
                         } else {
+                            // Invalid distance code
                             z.msg = "invalid distance code"
 
-                            c = z.availIn - n
-                            c = (k ushr 3).coerceAtMost(c)
-                            n += c
-                            p -= c
-                            k -= c shl 3
+                            bytesToCopy = z.availIn - bytesAvailable
+                            bytesToCopy = (bitsInBuffer ushr 3).coerceAtMost(bytesToCopy)
+                            bytesAvailable += bytesToCopy
+                            inputPointer -= bytesToCopy
+                            bitsInBuffer -= bytesToCopy shl 3
 
-                            s.bitb = b
-                            s.bitk = k
-                            z.availIn = n
-                            z.totalIn += p - z.nextInIndex
-                            z.nextInIndex = p
-                            s.write = q
+                            s.bitb = bitBuffer
+                            s.bitk = bitsInBuffer
+                            z.availIn = bytesAvailable
+                            z.totalIn += inputPointer - z.nextInIndex
+                            z.nextInIndex = inputPointer
+                            s.write = outputWritePointer
 
                             return Z_DATA_ERROR
                         }
@@ -674,68 +696,70 @@ internal class InfCodes {
                     break
                 }
 
-                if ((tp[(tpIndex + t) * 3] and 64) == 0) {
-                    t += tp[(tpIndex + t) * 3 + 2]
-                    t += (b and IBLK_INFLATE_MASK[tp[(tpIndex + t) * 3]])
-                    if (tp[(tpIndex + t) * 3] == 0) {
+                if ((tempTable[(tempTableIndex + tempPointer) * 3] and 64) == 0) {
+                    // Another level of indirection needed for literal/length
+                    tempPointer += tempTable[(tempTableIndex + tempPointer) * 3 + 2]
+                    tempPointer += (bitBuffer and IBLK_INFLATE_MASK[tempTable[(tempTableIndex + tempPointer) * 3]])
+                    if (tempTable[(tempTableIndex + tempPointer) * 3] == 0) {
+                        // Direct literal after indirection
+                        bitBuffer = bitBuffer ushr tempTable[(tempTableIndex + tempPointer) * 3 + 1]
+                        bitsInBuffer -= tempTable[(tempTableIndex + tempPointer) * 3 + 1]
 
-                        b = b ushr tp[(tpIndex + t) * 3 + 1]
-                        k -= tp[(tpIndex + t) * 3 + 1]
-
-                        s.window[q++] = tp[(tpIndex + t) * 3 + 2].toByte()
-                        m--
+                        s.window[outputWritePointer++] = tempTable[(tempTableIndex + tempPointer) * 3 + 2].toByte()
+                        outputBytesLeft--
                         break
                     }
-                } else if (tp[(tpIndex + t) * 3] and 32 != 0) {
+                } else if (tempTable[(tempTableIndex + tempPointer) * 3] and 32 != 0) {
+                    // End of block marker found
+                    bytesToCopy = z.availIn - bytesAvailable
+                    bytesToCopy = (bitsInBuffer ushr 3).coerceAtMost(bytesToCopy)
+                    bytesAvailable += bytesToCopy
+                    inputPointer -= bytesToCopy
+                    bitsInBuffer -= bytesToCopy shl 3
 
-                    c = z.availIn - n
-                    c = (k ushr 3).coerceAtMost(c)
-                    n += c
-                    p -= c
-                    k -= c shl 3
-
-                    s.bitb = b
-                    s.bitk = k
-                    z.availIn = n
-                    z.totalIn += p - z.nextInIndex
-                    z.nextInIndex = p
-                    s.write = q
+                    s.bitb = bitBuffer
+                    s.bitk = bitsInBuffer
+                    z.availIn = bytesAvailable
+                    z.totalIn += inputPointer - z.nextInIndex
+                    z.nextInIndex = inputPointer
+                    s.write = outputWritePointer
 
                     return Z_STREAM_END
                 } else {
+                    // Invalid literal/length code
                     z.msg = "invalid literal/length code"
 
-                    c = z.availIn - n
-                    c = (k ushr 3).coerceAtMost(c)
-                    n += c
-                    p -= c
-                    k -= c shl 3
+                    bytesToCopy = z.availIn - bytesAvailable
+                    bytesToCopy = (bitsInBuffer ushr 3).coerceAtMost(bytesToCopy)
+                    bytesAvailable += bytesToCopy
+                    inputPointer -= bytesToCopy
+                    bitsInBuffer -= bytesToCopy shl 3
 
-                    s.bitb = b
-                    s.bitk = k
-                    z.availIn = n
-                    z.totalIn += p - z.nextInIndex
-                    z.nextInIndex = p
-                    s.write = q
+                    s.bitb = bitBuffer
+                    s.bitk = bitsInBuffer
+                    z.availIn = bytesAvailable
+                    z.totalIn += inputPointer - z.nextInIndex
+                    z.nextInIndex = inputPointer
+                    s.write = outputWritePointer
 
                     return Z_DATA_ERROR
                 }
             } while (true)
-        } while (m >= 258 && n >= 10)
+        } while (outputBytesLeft >= 258 && bytesAvailable >= 10)
 
-        // not enough input or output--restore pointers and return
-        c = z.availIn - n
-        c = (k ushr 3).coerceAtMost(c)
-        n += c
-        p -= c
-        k -= c shl 3
+        // Not enough input or output space - restore pointers and return
+        bytesToCopy = z.availIn - bytesAvailable
+        bytesToCopy = (bitsInBuffer ushr 3).coerceAtMost(bytesToCopy)
+        bytesAvailable += bytesToCopy
+        inputPointer -= bytesToCopy
+        bitsInBuffer -= bytesToCopy shl 3
 
-        s.bitb = b
-        s.bitk = k
-        z.availIn = n
-        z.totalIn += p - z.nextInIndex
-        z.nextInIndex = p
-        s.write = q
+        s.bitb = bitBuffer
+        s.bitk = bitsInBuffer
+        z.availIn = bytesAvailable
+        z.totalIn += inputPointer - z.nextInIndex
+        z.nextInIndex = inputPointer
+        s.write = outputWritePointer
 
         return Z_OK
     }

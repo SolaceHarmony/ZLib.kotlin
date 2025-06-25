@@ -540,43 +540,79 @@ class Deflate {
         var len: Int
         var bestLen = prevLength
         val limit = if (strStart > wSize - MIN_LOOKAHEAD) strStart - (wSize - MIN_LOOKAHEAD) else 0
+        // IMPORTANT: We create a local copy of niceMatch that won't affect the instance variable
+        // This prevents the algorithm from reducing the niceMatch threshold permanently
         var localNiceMatch = niceMatch
         val wmask = wMask
         val strend = strStart + MAX_MATCH
         var scanEnd1 = window[scan + bestLen - 1]
         var scanEnd = window[scan + bestLen]
 
+        // Do not waste too much time if we already have a good match
         if (prevLength >= goodMatch) {
             chainLength = chainLength shr 2
         }
+
+        // Do not look for matches beyond the end of the input. This is necessary
+        // to make deflate deterministic.
         if (localNiceMatch > lookAhead) {
             localNiceMatch = lookAhead
         }
 
         do {
             match = curMatch
-            if (window[match + bestLen] != scanEnd || window[match + bestLen - 1] != scanEnd1 || window[match] != window[scan] || window[++match] != window[scan + 1]) {
+
+            // Skip to next match if the match length cannot increase
+            // or if the match length is less than 2
+            if (window[match + bestLen] != scanEnd ||
+                window[match + bestLen - 1] != scanEnd1 ||
+                window[match] != window[scan] ||
+                window[++match] != window[scan + 1]) {
                 curMatch = prev[curMatch and wmask].toInt() and 0xffff
                 continue
             }
+
+            // The check at best_len-1 can be removed because it will be made
+            // again later. (This heuristic is not always a win.)
             scan += 2
             match++
-            while (scan < strend && window[scan] == window[match]) {
-                scan++
-                match++
+
+            // We check for insufficient lookahead only every 8th comparison;
+            // the 256th check will be made at strstart+258.
+            // Unroll the loop for better performance
+            while (
+                window[++scan] == window[++match] &&
+                window[++scan] == window[++match] &&
+                window[++scan] == window[++match] &&
+                window[++scan] == window[++match] &&
+                window[++scan] == window[++match] &&
+                window[++scan] == window[++match] &&
+                window[++scan] == window[++match] &&
+                window[++scan] == window[++match] &&
+                scan < strend
+            ) {
+                // No body needed
             }
-            len = scan - strStart
-            scan = strStart
+
+            len = MAX_MATCH - (strend - scan)
+            scan = strend - MAX_MATCH
 
             if (len > bestLen) {
                 matchStart = curMatchIn
                 bestLen = len
+
+                // Exit early if we found a match that's "nice" enough
                 if (len >= localNiceMatch) break
+
+                // Update scanEnd markers for next comparisons
                 scanEnd1 = window[scan + bestLen - 1]
                 scanEnd = window[scan + bestLen]
             }
+
             curMatch = prev[curMatch and wmask].toInt() and 0xffff
         } while (curMatch > limit && --chainLength != 0)
+
+        // Return the best match length we found, but not longer than the lookahead buffer
         return if (bestLen <= lookAhead) bestLen else lookAhead
     }
 

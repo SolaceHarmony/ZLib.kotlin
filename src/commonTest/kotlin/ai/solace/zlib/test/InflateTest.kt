@@ -58,21 +58,42 @@ class InflateTest {
             println("[DEBUG_LOG] Starting inflation loop")
             // Loop to fully inflate the data
             var loopCount = 0
+            var lastInIndex = stream.nextInIndex
+            var lastOutIndex = stream.nextOutIndex
+
             do {
                 println("[DEBUG_LOG] Inflation loop iteration: ${++loopCount}")
                 println("[DEBUG_LOG] Before inflate: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
+
+                // Store current positions to detect stalls
+                lastInIndex = stream.nextInIndex
+                lastOutIndex = stream.nextOutIndex
 
                 err = stream.inflate(Z_NO_FLUSH)
 
                 println("[DEBUG_LOG] After inflate: result=$err, msg=${stream.msg}, availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
 
-                // Z_BUF_ERROR is ok if we are out of output space, but this test assumes enough space.
+                // Z_BUF_ERROR is normally ok, but if we're not making progress, we need to break the loop
+                if (err == Z_BUF_ERROR &&
+                    lastInIndex == stream.nextInIndex &&
+                    lastOutIndex == stream.nextOutIndex) {
+                    println("[DEBUG_LOG] No progress with Z_BUF_ERROR, breaking loop")
+                    break
+                }
+
                 // Z_OK means progress was made.
                 // Z_STREAM_END means we are done.
                 if (err < Z_OK && err != Z_BUF_ERROR) {
                     println("[DEBUG_LOG] Inflation failed with error: $err, msg: ${stream.msg}")
                     assertTrue(false, "Inflation failed with unexpected error: $err, msg: ${stream.msg}")
                 }
+
+                // Add a safety check to prevent extremely long loops
+                if (loopCount > 1000) {
+                    println("[DEBUG_LOG] Too many iterations, breaking loop")
+                    assertTrue(false, "Inflation appears to be in an infinite loop after $loopCount iterations")
+                }
+
             } while (err != Z_STREAM_END)
 
             val inflatedSize = stream.totalOut.toInt()

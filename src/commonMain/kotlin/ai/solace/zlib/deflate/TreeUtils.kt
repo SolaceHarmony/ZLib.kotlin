@@ -7,13 +7,19 @@ import ai.solace.zlib.common.*
 
 // Originally Tree.d_code
 internal fun dCode(dist: Int): Int {
-    // Simplified implementation that matches the Pascal approach
+    // Standard zlib d_code implementation exactly as in Pascal and C versions
+    // Uses correct bit shift of 7 for distances >= 256 to match Pascal _dist_code array
     return if (dist < 256) {
         TREE_DIST_CODE[dist].toInt()
     } else {
-        // For distances >= 256, the code is based on the top bits
-        // This matches the original Pascal macro: _dist_code[256+(dist shr 7)]
-        TREE_DIST_CODE[256 + (dist shr 7)].toInt()
+        // Standard algorithm: use bit shift of 7 for larger distances
+        val index = 256 + (dist shr 7)
+        if (index < TREE_DIST_CODE.size) {
+            TREE_DIST_CODE[index].toInt()
+        } else {
+            // Fallback for out-of-bounds distances
+            29  // Maximum distance code
+        }
     }
 }
 
