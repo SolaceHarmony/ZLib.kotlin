@@ -417,10 +417,7 @@ internal class Inflate {
      *         Z_BUF_ERROR if no input is available, Z_DATA_ERROR if sync pattern not found
      */
     internal fun inflateSync(z: ZStream?): Int {
-        var n: Int // number of bytes to look at
-        var p: Int // pointer to bytes
         var m: Int // number of marker bytes found in a row
-        var r: Long
         var w: Long
 
         // set up
@@ -429,8 +426,8 @@ internal class Inflate {
             z.iState!!.mode = INF_BAD
             z.iState!!.marker = 0
         }
-        n = z.availIn.takeIf { it != 0 } ?: return Z_BUF_ERROR
-        p = z.nextInIndex
+        var n: Int = z.availIn.takeIf { it != 0 } ?: return Z_BUF_ERROR // number of bytes to look at
+        var p: Int = z.nextInIndex // pointer to bytes
         m = z.iState!!.marker
 
         // search
@@ -454,7 +451,7 @@ internal class Inflate {
         if (m != 4) {
             return Z_DATA_ERROR
         }
-        r = z.totalIn
+        var r: Long = z.totalIn
         w = z.totalOut
         inflateReset(z)
         z.totalIn = r

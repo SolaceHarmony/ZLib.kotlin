@@ -58,8 +58,8 @@ class InflateTest {
             println("[DEBUG_LOG] Starting inflation loop")
             // Loop to fully inflate the data
             var loopCount = 0
-            var lastInIndex = stream.nextInIndex
-            var lastOutIndex = stream.nextOutIndex
+            var lastInIndex: Int
+            var lastOutIndex: Int
 
             do {
                 println("[DEBUG_LOG] Inflation loop iteration: ${++loopCount}")

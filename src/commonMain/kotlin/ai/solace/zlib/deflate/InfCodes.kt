@@ -529,28 +529,22 @@ internal class InfCodes {
         var tempTableIndex: Int // Temporary table starting index
         var extraBitsOrOperation: Int // Extra bits needed or operation type
         var bitBuffer: Int // Bit accumulation buffer
-        var bitsInBuffer: Int // Number of valid bits in buffer
-        var inputPointer: Int // Current position in input data
-        var bytesAvailable: Int // Bytes available for reading
-        var outputWritePointer: Int // Current position in output window
         var outputBytesLeft: Int // Bytes remaining in output window
-        var literalLengthMask: Int // Bit mask for literal/length tree lookups
-        var distanceMask: Int // Bit mask for distance tree lookups
         var bytesToCopy: Int // Number of bytes to copy for match
         var copyDistance: Int // Distance back to copy from
         var copySourcePointer: Int // Source pointer for copying data
 
         // Initialize local variables from input parameters and stream state
-        inputPointer = z.nextInIndex
-        bytesAvailable = z.availIn
+        var inputPointer: Int = z.nextInIndex // Current position in input data
+        var bytesAvailable: Int = z.availIn // Bytes available for reading
         bitBuffer = s.bitb
-        bitsInBuffer = s.bitk
-        outputWritePointer = s.write
+        var bitsInBuffer: Int = s.bitk // Number of valid bits in buffer
+        var outputWritePointer: Int = s.write // Current position in output window
         outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
 
         // Precompute bit masks for table lookups
-        literalLengthMask = IBLK_INFLATE_MASK[bl]
-        distanceMask = IBLK_INFLATE_MASK[bd]
+        var literalLengthMask: Int = IBLK_INFLATE_MASK[bl] // Bit mask for literal/length tree lookups
+        var distanceMask: Int = IBLK_INFLATE_MASK[bd] // Bit mask for distance tree lookups
 
         // Main processing loop - continue until insufficient input or output space
         do {

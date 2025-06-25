@@ -1,8 +1,6 @@
 package ai.solace.zlib.test
 
 import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
 
 /**
  * Test class to verify the correct implementation of the C# URShift operation in Kotlin.

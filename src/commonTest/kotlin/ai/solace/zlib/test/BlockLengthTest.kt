@@ -1,10 +1,12 @@
 package ai.solace.zlib.test
 
+import ai.solace.zlib.common.Z_FINISH
+import ai.solace.zlib.common.Z_NO_COMPRESSION
+import ai.solace.zlib.common.Z_OK
+import ai.solace.zlib.common.Z_STREAM_END
 import ai.solace.zlib.deflate.ZStream
-import ai.solace.zlib.common.*
 import kotlin.test.Test
 import kotlin.test.assertTrue
-import kotlin.test.assertEquals
 
 class BlockLengthTest {
 

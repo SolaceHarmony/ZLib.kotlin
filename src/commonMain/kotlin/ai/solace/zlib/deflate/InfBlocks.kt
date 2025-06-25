@@ -690,7 +690,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
      * @param windowWritePointer Current write position in output window
      * @return true if enough bits are available, false if more input is needed
      */
-    private fun ensureBits(bits: Int, z: ZStream, b: Int, k: Int, n: Int, p: Int, windowWritePointer: Int): Boolean {
+    internal fun ensureBits(bits: Int, z: ZStream, b: Int, k: Int, n: Int, p: Int, windowWritePointer: Int): Boolean {
         var bLocal = b
         var kLocal = k
         var nLocal = n
@@ -888,15 +888,4 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         write = actualLength
     }
 
-    /**
-     * Indicates if the inflate process is currently at a synchronization point.
-     *
-     * Synchronization points allow a decompressor to resynchronize after an error.
-     * This property returns a value that indicates whether the current state is
-     * at such a synchronization boundary.
-     *
-     * @return 1 if at a synchronization point, 0 otherwise
-     */
-    internal val syncPoint: Int
-        get() = if (mode == IBLK_LENS) 1 else 0
 }

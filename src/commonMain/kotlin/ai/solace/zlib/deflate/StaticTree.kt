@@ -640,14 +640,14 @@ internal class StaticTree(
             0, 5, 16, 5, 8, 5, 24, 5, 4, 5, 20, 5, 12, 5, 28, 5, 2, 5, 18, 5, 10, 5, 26, 5, 6, 5, 22, 5, 14, 5, 30, 5, 1, 5, 17, 5, 9, 5, 25, 5, 5, 5, 21, 5, 13, 5, 29, 5, 3, 5, 19, 5, 11, 5, 27, 5, 7, 5, 23, 5
         )
 
-        internal val static_l_desc: StaticTree
+        internal val static_l_desc: StaticTree =
+            StaticTree(static_ltree, TREE_EXTRA_LBITS, LITERALS + 1, L_CODES, MAX_BITS, L_CODES - 1)
 
         internal val static_d_desc: StaticTree
 
         internal val static_bl_desc: StaticTree
 
         init {
-            static_l_desc = StaticTree(static_ltree, TREE_EXTRA_LBITS, LITERALS + 1, L_CODES, MAX_BITS, L_CODES - 1)
             static_d_desc = StaticTree(static_dtree, TREE_EXTRA_DBITS, 0, D_CODES, MAX_BITS, D_CODES - 1)
             static_bl_desc = StaticTree(null, TREE_EXTRA_BLBITS, 0, BL_CODES, TREE_MAX_BL_BITS, BL_CODES - 1)
         }

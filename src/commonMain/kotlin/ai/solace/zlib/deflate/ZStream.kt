@@ -230,7 +230,7 @@ class ZStream {
      * @return Z_OK on success, error code on failure
      */
     fun deflateInit2(level: Int, method: Int, windowBits: Int, memLevel: Int, strategy: Int): Int {
-        var err = Z_OK
+        var err: Int
         var newLevel : Int = level
         var newWindowBits : Int = windowBits
         if (newLevel == Z_DEFAULT_COMPRESSION) {

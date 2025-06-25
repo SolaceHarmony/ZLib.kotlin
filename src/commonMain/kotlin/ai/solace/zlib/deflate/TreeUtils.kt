@@ -27,17 +27,15 @@ internal fun dCode(dist: Int): Int {
 internal fun genCodes(tree: ShortArray, maxCode: Int, blCount: ShortArray) {
     val nextCode = ShortArray(MAX_BITS + 1)
     var code: Short = 0
-    var bits: Int
-    var n: Int
 
-    bits = 1
+    var bits: Int = 1
     while (bits <= MAX_BITS) {
         code = ((code + blCount[bits - 1]) shl 1).toShort()
         nextCode[bits] = code
         bits++
     }
 
-    n = 0
+    var n: Int = 0
     while (n <= maxCode) {
         val len = tree[n * 2 + 1].toInt()
         if (len != 0) {
@@ -67,7 +65,6 @@ internal fun genBitten(treeInstance: Tree, s: Deflate) {
     val extra = treeInstance.statDesc.extraBits
     val baseRenamed = treeInstance.statDesc.extraBase
     val maxLength = treeInstance.statDesc.maxLength
-    var h: Int
     var n: Int
     var m: Int
     var bits: Int
@@ -83,7 +80,7 @@ internal fun genBitten(treeInstance: Tree, s: Deflate) {
 
     tree[s.heap[s.heapMax] * 2 + 1] = 0
 
-    h = s.heapMax + 1
+    var h: Int = s.heapMax + 1
     while (h < HEAP_SIZE) {
         n = s.heap[h]
         bits = tree[tree[n * 2 + 1] * 2 + 1] + 1

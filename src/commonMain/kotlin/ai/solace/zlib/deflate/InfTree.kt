@@ -128,25 +128,21 @@ internal object InfTree {
         val bitLengthCounts = IntArray(MAX_BITS + 1) // Count of codes for each bit length
         var tableRepeatInterval: Int // Current code repeats in table every f entries  
         var maxCodeLength: Int // Maximum code length found
-        var tableLevel: Int // Current table level (for multi-level tables)
         var currentCode: Int // Current Huffman code being processed
         var tempCounter: Int // General purpose counter variable
-        var currentBitLength: Int // Current bit length being processed
         var tableBits: Int // Number of bits per table lookup (returned in m)
         var tableMask: Int // Mask for table lookup: (1 << bitsBeforeTable) - 1
-        var pointer: Int // Pointer/index into various arrays
         var tableBaseIndex: Int // Base index of current table being built
         val tableEntry = IntArray(3) // Table entry: [operation, bits, value] for Huffman decode
         // The table stack needs space for all possible table levels
         // tableLevel starts at -1 and can go up to MAX_BITS, so we need MAX_BITS + 1 elements
         val tableStack = IntArray(MAX_BITS + 1) // Stack of table base indices for multi-level tables
-        var bitsBeforeTable: Int // Number of bits processed before current table level
         val codeOffsets = IntArray(MAX_BITS + 1) // Starting offsets for each bit length in value table
         var unusedCodes: Int // Number of unused codes (for validation)
         var tableSize: Int // Number of entries in current table being built
 
         // Step 1: Count occurrences of each bit length
-        pointer = bitLengthStartIndex
+        var pointer: Int = bitLengthStartIndex // Pointer/index into various arrays
         currentCode = totalCodes
         do {
             val index = b[pointer++]
@@ -172,7 +168,7 @@ internal object InfTree {
         while (tempCounter <= MAX_BITS && bitLengthCounts[tempCounter] == 0) {
             tempCounter++
         }
-        currentBitLength = tempCounter
+        var currentBitLength: Int = tempCounter // Current bit length being processed
         if (tableBits < tempCounter) {
             tableBits = tempCounter
         }
@@ -255,8 +251,10 @@ internal object InfTree {
         codeOffsets[0] = 0
         currentCode = 0 // Current Huffman code value
         pointer = 0 // Current position in value array
-        tableLevel = -1 // Current table level (-1 = main table)
-        bitsBeforeTable = -tableBits // Initialize to -tableBits to match reference implementation
+        var tableLevel: Int = -1 // Current table level (-1 = main table)
+        // Current table level (for multi-level tables)
+        var bitsBeforeTable: Int = -tableBits // Initialize to -tableBits to match reference implementation
+        // Number of bits processed before current table level
         tableStack[0] = 0 // Initialize table stack
         tableBaseIndex = 0 // Base index of current table
         tableSize = 0 // Size of current table
@@ -380,7 +378,6 @@ internal object InfTree {
                 // Fill table entries with this symbol (replicate for all matching bit patterns)
                 tableRepeatInterval = 1 shl (currentBitLength - bitsBeforeTable)
                 tempCounter = currentCode ushr bitsBeforeTable
-                val originalTempCounter = tempCounter
                 var writeCount = 0
                 
                 while (tempCounter < tableSize) {

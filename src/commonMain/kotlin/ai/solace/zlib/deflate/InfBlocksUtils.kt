@@ -8,11 +8,10 @@ import ai.solace.zlib.common.*
 internal fun inflateFlush(s: InfBlocks, z: ZStream, rIn: Int): Int {
     var r = rIn
     var n: Int
-    var p: Int
     var q: Int
 
     // local copies of source and destination pointers
-    p = z.nextOutIndex
+    var p: Int = z.nextOutIndex
     q = s.read
 
     // compute number of bytes to copy as far as end of window
