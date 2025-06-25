@@ -70,11 +70,11 @@ internal object InfTree {
     private const val Z_DATA_ERROR = -3
     private const val Z_MEM_ERROR = -4
 
-    private val fixed_bl = intArrayOf(9)
-    private val fixed_bd = intArrayOf(5)
+    private val fixedBl = intArrayOf(9)
+    private val fixedBd = intArrayOf(5)
 
     // Predefined fixed tables from the C# implementation
-    private val fixed_td = arrayOf(
+    private val fixedTd = arrayOf(
         intArrayOf(
             80, 5, 1, 87, 5, 257, 83, 5, 17, 91, 5, 4097, 81, 5, 5, 89, 5, 1025, 85, 5, 65, 93, 5, 16385, 
             80, 5, 3, 88, 5, 513, 84, 5, 33, 92, 5, 8193, 82, 5, 9, 90, 5, 2049, 86, 5, 129, 192, 5, 24577, 
@@ -84,8 +84,30 @@ internal object InfTree {
     )
 
     // We'll still need to build the fixed_tl table at runtime since we don't have the full C# values
-    private val fixed_tl = arrayOf(IntArray(0))
-    private var fixed_built = false
+    private val fixedTl = arrayOf(IntArray(0))
+    private var fixedBuilt = false
+    
+    // Track the actual indices where fixed tables are built
+    private var fixedLiteralIndex = 0
+    private var fixedDistanceIndex = 0
+    
+    // The shared Huffman table used by both fixed literal and distance trees
+    private var fixedLiteralTable = IntArray(0)
+    private var fixedDistanceTable = IntArray(0)
+
+    /**
+     * Reverse the bits in a value for the specified bit length.
+     * Used for DEFLATE Huffman table construction since codes are transmitted LSB first.
+     */
+    private fun reverseBits(value: Int, bitLength: Int): Int {
+        var result = 0
+        var temp = value
+        for (i in 0 until bitLength) {
+            result = (result shl 1) or (temp and 1)
+            temp = temp ushr 1
+        }
+        return result
+    }
 
     /**
      * Build a Huffman decoding table from a list of code lengths.
@@ -121,7 +143,6 @@ internal object InfTree {
         tableIndexTracker: IntArray,
         valueTable: IntArray
     ): Int {
-        println("[DEBUG] huftBuild START: bitLengthStartIndex=$bitLengthStartIndex, totalCodes=$totalCodes, simpleValueCount=$simpleValueCount")
         // Algorithm variables with meaningful names for better code readability
         
         var codesAtCurrentLength: Int // Number of codes at the current bit length
@@ -149,14 +170,12 @@ internal object InfTree {
             if (index >= 0 && index <= MAX_BITS) {
                 bitLengthCounts[index]++
             } else {
-                println("huft_build: Invalid bit length index: $index, MAX_BITS: $MAX_BITS")
                 return Z_DATA_ERROR // Invalid bit length
             }
         } while (--currentCode > 0)
         
         // Early exit if all codes have zero length (empty tree)
         if (bitLengthCounts[0] == totalCodes) {
-            println("[DEBUG] All codes have zero length, returning empty table")
             t[0] = IntArray(0)
             m[0] = 0
             return Z_OK
@@ -182,14 +201,12 @@ internal object InfTree {
         }
         m[0] = tableBits
         
-        println("[DEBUG] Code length bounds: currentBitLength=$currentBitLength (min), maxCodeLength=$maxCodeLength (max), tableBits=$tableBits (table bits)")
 
         // Step 3: Validate that we have a valid set of code lengths (Kraft inequality)
         unusedCodes = 1 shl tempCounter
         while (tempCounter < currentCode) {
             unusedCodes -= bitLengthCounts[tempCounter]
             if (unusedCodes < 0) {
-                println("[DEBUG] Code validation failed: y=$unusedCodes at j=$tempCounter")
                 return Z_DATA_ERROR
             }
             tempCounter++
@@ -197,12 +214,10 @@ internal object InfTree {
         }
         unusedCodes -= bitLengthCounts[currentCode]
         if (unusedCodes < 0) {
-            println("[DEBUG] Final code validation failed: y=$unusedCodes")
             return Z_DATA_ERROR
         }
         bitLengthCounts[currentCode] += unusedCodes
         
-        println("[DEBUG] After code validation: bitLengthCounts=${bitLengthCounts.contentToString()}, unusedCodes=$unusedCodes")
 
         // Step 4: Generate starting offsets into the value table for each bit length
         codeOffsets[1] = 0  // Starting offset for codes of length 1
@@ -218,7 +233,6 @@ internal object InfTree {
             remainingLengths--
         }
         
-        println("[DEBUG] Starting offsets codeOffsets: ${codeOffsets.contentToString()}")
 
         // Step 5: Create value table - sort symbols by their bit length
         currentCode = 0
@@ -230,22 +244,21 @@ internal object InfTree {
                     val index = codeOffsets[tempCounter]
                     codeOffsets[tempCounter]++
                     valueTable[index] = currentCode
-                    if (index < 10) { // Only log first few to avoid spam
-                        println("[DEBUG] v[$index] = $currentCode (from bit length $tempCounter)")
+                    
+                    // Debug value table construction for fixed literals
+                    if (simpleValueCount == 257 && (currentCode == 72 || currentCode == 78 || currentCode == 126 || currentCode == 256 || currentCode < 5)) {
+                        println("[VALUE_TABLE] Symbol $currentCode (${if (currentCode < 256) "'${currentCode.toChar()}'" else "special"}) -> valueTable[$index], bitLength=$tempCounter")
                     }
                 } else {
-                    println("huft_build: Invalid index for valueTable from codeOffsets[$tempCounter]=${if (tempCounter < codeOffsets.size) codeOffsets[tempCounter] else "OOB"}, valueTable.size=${valueTable.size}, tempCounter=$tempCounter, currentCode=$currentCode")
                     return Z_DATA_ERROR // Index out of bounds
                 }
             }
             pointer++
         } while (++currentCode < totalCodes)
         
-        println("[DEBUG] Value table (first 20): ${valueTable.sliceArray(0 until minOf(20, valueTable.size)).contentToString()}")
         
         // The actual number of values is stored at codeOffsets[maxCodeLength]
         val actualValueCount = codeOffsets[maxCodeLength]
-        println("[DEBUG] actualValueCount=$actualValueCount (from codeOffsets[$maxCodeLength])")
 
         // Step 6: Generate the Huffman codes and build the decode table
         codeOffsets[0] = 0
@@ -262,16 +275,14 @@ internal object InfTree {
         // Point the output table to our pre-allocated space
         t[0] = huffmanTable
         
-        println("[DEBUG] Initial state: currentCode=$currentCode, pointer=$pointer, tableLevel=$tableLevel, bitsBeforeTable=$bitsBeforeTable")
-        println("[DEBUG] Starting Huffman code generation: currentBitLength=$currentBitLength to maxCodeLength=$maxCodeLength")
+        println("[HUFFMAN_BUILD] Building table: simpleValueCount=$simpleValueCount, huffmanTable.size=${huffmanTable.size}, tableIndexTracker[0]=${tableIndexTracker[0]}")
+        
 
         // Main loop: process each bit length from shortest to longest
         var loopCount = 0
         while (currentBitLength <= maxCodeLength) {
-            // println("[DEBUG] Main loop iteration ${++loopCount}: k=$k, g=$g, c[k]=${c[k]}")
             loopCount++
             if (loopCount > 1000) {
-                println("[DEBUG] Too many iterations in main loop, breaking")
                 return Z_DATA_ERROR
             }
             
@@ -282,7 +293,6 @@ internal object InfTree {
             while (codesAtCurrentLength-- > 0) {
                 innerLoopCount++
                 if (innerLoopCount > 1000) {
-                    println("[DEBUG] Too many iterations in inner loop, breaking")
                     return Z_DATA_ERROR
                 }
                 
@@ -291,23 +301,19 @@ internal object InfTree {
                 
                 // Check if we need to create a new table level
                 while (currentBitLength > bitsBeforeTable + tableBits) {
-                    println("[DEBUG] Creating new table level: currentBitLength=$currentBitLength, bitsBeforeTable=$bitsBeforeTable, tableBits=$tableBits")
                     if (whileLoopCount > 100) {
-                        println("[DEBUG] Too many iterations in table creation loop, breaking")
                         return Z_DATA_ERROR
                     }
                     whileLoopCount++
                     
                     tableLevel++
                     bitsBeforeTable += tableBits // Add bits already decoded
-                    println("[DEBUG]   New table: tableLevel=$tableLevel, bitsBeforeTable=$bitsBeforeTable")
 
                     // Compute minimum size table less than or equal to tableBits
                     tableSize = maxCodeLength - bitsBeforeTable
                     tableSize = if (tableSize > tableBits) tableBits else tableSize
                     tempCounter = currentBitLength - bitsBeforeTable
                     tableRepeatInterval = 1 shl tempCounter
-                    println("[DEBUG]   Table size calculation: tableSize=$tableSize, tempCounter=$tempCounter, tableRepeatInterval=$tableRepeatInterval, codesAtCurrentLength=$codesAtCurrentLength")
                     
                     // Optimize table size: try a (currentBitLength - bitsBeforeTable) bit table
                     if (tableRepeatInterval > codesAtCurrentLength + 1) {
@@ -322,15 +328,12 @@ internal object InfTree {
                         }
                     }
                     tableSize = 1 shl tempCounter
-                    println("[DEBUG]   Final table size: tableSize=$tableSize, tempCounter=$tempCounter")
                     if (tableIndexTracker[0] + tableSize > IBLK_MANY) {
-                        println("[DEBUG] Table size exceeds IBLK_MANY: tableIndexTracker[0]=${tableIndexTracker[0]}, tableSize=$tableSize, IBLK_MANY=$IBLK_MANY")
                         return Z_DATA_ERROR
                     }
                     tableStack[tableLevel] = tableBaseIndex
                     tableBaseIndex = tableIndexTracker[0]
                     tableIndexTracker[0] += tableSize
-                    println("[DEBUG]   Updated: tableStack[$tableLevel]=${tableStack[tableLevel]}, tableBaseIndex=$tableBaseIndex, tableIndexTracker[0]=${tableIndexTracker[0]}")
 
                     // Connect to parent table if this is not the main table
                     if (tableLevel != 0) {
@@ -339,14 +342,12 @@ internal object InfTree {
                         tableEntry[1] = (tempCounter and 0xFF) // Bits in this table
                         tableEntry[2] = (tableBaseIndex - tableStack[tableLevel-1] - (currentCode ushr (bitsBeforeTable - tableBits))) and 0xFF // Offset to this table
                         val index = (tableStack[tableLevel-1] + (currentCode ushr (bitsBeforeTable - tableBits))) * 3
-                        println("[DEBUG]   Parent table connection: codeOffsets[$tableLevel]=$currentCode, tableEntry=[${tableEntry[0]}, ${tableEntry[1]}, ${tableEntry[2]}], index=$index")
                         if (index >= 0 && index <= t[0].size - 3) {
                             // Copy the 3-element entry (operation, bits, value)
                             t[0][index] = tableEntry[0]
                             t[0][index + 1] = tableEntry[1]
                             t[0][index + 2] = tableEntry[2]
                         } else {
-                            println("huft_build: Invalid index for t[0] array (parent table): $index, t[0].size=${t[0].size}, tableLevel=$tableLevel, bitsBeforeTable=$bitsBeforeTable, currentCode=$currentCode")
                             return Z_DATA_ERROR // Index out of bounds
                         }
                     } else {
@@ -363,6 +364,11 @@ internal object InfTree {
                     tableEntry[0] = (if (valueTable[pointer] < 256) 0 else 32 + 64) and 0xFF // 256 is end-of-block
                     tableEntry[1] = (currentBitLength - bitsBeforeTable) and 0xFF // bits in this table
                     tableEntry[2] = valueTable[pointer++] // simple code is just the value
+                    
+                    // Debug symbol processing in canonical order
+                    if (simpleValueCount == 257 && (tableEntry[2] == 72 || tableEntry[2] == 78 || tableEntry[2] == 126 || tableEntry[2] == 256 || tableEntry[2] < 5)) {
+                        println("[CODE_ASSIGN] Processing symbol ${tableEntry[2]} at pointer ${pointer-1}, currentCode=$currentCode, currentBitLength=$currentBitLength")
+                    }
                 } else {
                     // Non-simple code - look up in extra tables
                     val eValue = if (e != null && valueTable[pointer] - simpleValueCount < e.size) e[valueTable[pointer] - simpleValueCount] else 0
@@ -373,11 +379,14 @@ internal object InfTree {
                     pointer++
                 }
                 
-                println("[DEBUG]   Current table entry: k=$currentBitLength, w=$bitsBeforeTable, p=$pointer, v[p-1]=${if (pointer > 0 && pointer <= valueTable.size) valueTable[pointer-1] else "N/A"}, r=[${tableEntry[0]}, ${tableEntry[1]}, ${tableEntry[2]}]")
 
                 // Fill table entries with this symbol (replicate for all matching bit patterns)
                 tableRepeatInterval = 1 shl (currentBitLength - bitsBeforeTable)
-                tempCounter = currentCode ushr bitsBeforeTable
+                
+                // CRITICAL FIX: Use bit-reversed lookup index for table construction
+                // In DEFLATE, Huffman codes are transmitted LSB first, so we need to reverse the bits
+                val reversedCode = reverseBits(currentCode, currentBitLength)
+                tempCounter = reversedCode ushr bitsBeforeTable
                 var writeCount = 0
                 
                 while (tempCounter < tableSize) {
@@ -390,16 +399,14 @@ internal object InfTree {
                         writeCount++
                         
                         // Debug critical writes
-                        if (index == 378) {
-                            println("[DEBUG]   CRITICAL WRITE: t[0][$index-${index+2}] = [${tableEntry[0]}, ${tableEntry[1]}, ${tableEntry[2]}] (tempCounter=$tempCounter, tableBaseIndex=$tableBaseIndex)")
+                        if (simpleValueCount == 257 && (tempCounter == 126 || tempCounter == 72 || tempCounter < 10)) {
+                            println("[SYMBOL_ASSIGN] Code pattern $tempCounter -> symbol ${tableEntry[2]}, bits=${tableEntry[1]}, index=$index (reversedCode=$reversedCode, originalCode=$currentCode)")
                         }
                         
                         // Verify the write immediately  
                         if (t[0][index] != tableEntry[0] || t[0][index + 1] != tableEntry[1] || t[0][index + 2] != tableEntry[2]) {
-                            println("[DEBUG]   ERROR: Write verification failed! Expected [${tableEntry[0]}, ${tableEntry[1]}, ${tableEntry[2]}], got [${t[0][index]}, ${t[0][index + 1]}, ${t[0][index + 2]}]")
                         }
                     } else {
-                        println("huft_build: Invalid index for t[0] array (fill): $index, t[0].size=${t[0].size}, tableBaseIndex=$tableBaseIndex, tempCounter=$tempCounter")
                         return Z_DATA_ERROR
                     }
                     tempCounter += tableRepeatInterval
@@ -412,7 +419,6 @@ internal object InfTree {
                     tempCounter = tempCounter ushr 1
                 }
                 currentCode = currentCode xor tempCounter
-                println("[DEBUG]   Next code calculation: new currentCode=$currentCode")
 
                 // Back up over finished tables
                 tableMask = (1 shl bitsBeforeTable) - 1
@@ -422,27 +428,21 @@ internal object InfTree {
                     if (bitsBeforeTable <= 0) break
                     tableMask = (1 shl bitsBeforeTable) - 1
                 }
-                println("[DEBUG]   After backup: tableLevel=$tableLevel, bitsBeforeTable=$bitsBeforeTable, tableMask=$tableMask")
             }
             currentBitLength++
-            println("[DEBUG] Moving to next bit length: currentBitLength=$currentBitLength")
         }
 
         // Final validation and return
         // Return Z_OK if we used all codes, or if this is a distance table (simpleValueCount == 0)
         // Distance tables are allowed to be incomplete in some cases
         val result = if (unusedCodes == 0 || maxCodeLength == 1 || simpleValueCount == 0) Z_OK else Z_DATA_ERROR
-        println("[DEBUG] huftBuild END: bitLengthStartIndex=$bitLengthStartIndex, totalCodes=$totalCodes, simpleValueCount=$simpleValueCount, result=$result, unusedCodes=$unusedCodes, maxCodeLength=$maxCodeLength")
         
         // Debug: Print first few table entries only for literal/length tree
         if (simpleValueCount == 257) {
-            println("[DEBUG] Literal/length table sample entries:")
             for (i in 0 until minOf(10 * 3, t[0].size) step 3) {
-                println("[DEBUG]   t[0][$i-${i+2}] = [${t[0][i]}, ${t[0][i+1]}, ${t[0][i+2]}]")
             }
             // Check the specific index that was failing (378)
             if (t[0].size > 380) {
-                println("[DEBUG] Index 378: [${t[0][378]}, ${t[0][379]}, ${t[0][380]}]")
             }
         }
         
@@ -511,9 +511,7 @@ internal object InfTree {
         val v = IntArray(288)
 
         // build literal/length tree
-        println("[DEBUG] Building literal/length tree...")
         result = huftBuild(c, 0, nl, L_CODES, TREE_EXTRA_LBITS, TREE_BASE_LENGTH, tl, bl, hp, hn, v)
-        println("[DEBUG] Literal/length tree result: $result")
         if (result != Z_OK || bl[0] == 0) {
             if (result == Z_DATA_ERROR) {
                 z.msg = "oversubscribed literal/length tree"
@@ -525,9 +523,7 @@ internal object InfTree {
         }
 
         // build distance tree
-        println("[DEBUG] Building distance tree...")
         result = huftBuild(c, nl, nd, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST, td, bd, hp, hn, v)
-        println("[DEBUG] Distance tree result: $result")
         if (result != Z_OK || (bd[0] == 0 && nl > 257)) {
             if (result == Z_DATA_ERROR) {
                 z.msg = "oversubscribed distance tree"
@@ -561,7 +557,7 @@ internal object InfTree {
         td: Array<IntArray>,
         z: ZStream
     ): Int {
-        if (!fixed_built) {
+        if (!fixedBuilt) {
             // Build fixed tables if not already built
             val c = IntArray(288)
             val v = IntArray(288)
@@ -573,34 +569,91 @@ internal object InfTree {
             for (k in 256 until 280) c[k] = 7
             for (k in 280 until 288) c[k] = 8
 
-            fixed_bl[0] = 9
+            fixedBl[0] = 9
 
-            // Create a temporary array for hufts
-            val tempHufts = IntArray(IBLK_MANY * 3)
+            // Create separate tables for literal and distance trees
+            fixedLiteralTable = IntArray(IBLK_MANY * 3)
 
             // Build the literal/length tree
+            val literalStartIndex = hn[0]  // Remember where this table starts
             huftBuild(c, 0, 288, 257, TREE_EXTRA_LBITS, TREE_BASE_LENGTH,
-                    fixed_tl, fixed_bl, tempHufts, hn, v)
+                    fixedTl, fixedBl, fixedLiteralTable, hn, v)
+            
+            fixedLiteralIndex = literalStartIndex  // Use the start index, not the end
+            println("[FIXED_TABLES] Literal table built starting at index: $fixedLiteralIndex, ending at: ${hn[0]}")
+            
+            // Debug: Check what's at the expected indices
+            val testIndex1 = (fixedLiteralIndex + 126) * 3
+            if (testIndex1 + 2 < fixedLiteralTable.size) {
+                println("[TABLE_DEBUG] Index $testIndex1 for bit pattern 126: [${fixedLiteralTable[testIndex1]}, ${fixedLiteralTable[testIndex1 + 1]}, ${fixedLiteralTable[testIndex1 + 2]}]")
+            }
+            val testIndex2 = (fixedLiteralIndex + 72) * 3  // 'H' character
+            if (testIndex2 + 2 < fixedLiteralTable.size) {
+                println("[TABLE_DEBUG] Index $testIndex2 for 'H' (72): [${fixedLiteralTable[testIndex2]}, ${fixedLiteralTable[testIndex2 + 1]}, ${fixedLiteralTable[testIndex2 + 2]}]")
+            }
 
             // Distance table
             for (k in 0 until 30) c[k] = 5
 
-            fixed_bd[0] = 5
+            fixedBd[0] = 5
 
-            // Build the distance tree
+            // Create separate table for distance tree
+            fixedDistanceTable = IntArray(IBLK_MANY * 3)
+
+            // CRITICAL FIX: Don't reset hn for distance table - it should continue from where literal table ended
+            // But since we're using separate arrays, we DO need to reset it for the separate array
+            val distanceHn = intArrayOf(0)  // Use separate tracker for distance table
+            val distanceStartIndex = distanceHn[0]  // Remember where this table starts
+            
+            // Build the distance tree in its own array space
             huftBuild(c, 0, 30, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST,
-                    fixed_td, fixed_bd, tempHufts, hn, v)
+                    fixedTd, fixedBd, fixedDistanceTable, distanceHn, v)
+                    
+            fixedDistanceIndex = distanceStartIndex  // Use the start index, not the end
+            println("[FIXED_TABLES] Distance table built at index: $fixedDistanceIndex, ending at: ${distanceHn[0]}")
 
             // Mark as built
-            fixed_built = true
+            fixedBuilt = true
         }
 
         // Copy the tree data to the caller's arrays
-        bl[0] = fixed_bl[0]
-        bd[0] = fixed_bd[0]
-        tl[0] = fixed_tl[0]
-        td[0] = fixed_td[0]
+        bl[0] = fixedBl[0]
+        bd[0] = fixedBd[0]
+        tl[0] = fixedLiteralTable
+        td[0] = fixedDistanceTable
 
         return Z_OK
+    }
+
+    /**
+     * Build fixed literal/length and distance Huffman decode tables with indices.
+     * These are the standard tables defined by the DEFLATE specification.
+     *
+     * @param bl Output array for max bits in literal table lookup
+     * @param bd Output array for max bits in distance table lookup  
+     * @param tl Output array for literal/length decode table
+     * @param tlIndex Output array for literal/length table index
+     * @param td Output array for distance decode table
+     * @param tdIndex Output array for distance table index
+     * @param z ZStream for error reporting
+     * @return Z_OK on success
+     */
+    internal fun inflateTreesFixedWithIndices(
+        bl: IntArray,
+        bd: IntArray,
+        tl: Array<IntArray>,
+        tlIndex: IntArray,
+        td: Array<IntArray>,
+        tdIndex: IntArray,
+        z: ZStream
+    ): Int {
+        // Build the tables first
+        val result = inflateTreesFixed(bl, bd, tl, td, z)
+        
+        // Return the actual indices where the trees were built
+        tlIndex[0] = fixedLiteralIndex
+        tdIndex[0] = fixedDistanceIndex
+        
+        return result
     }
 }

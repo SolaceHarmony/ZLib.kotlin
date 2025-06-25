@@ -142,7 +142,9 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
      */
     fun reset(z: ZStream?, c: LongArray?) {
         // Save check value if requested
-        c?.let { it[0] = check }
+        c?.let { 
+            it[0] = check
+        }
 
         // Clean up resources based on current mode
         when (mode) {
@@ -161,6 +163,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
         // Clear the window buffer to prevent leftover data from appearing in output
         window.fill(0)
+        println("[RESET_DEBUG] InfBlocks reset: read=$read, write=$write, window size=${window.size}")
 
         // Reset checksum if we have a checksum function
         if (checkfn != null && z != null) {
@@ -202,6 +205,8 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         var result: Int
         var returnCode = rIn
 
+        println("[PROC_DEBUG] InfBlocks.proc called: mode=$mode, write=$write, read=$read, outputPointer=$outputPointer")
+
         // Process input and output based on current state
         processBlocks@ while (true) {
             when (mode) {
@@ -238,9 +243,11 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             val bl = IntArray(1)
                             val bd = IntArray(1)
                             val tl = arrayOf(IntArray(0))
+                            val tlIndex = IntArray(1)
                             val td = arrayOf(IntArray(0))
-                            InfTree.inflateTreesFixed(bl, bd, tl, td, z)
-                            codes = InfCodes(bl[0], bd[0], tl[0], td[0])
+                            val tdIndex = IntArray(1)
+                            InfTree.inflateTreesFixedWithIndices(bl, bd, tl, tlIndex, td, tdIndex, z)
+                            codes = InfCodes(bl[0], bd[0], tl[0], tlIndex[0], td[0], tdIndex[0])
                             mode = IBLK_CODES
                         }
 
@@ -262,13 +269,10 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
                 IBLK_LENS -> {
                     // Need 32 bits to read block length and check
-                    println("[DEBUG] IBLK_LENS: Starting block length verification")
-                    println("[DEBUG] Initial bit buffer state: b=${bitBuffer.toString(16)}, k=$bitsInBuffer bits")
 
                     // Ensure we have 32 bits available
                     while (bitsInBuffer < 32) {
                         if (bytesAvailable == 0) {
-                            println("[DEBUG] Not enough input available, returning")
                             bitb = bitBuffer; bitk = bitsInBuffer; z.availIn =
                                 bytesAvailable; z.totalIn += (inputPointer - z.nextInIndex).toLong(); z.nextInIndex =
                                 inputPointer; write = outputPointer
@@ -279,21 +283,17 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         bitsInBuffer += 8
                     }
 
-                    println("[DEBUG] After loading 32 bits: b=${bitBuffer.toString(16)}, k=$bitsInBuffer bits")
 
                     // Extract values for verification using the bit buffer directly
                     val storedLen = bitBuffer and 0xffff
                     val storedNLen = (bitBuffer ushr 16) and 0xffff
 
-                    println("[DEBUG] Block length values:")
-                    println("[DEBUG]   storedLen: ${storedLen.toString(16)} (${storedLen})")
-                    println("[DEBUG]   storedNLen: ${storedNLen.toString(16)} (${storedNLen})")
-                    println("[DEBUG]   storedLen + storedNLen = ${(storedLen + storedNLen).toString(16)} (${storedLen + storedNLen})")
-                    println("[DEBUG]   0xFFFF = ${0xffff.toString(16)} (${0xffff})")
 
                     // Verify block length integrity: storedNLen should be ~storedLen
-                    if (((storedNLen xor storedLen) and 0xffff) != 0xffff) {
-                        println("[DEBUG] Block length check FAILED: storedNLen != ~storedLen")
+                    val invertedValue = (bitBuffer.inv() ushr 16) and 0xffff
+                    val originalValue = bitBuffer and 0xffff
+
+                    if (invertedValue != originalValue) {
                         mode = IBLK_BAD
                         z.msg = "invalid stored block lengths"
                         returnCode = Z_DATA_ERROR
@@ -303,7 +303,6 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         return inflateFlush(returnCode)
                     }
 
-                    println("[DEBUG] Block length check PASSED, stored length: $storedLen")
 
                     // Store the length (low 16 bits of b)
                     left = storedLen
@@ -312,11 +311,9 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     bitBuffer = 0
                     bitsInBuffer = 0
 
-                    println("[DEBUG] Cleared bit buffer: b=$bitBuffer, k=$bitsInBuffer")
 
                     // Determine next state based on block content
                     mode = if (left != 0) IBLK_STORED else if (last != 0) IBLK_DRY else IBLK_TYPE
-                    println("[DEBUG] New mode: $mode")
                 }
 
                 IBLK_STORED -> {
@@ -353,15 +350,13 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     if (t > bytesAvailable) t = bytesAvailable
                     if (t > outputBytesLeft) t = outputBytesLeft
 
-                    println("[DEBUG] IBLK_STORED: Processing stored data")
-                    println("[DEBUG] left=$t, n=$bytesAvailable, m=$outputBytesLeft")                        // Copy data from input directly to output window
-                        // In Pascal: zmemcpy(q, p, t);
-                        if (t > 0) {
-                            // Copy from the input buffer to the output window
-                            for (byteIndex in 0 until t) {
-                                window[outputPointer + byteIndex] = z.nextIn!![inputPointer + byteIndex]
-                            }
-                        }
+
+                    // Copy data from input directly to output window
+                    // In Pascal: zmemcpy(q, p, t);
+                    if (t > 0) {
+                        // Use array copy for better performance and to match Pascal implementation
+                        z.nextIn!!.copyInto(window, outputPointer, inputPointer, inputPointer + t)
+                    }
 
                     // Update pointers and counters
                     inputPointer += t
@@ -370,12 +365,10 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     outputBytesLeft -= t
                     left -= t
 
-                    println("[DEBUG] After copy: left=$left, n=$bytesAvailable, m=$outputBytesLeft, p=$inputPointer, q=$outputPointer")
 
                     // If we've copied all data for this stored block, move to next state
                     if (left == 0) {
                         mode = if (last != 0) IBLK_DRY else IBLK_TYPE
-                        println("[DEBUG] Stored block fully processed, new mode: $mode")
                     }
                 }
 
@@ -552,7 +545,11 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     bitb = bitBuffer
                     bitk = bitsInBuffer
 
+                    println("[CODES_DEBUG] Before InfCodes.proc: write=$write, outputPointer=$outputPointer")
+
                     val codesResult = codes!!.proc(this, z, returnCode)
+
+                    println("[CODES_DEBUG] After InfCodes.proc: write=$write, codesResult=$codesResult")
 
                     // Restore bit buffer state after proc returns
                     bitBuffer = bitb
@@ -794,6 +791,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
         // Update checksum if applicable
         if (checkfn != null && n > 0) {
+            val oldCheck = check
             z.adler = z.adlerChecksum!!.adler32(check, window, q, n)
             check = z.adler
         }
@@ -825,6 +823,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
             // Update checksum if applicable
             if (checkfn != null && n > 0) {
+                val oldCheck = check
                 z.adler = z.adlerChecksum!!.adler32(check, window, q, n)
                 check = z.adler
             }

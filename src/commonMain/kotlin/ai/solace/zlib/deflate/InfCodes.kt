@@ -131,6 +131,8 @@ internal class InfCodes {
 
                 // waiting for "i:"=input, "o:"=output, "x:"=nothing
                 ICODES_START -> { // x: set up for LEN
+                    println("[HUFFMAN] InfCodes START mode, outputBytes=${s.write}, totalBytes processed so far")
+                    println("[HUFFMAN] Window buffer at position ${s.write}: '${s.window[s.write].toInt().toChar()}' (${s.window[s.write].toInt()})")
                     if (outputBytesLeft >= 258 && bytesAvailable >= 10) {
 
                         s.bitb = bitBuffer
@@ -140,6 +142,7 @@ internal class InfCodes {
                         z.nextInIndex = inputPointer
                         s.write = outputWritePointer
                         result = inflateFast(lbits.toInt(), dbits.toInt(), ltree, ltreeIndex, dtree, dtreeIndex, s, z)
+                        println("[HUFFMAN] inflateFast returned: $result (Z_OK=$Z_OK, Z_STREAM_END=$Z_STREAM_END)")
 
                         inputPointer = z.nextInIndex
                         bytesAvailable = z.availIn
@@ -158,6 +161,7 @@ internal class InfCodes {
                     treeIndex = ltreeIndex
 
                     mode = ICODES_LEN
+                    println("[HUFFMAN] Transitioning to ICODES_LEN mode")
                     continue
                 }
 
@@ -181,48 +185,47 @@ internal class InfCodes {
                         bitsInBuffer += 8
                     }
 
-                    val maskedB = bitBuffer and IBLK_INFLATE_MASK[tempStorage]
+                    val maskedB = bitBuffer and IBLK_INFLATE_MASK[bitsNeeded]
+                    val tableIndex = (treeIndex + maskedB) * 3
+
+                    val tempCounter = tree[tableIndex]
+                    val codeBits = tree[tableIndex + 1]
+                    val codeValue = tree[tableIndex + 2]
                     
-                    val normalTindex = (treeIndex + maskedB) * 3
-                    tableIndex = normalTindex
-                    
-                    if (maskedB == 126) {  // Only debug the problematic lookup
-                        println("[TABLE_DEBUG] Table lookup: treeIndex=$treeIndex, mask=${IBLK_INFLATE_MASK[tempStorage]}, b=$bitBuffer, k=$bitsInBuffer bits, maskedB=$maskedB, tindex=$tableIndex")
-                        println("[TABLE_DEBUG] Input code bits: ${maskedB.toString(2).padStart(tempStorage, '0')} (${maskedB} in $tempStorage bits)")
-                        println("[TABLE_DEBUG] Table entry: [${tree[tableIndex]}, ${tree[tableIndex + 1]}, ${tree[tableIndex + 2]}]")
-                    }
+                    println("[DECODE_DEBUG] Symbol decode: maskedB=$maskedB, tableIndex=$tableIndex, tempCounter=$tempCounter, codeBits=$codeBits, codeValue=$codeValue")
 
                     bitBuffer = bitBuffer ushr tree[tableIndex + 1]
                     bitsInBuffer -= tree[tableIndex + 1]
 
-                    extraBitsOrOperation = tree[tableIndex]
-
-                    if (extraBitsOrOperation == 0) {
-                        // literal
-                        literal = tree[tableIndex + 2]
-                        println("[SYMBOL_DEBUG] Found literal: $literal (char: '${literal.toChar()}') from table entry [${ tree[tableIndex]}, ${tree[tableIndex + 1]}, ${tree[tableIndex + 2]}]")
-                        mode = ICODES_LIT
+                    if (tempCounter == 0) {
+                        // Literal symbol
+                        println("[DECODE_DEBUG] Found literal: $codeValue (char: '${codeValue.toChar()}') at position $outputWritePointer")
+                        s.window[outputWritePointer++] = codeValue.toByte()
+                        outputBytesLeft--
+                        mode = ICODES_START
                         break
                     }
-                    if (extraBitsOrOperation and 16 != 0) {
-                        // length
-                        extraBitsNeeded = extraBitsOrOperation and 15
-                        length = tree[tableIndex + 2]
+                    if (tempCounter and 16 != 0) {
+                        // Length code
+                        println("[DECODE_DEBUG] Found length code: $codeValue")
+                        extraBitsNeeded = tempCounter and 15
+                        length = codeValue
                         mode = ICODES_LENEXT
                         break
                     }
-                    if (extraBitsOrOperation and 64 == 0) {
+                    if (tempCounter and 64 == 0) {
                         // next table
-                        bitsNeeded = extraBitsOrOperation
+                        bitsNeeded = tempCounter
                         treeIndex = tableIndex / 3 + tree[tableIndex + 2]
-                        break
+                        continue
                     }
-                    if (extraBitsOrOperation and 32 != 0) {
-                        // end of block
+                    if (tempCounter and 32 != 0) {
+                        // End of block
+                        println("[DECODE_DEBUG] Found END OF BLOCK")
                         mode = ICODES_WASH
                         break
                     }
-                    mode = ICODES_BADCODE // invalid code
+                    println("[DECODE_DEBUG] Invalid literal/length code")
                     z.msg = "invalid literal/length code"
                     result = Z_DATA_ERROR
 
@@ -233,6 +236,7 @@ internal class InfCodes {
                     z.nextInIndex = inputPointer
                     s.write = outputWritePointer
                     return inflateFlush(s, z, result)
+
                 }
 
                 ICODES_LENEXT -> {  // i: getting length extra (have base)
@@ -422,7 +426,6 @@ internal class InfCodes {
                     }
                     result = Z_OK
 
-                    println("[SYMBOL_DEBUG] Writing literal byte: $literal (char: '${literal.toChar()}') to output at position $outputWritePointer")
                     s.window[outputWritePointer++] = literal.toByte()
                     outputBytesLeft--
 
@@ -524,6 +527,10 @@ internal class InfCodes {
         s: InfBlocks,
         z: ZStream
     ): Int {
+        println("[FAST_DEBUG] inflateFast called with outputWrite=${s.write}, windowSize=${s.end}")
+        println("[FAST_DEBUG] Initial window content at write position: '${if (s.write < s.window.size) s.window[s.write].toInt().toChar() else '?'}' (${if (s.write < s.window.size) s.window[s.write].toInt() else -1})")
+        println("[FAST_DEBUG] Initial bit buffer: 0x${s.bitb.toString(16)}, bits: ${s.bitk}")
+        
         var tempPointer: Int // Temporary table index
         var tempTable: IntArray // Temporary table reference
         var tempTableIndex: Int // Temporary table starting index
@@ -557,15 +564,23 @@ internal class InfCodes {
                 bitsInBuffer += 8
             }
 
+            println("[BIT_DEBUG] bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer, literalLengthMask=0x${literalLengthMask.toString(16)}")
             tempPointer = bitBuffer and literalLengthMask
             tempTable = tl
             tempTableIndex = tlIndex
+            println("[BIT_DEBUG] tempPointer=$tempPointer (0x${tempPointer.toString(16)}), tlIndex=$tempTableIndex")
             if (tempTable[(tempTableIndex + tempPointer) * 3] == 0) {
                 // Direct literal - no extra table lookup needed
-                bitBuffer = bitBuffer ushr tempTable[(tempTableIndex + tempPointer) * 3 + 1]
-                bitsInBuffer -= tempTable[(tempTableIndex + tempPointer) * 3 + 1]
+                val tableBits = tempTable[(tempTableIndex + tempPointer) * 3 + 1]
+                val literalValue = tempTable[(tempTableIndex + tempPointer) * 3 + 2]
+                
+                println("[FAST_TABLE] tempPointer=$tempPointer, tableIndex=${(tempTableIndex + tempPointer) * 3}, exop=${tempTable[(tempTableIndex + tempPointer) * 3]}, bits=$tableBits, base=$literalValue")
+                
+                bitBuffer = bitBuffer ushr tableBits
+                bitsInBuffer -= tableBits
 
-                s.window[outputWritePointer++] = tempTable[(tempTableIndex + tempPointer) * 3 + 2].toByte()
+                println("[FAST_LITERAL] Writing literal: $literalValue ('${literalValue.toChar()}') at position $outputWritePointer")
+                s.window[outputWritePointer++] = literalValue.toByte()
                 outputBytesLeft--
                 continue
             }
@@ -696,10 +711,16 @@ internal class InfCodes {
                     tempPointer += (bitBuffer and IBLK_INFLATE_MASK[tempTable[(tempTableIndex + tempPointer) * 3]])
                     if (tempTable[(tempTableIndex + tempPointer) * 3] == 0) {
                         // Direct literal after indirection
-                        bitBuffer = bitBuffer ushr tempTable[(tempTableIndex + tempPointer) * 3 + 1]
-                        bitsInBuffer -= tempTable[(tempTableIndex + tempPointer) * 3 + 1]
+                        val tableBits = tempTable[(tempTableIndex + tempPointer) * 3 + 1]
+                        val literalValue = tempTable[(tempTableIndex + tempPointer) * 3 + 2]
+                        
+                        println("[FAST_INDIRECT] tempPointer=$tempPointer, tableIndex=${(tempTableIndex + tempPointer) * 3}, exop=${tempTable[(tempTableIndex + tempPointer) * 3]}, bits=$tableBits, base=$literalValue")
+                        
+                        bitBuffer = bitBuffer ushr tableBits
+                        bitsInBuffer -= tableBits
 
-                        s.window[outputWritePointer++] = tempTable[(tempTableIndex + tempPointer) * 3 + 2].toByte()
+                        println("[FAST_LITERAL_INDIRECT] Writing literal: $literalValue ('${literalValue.toChar()}') at position $outputWritePointer")
+                        s.window[outputWritePointer++] = literalValue.toByte()
                         outputBytesLeft--
                         break
                     }

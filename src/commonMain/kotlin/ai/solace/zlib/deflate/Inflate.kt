@@ -167,6 +167,7 @@ internal class Inflate {
      *         or an error code (Z_STREAM_ERROR, Z_DATA_ERROR, etc.)
      */
     internal fun inflate(z: ZStream?, f: Int): Int {
+        println("[INFLATE_DEBUG] inflate() called with flush=$f")
         var r: Int
         var b: Int
 
@@ -246,7 +247,7 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 24).toLong()
+                    z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 24)
                     z.iState!!.mode = INF_DICT3
                 }
 
@@ -256,7 +257,7 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 16).toLong()
+                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 16)
                     z.iState!!.mode = INF_DICT2
                 }
 
@@ -266,7 +267,7 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 8).toLong()
+                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 8)
                     z.iState!!.mode = INF_DICT1
                 }
 
@@ -323,7 +324,9 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 24).toLong()
+                    // Pascal: z.state^.sub.check.need := uLong(z.next_in^) shl 24;
+                    val byteValue = (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toUInt()
+                    z.iState!!.need = (byteValue shl 24).toLong() and 0xFFFFFFFFL
                     z.iState!!.mode = INF_CHECK3
                 }
 
@@ -333,7 +336,9 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 16).toLong()
+                    // Pascal: Inc(z.state^.sub.check.need, uLong(z.next_in^) shl 16);
+                    val byteValue = (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toUInt()
+                    z.iState!!.need = (z.iState!!.need + ((byteValue shl 16).toLong())) and 0xFFFFFFFFL
                     z.iState!!.mode = INF_CHECK2
                 }
 
@@ -343,7 +348,9 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl 8).toLong()
+                    // Pascal: Inc(z.state^.sub.check.need, uLong(z.next_in^) shl 8);
+                    val byteValue = (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toUInt()
+                    z.iState!!.need = (z.iState!!.need + ((byteValue shl 8).toLong())) and 0xFFFFFFFFL
                     z.iState!!.mode = INF_CHECK1
                 }
 
@@ -353,9 +360,12 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong()
+                    // Pascal: Inc(z.state^.sub.check.need, uLong(z.next_in^));
+                    val byteValue = (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toUInt()
+                    z.iState!!.need = (z.iState!!.need + byteValue.toLong()) and 0xFFFFFFFFL
 
-                    if (z.iState!!.was[0] != z.iState!!.need) {
+                    // Pascal: if (z.state^.sub.check.was <> z.state^.sub.check.need) then
+                    if ((z.iState!!.was[0] and 0xFFFFFFFFL) != z.iState!!.need) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "incorrect data check"
                         z.iState!!.marker = 5 // can't try inflateSync
