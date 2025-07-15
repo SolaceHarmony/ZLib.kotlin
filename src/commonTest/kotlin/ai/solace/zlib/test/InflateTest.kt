@@ -45,7 +45,7 @@ class InflateTest {
             stream.availIn = inputDeflated.size
             stream.nextInIndex = 0
 
-            val outputBuffer = ByteArray(originalSizeHint * 2 + 100) // Ensure buffer is large enough
+            val outputBuffer = ByteArray(originalSizeHint * 4 + 200) // Increased buffer size for safety
             stream.nextOut = outputBuffer
             stream.availOut = outputBuffer.size
             stream.nextOutIndex = 0
@@ -133,5 +133,22 @@ class InflateTest {
         val inflatedData = inflateDataInternal(deflatedNoCompression, originalData.size)
 
         assertEquals(originalString, inflatedData.decodeToString(), "Inflated Z_NO_COMPRESSION data mismatch")
+    }
+
+    @Test
+    fun minimalInputDataTest() {
+        println("[DEBUG] Testing with minimal input data for compression and decompression.")
+
+        val originalString = "A"
+        val originalData = originalString.encodeToByteArray()
+
+        val deflatedData = deflateDataForTestSetup(originalData, Z_DEFAULT_COMPRESSION)
+        assertTrue(deflatedData.isNotEmpty(), "Deflated data for minimal input is empty")
+
+        val inflatedData = inflateDataInternal(deflatedData, originalData.size)
+
+        assertTrue(inflatedData.isNotEmpty(), "Inflated data for minimal input should not be empty")
+        assertEquals(originalString, inflatedData.decodeToString(), "Inflated data for minimal input does not match original string")
+        assertTrue(originalData.contentEquals(inflatedData), "Inflated data for minimal input does not match original byte array")
     }
 }
