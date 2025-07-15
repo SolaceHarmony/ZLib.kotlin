@@ -126,6 +126,11 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
     /** Check value on output */
     internal var check: Long = 0
 
+    // State variables used in processing
+    private var result: Int = Z_OK
+    private var outputBytesLeft: Int = 0
+    private var outputPointer: Int = 0
+
     init {
         this.mode = IBLK_TYPE
         reset(z, null)
@@ -172,6 +177,11 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         }
     }
 
+    // Store the ZStream used by inflateFlush
+    private var proc_z: ZStream? = null
+
+    // Removed invalid duplicate state machine code block that was outside any function.
+
     /**
      * Processes a block of compressed data.
      *
@@ -208,7 +218,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         println("[PROC_DEBUG] InfBlocks.proc called: mode=$mode, write=$write, read=$read, outputPointer=$outputPointer")
 
         // Process input and output based on current state
-        processBlocks@ while (true) {
+        while (true) {
             when (mode) {
                 IBLK_TYPE -> {
                     // Need at least 3 bits to determine block type
@@ -286,7 +296,6 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
                     // Extract values for verification using the bit buffer directly
                     val storedLen = bitBuffer and 0xffff
-                    val storedNLen = (bitBuffer ushr 16) and 0xffff
 
 
                     // Verify block length integrity: storedNLen should be ~storedLen
@@ -450,43 +459,43 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         var codeValue: Int
                         var tempTableBits = bb[0]
                         while (bitsInBuffer < tempTableBits) {
-                            if (bytesAvailable != 0) {
+                            if (z.availIn != 0) {
                                 returnCode = Z_OK
                             } else {
-                                bitb = bitBuffer; bitk = bitsInBuffer; z.availIn =
-                                    bytesAvailable; z.totalIn += (inputPointer - z.nextInIndex).toLong(); z.nextInIndex =
-                                    inputPointer; write = outputPointer
+                                bitb = bitb; bitk = bitk; z.availIn =
+                                    z.availIn; z.totalIn += (z.nextInIndex - z.nextInIndex).toLong(); z.nextInIndex =
+                                    z.nextInIndex; write = write
                                 return inflateFlush(returnCode)
                             }
-                            bytesAvailable--
-                            bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
-                            bitsInBuffer += 8
+                            z.availIn--
+                            bitb = bitb or ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl bitk)
+                            bitk += 8
                         }
-                        tempTableBits = hufts[(tb[0][0] + (bitBuffer and IBLK_INFLATE_MASK[tempTableBits])) * 3 + 1]
-                        codeValue = hufts[(tb[0][0] + (bitBuffer and IBLK_INFLATE_MASK[tempTableBits])) * 3 + 2]
+                        tempTableBits = hufts[(tb[0][0] + (bitb and IBLK_INFLATE_MASK[tempTableBits])) * 3 + 1]
+                        codeValue = hufts[(tb[0][0] + (bitb and IBLK_INFLATE_MASK[tempTableBits])) * 3 + 2]
                         if (codeValue < 16) {
-                            bitBuffer = bitBuffer ushr tempTableBits; bitsInBuffer -= tempTableBits
+                            bitb = bitb ushr tempTableBits; bitk -= tempTableBits
                             blens!![index++] = codeValue
                         } else {
                             extraBitsNeeded = if (codeValue == 18) 7 else codeValue - 14
                             codeBitsRequired = if (codeValue == 18) 11 else 3
                             while (bitsInBuffer < tempTableBits + extraBitsNeeded) {
-                                if (bytesAvailable != 0) {
+                                if (z.availIn != 0) {
                                     returnCode = Z_OK
                                 } else {
-                                    bitb = bitBuffer; bitk = bitsInBuffer; z.availIn =
-                                        bytesAvailable; z.totalIn += (inputPointer - z.nextInIndex).toLong(); z.nextInIndex =
-                                        inputPointer; write = outputPointer
+                                    bitb = bitb; bitk = bitk; z.availIn =
+                                        z.availIn; z.totalIn += (z.nextInIndex - z.nextInIndex).toLong(); z.nextInIndex =
+                                        z.nextInIndex; write = write
                                     return inflateFlush(returnCode)
                                 }
-                                bytesAvailable--
-                                bitBuffer =
-                                    bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
-                                bitsInBuffer += 8
+                                z.availIn--
+                                bitb =
+                                    bitb or ((z.nextIn!![z.nextInIndex++].toInt() and 0xff) shl bitk)
+                                bitk += 8
                             }
-                            bitBuffer = bitBuffer ushr tempTableBits; bitsInBuffer -= tempTableBits
-                            var repeatCount = codeBitsRequired + (bitBuffer and IBLK_INFLATE_MASK[extraBitsNeeded])
-                            bitBuffer = bitBuffer ushr extraBitsNeeded; bitsInBuffer -= extraBitsNeeded
+                            bitb = bitb ushr tempTableBits; bitk -= tempTableBits
+                            var repeatCount = codeBitsRequired + (bitb and IBLK_INFLATE_MASK[extraBitsNeeded])
+                            bitb = bitb ushr extraBitsNeeded; bitk -= extraBitsNeeded
                             extraBitsNeeded = index
                             val tableCheck = table
                             if (extraBitsNeeded + repeatCount > 258 + (tableCheck and 0x1f) + ((tableCheck ushr 5) and 0x1f) || (codeValue == 16 && extraBitsNeeded < 1)) {
@@ -494,9 +503,9 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                                 mode = IBLK_BAD
                                 z.msg = "invalid bit length repeat"
                                 returnCode = Z_DATA_ERROR
-                                bitb = bitBuffer; bitk = bitsInBuffer; z.availIn =
-                                    bytesAvailable; z.totalIn += (inputPointer - z.nextInIndex).toLong(); z.nextInIndex =
-                                    inputPointer; write = outputPointer
+                                bitb = bitb; bitk = bitk; z.availIn =
+                                    z.availIn; z.totalIn += (z.nextInIndex - z.nextInIndex).toLong(); z.nextInIndex =
+                                    z.nextInIndex; write = write
                                 return inflateFlush(returnCode)
                             }
                             codeValue = if (codeValue == 16) blens!![extraBitsNeeded - 1] else 0
@@ -530,8 +539,8 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             mode = IBLK_BAD
                         }
                         returnCode = inflateResult
-                        bitb = bitBuffer; bitk = bitsInBuffer; z.availIn =
-                            bytesAvailable; z.totalIn += (inputPointer - z.nextInIndex).toLong(); z.nextInIndex =
+                        bitb = bitb; bitk = bitsInBuffer; z.availIn =
+                            z.availIn; z.totalIn += (inputPointer - z.nextInIndex).toLong(); z.nextInIndex =
                             inputPointer; write = outputPointer
                         return inflateFlush(returnCode)
                     }
@@ -541,9 +550,12 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                 }
 
                 IBLK_CODES -> {
+                    // Debug log for code processing
+                    println("[INFBLOCKS_DEBUG] Processing codes: bitBuffer=$bitb, bitsInBuffer=$bitk")
+
                     // Save bit buffer state before calling proc
-                    bitb = bitBuffer
-                    bitk = bitsInBuffer
+                    bitb = bitb
+                    bitk = bitk
 
                     println("[CODES_DEBUG] Before InfCodes.proc: write=$write, outputPointer=$outputPointer")
 
@@ -552,14 +564,14 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     println("[CODES_DEBUG] After InfCodes.proc: write=$write, codesResult=$codesResult")
 
                     // Restore bit buffer state after proc returns
-                    bitBuffer = bitb
-                    bitsInBuffer = bitk
+                    bitb = bitb
+                    bitk = bitk
 
                     if (codesResult == Z_STREAM_END) {
                         // End of block
                         codes = null
                         mode = if (last != 0) IBLK_DRY else IBLK_TYPE
-                        break@processBlocks
+                        break
                     } else {
                         // Not at end of block yet
                         if (codesResult == Z_DATA_ERROR) {
@@ -567,22 +579,22 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             mode = IBLK_BAD
                             z.msg = "invalid distance code"
                             result = Z_DATA_ERROR
-                            saveState(z, bitBuffer, bitsInBuffer, bytesAvailable, inputPointer, outputPointer)
+                            saveState(z, bitb, bitk, z.availIn, z.nextInIndex, write)
                             return inflateFlush(result)
                         }
 
                         if (codesResult == Z_BUF_ERROR) {
                             // No progress is possible, need more input or output space
-                            saveState(z, bitBuffer, bitsInBuffer, bytesAvailable, inputPointer, outputPointer)
+                            saveState(z, bitb, bitk, z.availIn, z.nextInIndex, write)
                             return inflateFlush(codesResult)
                         }
 
                         // Otherwise we got Z_OK, update our state from the saved values
 
                         // Make sure we're advancing - if not, we're stuck and need to return
-                        if (z.availIn == bytesAvailable && z.availOut == z.nextOut!!.size - z.nextOutIndex) {
+                        if (z.availIn == z.availIn && z.availOut == z.nextOut!!.size - z.nextOutIndex) {
                             result = Z_BUF_ERROR
-                            saveState(z, bitBuffer, bitsInBuffer, bytesAvailable, inputPointer, outputPointer)
+                            saveState(z, bitb, bitk, z.availIn, z.nextInIndex, write)
                             return inflateFlush(result)
                         }
 
@@ -606,6 +618,9 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                 }
 
                 IBLK_DRY -> {
+                    // Debug log for dry state
+                    println("[INFBLOCKS_DEBUG] Processing dry state")
+
                     // Check if we need to flush more output
                     if (outputBytesLeft == 0) {
                         // Handle window wrap-around
@@ -645,12 +660,16 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                 }
 
                 IBLK_BAD -> {
+                    // Debug log for bad state
+                    println("[INFBLOCKS_DEBUG] Processing bad state")
                     result = Z_DATA_ERROR
                     saveState(z, bitBuffer, bitsInBuffer, bytesAvailable, inputPointer, outputPointer)
                     return inflateFlush(result)
                 }
 
                 else -> {
+                    // Debug log for unknown state
+                    println("[INFBLOCKS_DEBUG] Unknown state: mode=$mode")
                     result = Z_STREAM_ERROR
                     saveState(z, bitBuffer, bitsInBuffer, bytesAvailable, inputPointer, outputPointer)
                     return inflateFlush(result)
@@ -791,7 +810,6 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
         // Update checksum if applicable
         if (checkfn != null && n > 0) {
-            val oldCheck = check
             z.adler = z.adlerChecksum!!.adler32(check, window, q, n)
             check = z.adler
         }
@@ -823,7 +841,6 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
             // Update checksum if applicable
             if (checkfn != null && n > 0) {
-                val oldCheck = check
                 z.adler = z.adlerChecksum!!.adler32(check, window, q, n)
                 check = z.adler
             }
@@ -844,8 +861,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         return if (read != write) Z_OK else Z_STREAM_END
     }
 
-    // Store the ZStream from the proc method
-    private var proc_z: ZStream? = null
+    // (Removed duplicate declaration of proc_z)
 
 
     /**
@@ -885,6 +901,22 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         )
         read = 0
         write = actualLength
+    }
+
+    /**
+     * Calculates the available output buffer space.
+     * Takes into account window wrap-around conditions.
+     */
+    private fun calculateOutputBytesLeft(): Int {
+        return if (write < read) read - write - 1 else end - write
+    }
+
+    /**
+     * Updates the output bytes left count.
+     * This is called after write pointer updates to maintain correct buffer space tracking.
+     */
+    private fun updateOutputBytesLeft() {
+        outputBytesLeft = calculateOutputBytesLeft()
     }
 
 }
