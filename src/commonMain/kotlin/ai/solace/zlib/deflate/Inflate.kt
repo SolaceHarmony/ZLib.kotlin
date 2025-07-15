@@ -200,7 +200,7 @@ internal class Inflate {
             when (z.iState!!.mode) {
                 INF_METHOD -> {
                     if (z.availIn == 0) return r
-                    r = fMut
+                    // Removed unused assignment to r = fMut
                     z.availIn--
                     z.totalIn++
                     z.iState!!.method = z.nextIn!![z.nextInIndex++].toInt() and 0xff
@@ -221,7 +221,7 @@ internal class Inflate {
 
                 INF_FLAG -> {
                     if (z.availIn == 0) return r
-                    r = fMut
+                    // Removed unused assignment to r = fMut
 
                     z.availIn--
                     z.totalIn++
@@ -243,8 +243,6 @@ internal class Inflate {
 
                 INF_DICT4 -> {
                     if (z.availIn == 0) return r
-                    r = fMut
-
                     z.availIn--
                     z.totalIn++
                     z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 24)
@@ -253,7 +251,6 @@ internal class Inflate {
 
                 INF_DICT3 -> {
                     if (z.availIn == 0) return r
-                    r = fMut
 
                     z.availIn--
                     z.totalIn++
@@ -263,7 +260,6 @@ internal class Inflate {
 
                 INF_DICT2 -> {
                     if (z.availIn == 0) return r
-                    r = fMut
 
                     z.availIn--
                     z.totalIn++
@@ -273,26 +269,26 @@ internal class Inflate {
 
                 INF_DICT1 -> {
                     if (z.availIn == 0) return r
-                    r = fMut
 
                     z.availIn--
                     z.totalIn++
                     z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong()
+                    // Store expected Adler-32 checksum from stream
                     z.adler = z.iState!!.need
                     z.iState!!.mode = INF_DICT0
                     println("[DEBUG] INF_DICT1: Calculated Adler checksum: ${z.adler}, Expected: ${z.iState!!.need}")
+                    // Signal to caller that a dictionary is needed
                     return Z_NEED_DICT
                 }
 
                 INF_DICT0 -> {
-                    z.iState!!.mode = INF_BAD
+                    // Remain in INF_DICT0 until inflateSetDictionary is called and succeeds
                     z.msg = "need dictionary"
-                    z.iState!!.marker = 0 // can try inflateSync
                     return Z_STREAM_ERROR
                 }
 
                 INF_BLOCKS -> {
-                    r = z.iState!!.blocks!!.proc(z, r)
+                    r = z.iState!!.blocks!!.proc(z, r) // Call proc on blocks
                     if (r == Z_DATA_ERROR) {
                         z.iState!!.mode = INF_BAD
                         z.iState!!.marker = 0 // can try inflateSync
@@ -429,6 +425,7 @@ internal class Inflate {
      * @return Z_OK on successful resynchronization, Z_STREAM_ERROR if state is invalid,
      *         Z_BUF_ERROR if no input is available, Z_DATA_ERROR if sync pattern not found
      */
+    @OptIn(kotlin.ExperimentalUnsignedTypes::class)
     internal fun inflateSync(z: ZStream?): Int {
         var m: Int // number of marker bytes found in a row
         var w: Long
