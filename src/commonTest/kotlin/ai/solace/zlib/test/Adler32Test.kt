@@ -30,8 +30,8 @@ class Adler32Test {
         val testBuffer = testString.encodeToByteArray()
         val testResult = adler32.adler32(1L, testBuffer, 0, testBuffer.size)
 
-        // Expected value for "abc" is 0x00620062 (Adler32 of "abc" starting with initial value 1)
-        assertEquals(0x00620062L, testResult, "Adler32 of 'abc' should be 0x00620062")
+        // Expected value for "abc" is 0x024D0127 (standard Adler32 with initial value 1)
+        assertEquals(0x024D0127L, testResult, "Adler32 of 'abc' should be 0x024D0127")
 
         // Test with a longer string to ensure NMAX handling works correctly
         val longString = "a".repeat(5000)
