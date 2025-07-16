@@ -321,6 +321,8 @@ class ZStream {
         availIn -= len
         if (len != 0) {
             nextIn!!.copyInto(buf, start, nextInIndex, nextInIndex + len)
+            // Update running Adler-32 checksum with newly read bytes
+            adler = adlerChecksum!!.adler32(adler, buf, start, len)
             nextInIndex += len
             totalIn += len.toLong()
         }
