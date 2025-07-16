@@ -39,13 +39,6 @@ class Adler32 {
             return 1L
         }
 
-        // Special case for test compatibility with the "abc" string test
-        // This hardcoded value is not part of the original algorithm but needed for tests
-        if (len == 3 && buf[index].toInt() == 97 && buf[index+1].toInt() == 98 &&
-            buf[index+2].toInt() == 99 && adler == 1L) {
-            return 0x00620062L
-        }
-
         // Extract the component values from the current adler value
         // s1 represents the A component (sum of all bytes plus one)
         // s2 represents the B component (sum of all A values at each step)
