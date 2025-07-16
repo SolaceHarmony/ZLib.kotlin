@@ -131,8 +131,8 @@ internal class InfCodes {
 
                 // waiting for "i:"=input, "o:"=output, "x:"=nothing
                 ICODES_START -> { // x: set up for LEN
-                    println("[HUFFMAN] InfCodes START mode, outputBytes=${s.write}, totalBytes processed so far")
-                    println("[HUFFMAN] Window buffer at position ${s.write}: '${s.window[s.write].toInt().toChar()}' (${s.window[s.write].toInt()})")
+                    ZlibLogger.debug("[HUFFMAN] InfCodes START mode, outputBytes=${s.write}, totalBytes processed so far")
+                    ZlibLogger.debug("[HUFFMAN] Window buffer at position ${s.write}: '${s.window[s.write].toInt().toChar()}' (${s.window[s.write].toInt()})")
                     if (outputBytesLeft >= 258 && bytesAvailable >= 10) {
 
                         s.bitb = bitBuffer
@@ -142,7 +142,7 @@ internal class InfCodes {
                         z.nextInIndex = inputPointer
                         s.write = outputWritePointer
                         result = inflateFast(lbits.toInt(), dbits.toInt(), ltree, ltreeIndex, dtree, dtreeIndex, s, z)
-                        println("[HUFFMAN] inflateFast returned: $result (Z_OK=$Z_OK, Z_STREAM_END=$Z_STREAM_END)")
+                        ZlibLogger.debug("[HUFFMAN] inflateFast returned: $result (Z_OK=$Z_OK, Z_STREAM_END=$Z_STREAM_END)")
 
                         inputPointer = z.nextInIndex
                         bytesAvailable = z.availIn
@@ -161,7 +161,7 @@ internal class InfCodes {
                     treeIndex = ltreeIndex
 
                     mode = ICODES_LEN
-                    println("[HUFFMAN] Transitioning to ICODES_LEN mode")
+                    ZlibLogger.debug("[HUFFMAN] Transitioning to ICODES_LEN mode")
                     continue
                 }
 
@@ -192,14 +192,14 @@ internal class InfCodes {
                     val codeBits = tree[tableIndex + 1]
                     val codeValue = tree[tableIndex + 2]
                     
-                    println("[DECODE_DEBUG] Symbol decode: maskedB=$maskedB, tableIndex=$tableIndex, tempCounter=$tempCounter, codeBits=$codeBits, codeValue=$codeValue")
+                    ZlibLogger.debug("[DECODE_DEBUG] Symbol decode: maskedB=$maskedB, tableIndex=$tableIndex, tempCounter=$tempCounter, codeBits=$codeBits, codeValue=$codeValue")
 
                     bitBuffer = bitBuffer ushr tree[tableIndex + 1]
                     bitsInBuffer -= tree[tableIndex + 1]
 
                     if (tempCounter == 0) {
                         // Literal symbol
-                        println("[DECODE_DEBUG] Found literal: $codeValue (char: '${codeValue.toChar()}') at position $outputWritePointer")
+                        ZlibLogger.debug("[DECODE_DEBUG] Found literal: $codeValue (char: '${codeValue.toChar()}') at position $outputWritePointer")
                         s.window[outputWritePointer++] = codeValue.toByte()
                         outputBytesLeft--
                         mode = ICODES_START
@@ -207,7 +207,7 @@ internal class InfCodes {
                     }
                     if (tempCounter and 16 != 0) {
                         // Length code
-                        println("[DECODE_DEBUG] Found length code: $codeValue")
+                        ZlibLogger.debug("[DECODE_DEBUG] Found length code: $codeValue")
                         extraBitsNeeded = tempCounter and 15
                         length = codeValue
                         mode = ICODES_LENEXT
@@ -221,11 +221,11 @@ internal class InfCodes {
                     }
                     if (tempCounter and 32 != 0) {
                         // End of block
-                        println("[DECODE_DEBUG] Found END OF BLOCK")
+                        ZlibLogger.debug("[DECODE_DEBUG] Found END OF BLOCK")
                         mode = ICODES_WASH
                         break
                     }
-                    println("[DECODE_DEBUG] Invalid literal/length code")
+                    ZlibLogger.debug("[DECODE_DEBUG] Invalid literal/length code")
                     z.msg = "invalid literal/length code"
                     result = Z_DATA_ERROR
 
@@ -527,9 +527,9 @@ internal class InfCodes {
         s: InfBlocks,
         z: ZStream
     ): Int {
-        println("[FAST_DEBUG] inflateFast called with outputWrite=${s.write}, windowSize=${s.end}")
-        println("[FAST_DEBUG] Initial window content at write position: '${if (s.write < s.window.size) s.window[s.write].toInt().toChar() else '?'}' (${if (s.write < s.window.size) s.window[s.write].toInt() else -1})")
-        println("[FAST_DEBUG] Initial bit buffer: 0x${s.bitb.toString(16)}, bits: ${s.bitk}")
+        ZlibLogger.debug("[FAST_DEBUG] inflateFast called with outputWrite=${s.write}, windowSize=${s.end}")
+        ZlibLogger.debug("[FAST_DEBUG] Initial window content at write position: '${if (s.write < s.window.size) s.window[s.write].toInt().toChar() else '?'}' (${if (s.write < s.window.size) s.window[s.write].toInt() else -1})")
+        ZlibLogger.debug("[FAST_DEBUG] Initial bit buffer: 0x${s.bitb.toString(16)}, bits: ${s.bitk}")
         
         var tempPointer: Int // Temporary table index
         var tempTable: IntArray // Temporary table reference
@@ -564,22 +564,22 @@ internal class InfCodes {
                 bitsInBuffer += 8
             }
 
-            println("[BIT_DEBUG] bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer, literalLengthMask=0x${literalLengthMask.toString(16)}")
+            ZlibLogger.debug("[BIT_DEBUG] bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer, literalLengthMask=0x${literalLengthMask.toString(16)}")
             tempPointer = bitBuffer and literalLengthMask
             tempTable = tl
             tempTableIndex = tlIndex
-            println("[BIT_DEBUG] tempPointer=$tempPointer (0x${tempPointer.toString(16)}), tlIndex=$tempTableIndex")
+            ZlibLogger.debug("[BIT_DEBUG] tempPointer=$tempPointer (0x${tempPointer.toString(16)}), tlIndex=$tempTableIndex")
             if (tempTable[(tempTableIndex + tempPointer) * 3] == 0) {
                 // Direct literal - no extra table lookup needed
                 val tableBits = tempTable[(tempTableIndex + tempPointer) * 3 + 1]
                 val literalValue = tempTable[(tempTableIndex + tempPointer) * 3 + 2]
                 
-                println("[FAST_TABLE] tempPointer=$tempPointer, tableIndex=${(tempTableIndex + tempPointer) * 3}, exop=${tempTable[(tempTableIndex + tempPointer) * 3]}, bits=$tableBits, base=$literalValue")
+                ZlibLogger.debug("[FAST_TABLE] tempPointer=$tempPointer, tableIndex=${(tempTableIndex + tempPointer) * 3}, exop=${tempTable[(tempTableIndex + tempPointer) * 3]}, bits=$tableBits, base=$literalValue")
                 
                 bitBuffer = bitBuffer ushr tableBits
                 bitsInBuffer -= tableBits
 
-                println("[FAST_LITERAL] Writing literal: $literalValue ('${literalValue.toChar()}') at position $outputWritePointer")
+                ZlibLogger.debug("[FAST_LITERAL] Writing literal: $literalValue ('${literalValue.toChar()}') at position $outputWritePointer")
                 s.window[outputWritePointer++] = literalValue.toByte()
                 outputBytesLeft--
                 continue
@@ -714,12 +714,12 @@ internal class InfCodes {
                         val tableBits = tempTable[(tempTableIndex + tempPointer) * 3 + 1]
                         val literalValue = tempTable[(tempTableIndex + tempPointer) * 3 + 2]
                         
-                        println("[FAST_INDIRECT] tempPointer=$tempPointer, tableIndex=${(tempTableIndex + tempPointer) * 3}, exop=${tempTable[(tempTableIndex + tempPointer) * 3]}, bits=$tableBits, base=$literalValue")
+                        ZlibLogger.debug("[FAST_INDIRECT] tempPointer=$tempPointer, tableIndex=${(tempTableIndex + tempPointer) * 3}, exop=${tempTable[(tempTableIndex + tempPointer) * 3]}, bits=$tableBits, base=$literalValue")
                         
                         bitBuffer = bitBuffer ushr tableBits
                         bitsInBuffer -= tableBits
 
-                        println("[FAST_LITERAL_INDIRECT] Writing literal: $literalValue ('${literalValue.toChar()}') at position $outputWritePointer")
+                        ZlibLogger.debug("[FAST_LITERAL_INDIRECT] Writing literal: $literalValue ('${literalValue.toChar()}') at position $outputWritePointer")
                         s.window[outputWritePointer++] = literalValue.toByte()
                         outputBytesLeft--
                         break
