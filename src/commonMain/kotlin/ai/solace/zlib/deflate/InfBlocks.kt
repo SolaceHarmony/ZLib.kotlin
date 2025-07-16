@@ -168,7 +168,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
         // Clear the window buffer to prevent leftover data from appearing in output
         window.fill(0)
-        println("[RESET_DEBUG] InfBlocks reset: read=$read, write=$write, window size=${window.size}")
+        ZlibLogger.debug("[RESET_DEBUG] InfBlocks reset: read=$read, write=$write, window size=${window.size}")
 
         // Reset checksum if we have a checksum function
         if (checkfn != null && z != null) {
@@ -213,7 +213,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         var result: Int
         var returnCode = rIn
 
-        println("[PROC_DEBUG] InfBlocks.proc called: mode=$mode, write=$write, read=$read, outputPointer=$outputPointer")
+        ZlibLogger.debug("[PROC_DEBUG] InfBlocks.proc called: mode=$mode, write=$write, read=$read, outputPointer=$outputPointer")
 
         // Process input and output based on current state
         while (true) {
@@ -591,18 +591,18 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
                 IBLK_CODES -> {
                     // Debug log for code processing
-                    println("[INFBLOCKS_DEBUG] Processing codes: bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer")
+                    ZlibLogger.debug("[INFBLOCKS_DEBUG] Processing codes: bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer")
 
                     // Save bit buffer state
                     bitb = bitBuffer
                     bitk = bitsInBuffer
 
-                    println("[CODES_DEBUG] Before InfCodes.proc: write=$write, outputPointer=$outputPointer")
+                    ZlibLogger.debug("[CODES_DEBUG] Before InfCodes.proc: write=$write, outputPointer=$outputPointer")
 
                     while (true) {
                         val codesResult = codes!!.proc(this, z, returnCode)
 
-                        println("[CODES_DEBUG] After InfCodes.proc: write=$write, codesResult=$codesResult")
+                        ZlibLogger.debug("[CODES_DEBUG] After InfCodes.proc: write=$write, codesResult=$codesResult")
 
                         // Update local variables from object state
                         bitBuffer = bitb
@@ -673,7 +673,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
                 IBLK_DRY -> {
                     // Debug log for dry state
-                    println("[INFBLOCKS_DEBUG] Processing dry state")
+                    ZlibLogger.debug("[INFBLOCKS_DEBUG] Processing dry state")
 
                     // Check if we need to flush more output
                     if (outputBytesLeft == 0) {
@@ -715,7 +715,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
                 IBLK_BAD -> {
                     // Debug log for bad state
-                    println("[INFBLOCKS_DEBUG] Processing bad state")
+                    ZlibLogger.debug("[INFBLOCKS_DEBUG] Processing bad state")
                     result = Z_DATA_ERROR
                     saveState(z, bitBuffer, bitsInBuffer, bytesAvailable, inputPointer, outputPointer)
                     return inflateFlush(z, result)
@@ -723,7 +723,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
                 else -> {
                     // Debug log for unknown state
-                    println("[INFBLOCKS_DEBUG] Unknown state: mode=$mode")
+                    ZlibLogger.debug("[INFBLOCKS_DEBUG] Unknown state: mode=$mode")
                     result = Z_STREAM_ERROR
                     saveState(z, bitBuffer, bitsInBuffer, bytesAvailable, inputPointer, outputPointer)
                     return inflateFlush(z, result)
