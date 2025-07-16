@@ -247,7 +247,7 @@ internal object InfTree {
                     
                     // Debug value table construction for fixed literals
                     if (simpleValueCount == 257 && (currentCode == 72 || currentCode == 78 || currentCode == 126 || currentCode == 256 || currentCode < 5)) {
-                        println("[VALUE_TABLE] Symbol $currentCode (${if (currentCode < 256) "'${currentCode.toChar()}'" else "special"}) -> valueTable[$index], bitLength=$tempCounter")
+                        ZlibLogger.debug("[VALUE_TABLE] Symbol $currentCode (${if (currentCode < 256) "'${currentCode.toChar()}'" else "special"}) -> valueTable[$index], bitLength=$tempCounter")
                     }
                 } else {
                     return Z_DATA_ERROR // Index out of bounds
@@ -275,7 +275,7 @@ internal object InfTree {
         // Point the output table to our pre-allocated space
         t[0] = huffmanTable
         
-        println("[HUFFMAN_BUILD] Building table: simpleValueCount=$simpleValueCount, huffmanTable.size=${huffmanTable.size}, tableIndexTracker[0]=${tableIndexTracker[0]}")
+        ZlibLogger.debug("[HUFFMAN_BUILD] Building table: simpleValueCount=$simpleValueCount, huffmanTable.size=${huffmanTable.size}, tableIndexTracker[0]=${tableIndexTracker[0]}")
         
 
         // Main loop: process each bit length from shortest to longest
@@ -367,7 +367,7 @@ internal object InfTree {
                     
                     // Debug symbol processing in canonical order
                     if (simpleValueCount == 257 && (tableEntry[2] == 72 || tableEntry[2] == 78 || tableEntry[2] == 126 || tableEntry[2] == 256 || tableEntry[2] < 5)) {
-                        println("[CODE_ASSIGN] Processing symbol ${tableEntry[2]} at pointer ${pointer-1}, currentCode=$currentCode, currentBitLength=$currentBitLength")
+                        ZlibLogger.debug("[CODE_ASSIGN] Processing symbol ${tableEntry[2]} at pointer ${pointer-1}, currentCode=$currentCode, currentBitLength=$currentBitLength")
                     }
                 } else {
                     // Non-simple code - look up in extra tables
@@ -400,7 +400,7 @@ internal object InfTree {
                         
                         // Debug critical writes
                         if (simpleValueCount == 257 && (tempCounter == 126 || tempCounter == 72 || tempCounter < 10)) {
-                            println("[SYMBOL_ASSIGN] Code pattern $tempCounter -> symbol ${tableEntry[2]}, bits=${tableEntry[1]}, index=$index (reversedCode=$reversedCode, originalCode=$currentCode)")
+                            ZlibLogger.debug("[SYMBOL_ASSIGN] Code pattern $tempCounter -> symbol ${tableEntry[2]}, bits=${tableEntry[1]}, index=$index (reversedCode=$reversedCode, originalCode=$currentCode)")
                         }
                         
                         // Verify the write immediately  
@@ -580,16 +580,16 @@ internal object InfTree {
                     fixedTl, fixedBl, fixedLiteralTable, hn, v)
             
             fixedLiteralIndex = literalStartIndex  // Use the start index, not the end
-            println("[FIXED_TABLES] Literal table built starting at index: $fixedLiteralIndex, ending at: ${hn[0]}")
+            ZlibLogger.debug("[FIXED_TABLES] Literal table built starting at index: $fixedLiteralIndex, ending at: ${hn[0]}")
             
             // Debug: Check what's at the expected indices
             val testIndex1 = (fixedLiteralIndex + 126) * 3
             if (testIndex1 + 2 < fixedLiteralTable.size) {
-                println("[TABLE_DEBUG] Index $testIndex1 for bit pattern 126: [${fixedLiteralTable[testIndex1]}, ${fixedLiteralTable[testIndex1 + 1]}, ${fixedLiteralTable[testIndex1 + 2]}]")
+                ZlibLogger.debug("[TABLE_DEBUG] Index $testIndex1 for bit pattern 126: [${fixedLiteralTable[testIndex1]}, ${fixedLiteralTable[testIndex1 + 1]}, ${fixedLiteralTable[testIndex1 + 2]}]")
             }
             val testIndex2 = (fixedLiteralIndex + 72) * 3  // 'H' character
             if (testIndex2 + 2 < fixedLiteralTable.size) {
-                println("[TABLE_DEBUG] Index $testIndex2 for 'H' (72): [${fixedLiteralTable[testIndex2]}, ${fixedLiteralTable[testIndex2 + 1]}, ${fixedLiteralTable[testIndex2 + 2]}]")
+                ZlibLogger.debug("[TABLE_DEBUG] Index $testIndex2 for 'H' (72): [${fixedLiteralTable[testIndex2]}, ${fixedLiteralTable[testIndex2 + 1]}, ${fixedLiteralTable[testIndex2 + 2]}]")
             }
 
             // Distance table
@@ -610,7 +610,7 @@ internal object InfTree {
                     fixedTd, fixedBd, fixedDistanceTable, distanceHn, v)
                     
             fixedDistanceIndex = distanceStartIndex  // Use the start index, not the end
-            println("[FIXED_TABLES] Distance table built at index: $fixedDistanceIndex, ending at: ${distanceHn[0]}")
+            ZlibLogger.debug("[FIXED_TABLES] Distance table built at index: $fixedDistanceIndex, ending at: ${distanceHn[0]}")
 
             // Mark as built
             fixedBuilt = true
