@@ -292,15 +292,12 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     }
 
 
-                    // Extract values for verification using the bit buffer directly
+                    // Extract stored length and its complement from the bit buffer
                     val storedLen = bitBuffer and 0xffff
+                    val storedNLen = (bitBuffer ushr 16) and 0xffff
 
-
-                    // Verify block length integrity: storedNLen should be ~storedLen
-                    val invertedValue = (bitBuffer.inv() ushr 16) and 0xffff
-                    val originalValue = bitBuffer and 0xffff
-
-                    if (invertedValue != originalValue) {
+                    // Verify block length integrity following zlib's reference implementation
+                    if (storedLen != (storedNLen.inv() and 0xffff)) {
                         mode = IBLK_BAD
                         z.msg = "invalid stored block lengths"
                         returnCode = Z_DATA_ERROR
@@ -309,7 +306,6 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             inputPointer; write = outputPointer
                         return inflateFlush(z, returnCode)
                     }
-
 
                     // Store the length (low 16 bits of b)
                     left = storedLen
