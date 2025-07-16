@@ -167,7 +167,7 @@ internal class Inflate {
      *         or an error code (Z_STREAM_ERROR, Z_DATA_ERROR, etc.)
      */
     internal fun inflate(z: ZStream?, f: Int): Int {
-        println("[INFLATE_DEBUG] inflate() called with flush=$f")
+        ZlibLogger.debug("[INFLATE_DEBUG] inflate() called with flush=$f")
         var r: Int
         var b: Int
 
@@ -276,7 +276,7 @@ internal class Inflate {
                     // Store expected Adler-32 checksum from stream
                     z.adler = z.iState!!.need
                     z.iState!!.mode = INF_DICT0
-                    println("[DEBUG] INF_DICT1: Calculated Adler checksum: ${z.adler}, Expected: ${z.iState!!.need}")
+                    ZlibLogger.debug("[DEBUG] INF_DICT1: Calculated Adler checksum: ${z.adler}, Expected: ${z.iState!!.need}")
                     // Signal to caller that a dictionary is needed
                     return Z_NEED_DICT
                 }
@@ -397,7 +397,7 @@ internal class Inflate {
 
         if (z == null || z.iState == null || z.iState!!.mode != INF_DICT0) return Z_STREAM_ERROR
 
-        println("[DEBUG] Validating Adler-32 checksum: Calculated=${z.adlerChecksum!!.adler32(1L, dictionary, 0, dictLength)}, Expected=${z.adler}")
+        ZlibLogger.debug("[DEBUG] Validating Adler-32 checksum: Calculated=${z.adlerChecksum!!.adler32(1L, dictionary, 0, dictLength)}, Expected=${z.adler}")
         if (z.adlerChecksum!!.adler32(1L, dictionary, 0, dictLength) != z.adler) {
             return Z_DATA_ERROR
         }
@@ -409,7 +409,7 @@ internal class Inflate {
             lengthMut = wsize
             index = dictLength - lengthMut
         }
-        println("[DEBUG] Dictionary content: ${dictionary?.joinToString(", ")}")
+        ZlibLogger.debug("[DEBUG] Dictionary content: ${dictionary?.joinToString(", ")}")
         z.iState!!.blocks!!.setDictionary(dictionary!!, index, lengthMut)
         z.iState!!.mode = INF_BLOCKS
         return Z_OK
