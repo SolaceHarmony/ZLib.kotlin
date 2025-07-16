@@ -19,6 +19,7 @@
 - [Usage](#usage)
 - [Documentation](#documentation)
 - [Compatibility](#compatibility)
+- [Testing](#testing)
 - [Credits & Lineage](#credits--lineage)
 - [License](#license)
 - [Contributing](#contributing)
@@ -120,6 +121,21 @@ Practical examples demonstrating:
 - **Kotlin Multiplatform:** Experimental support for JS and other targets
 
 Tested with IntelliJ IDEA and Gradle.
+
+---
+
+## Testing
+
+Run the multiplatform tests using Gradle. For example, to execute the Linux x64
+tests run:
+
+```bash
+./gradlew linuxX64Test
+```
+
+Additional targets, such as the JVM, have their own `<target>Test` task
+(e.g., `./gradlew jvmTest`). macOS target tasks may be disabled when running on a
+non-macOS host.
 
 ---
 
