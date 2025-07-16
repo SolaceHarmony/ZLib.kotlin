@@ -32,6 +32,18 @@ class InflateTest {
         return result
     }
 
+    // Convert a hex string to a byte array for reference compressed data
+    private fun hexStringToByteArray(hex: String): ByteArray {
+        val len = hex.length
+        val out = ByteArray(len / 2)
+        var i = 0
+        while (i < len) {
+            out[i / 2] = hex.substring(i, i + 2).toInt(16).toByte()
+            i += 2
+        }
+        return out
+    }
+
     private fun inflateDataInternal(inputDeflated: ByteArray, originalSizeHint: Int): ByteArray {
         try {
 
@@ -150,5 +162,14 @@ class InflateTest {
         assertTrue(inflatedData.isNotEmpty(), "Inflated data for minimal input should not be empty")
         assertEquals(originalString, inflatedData.decodeToString(), "Inflated data for minimal input does not match original string")
         assertTrue(originalData.contentEquals(inflatedData), "Inflated data for minimal input does not match original byte array")
+    }
+
+    @Test
+    fun referenceInflationCompatibilityTest() {
+        val compressedHex = "789ccb48cdc9c95728cf2fca4951c8406227e7e71614a51617a7a628a42496242a2467a4266703008a7f1106"
+        val compressedData = hexStringToByteArray(compressedHex)
+        val expectedString = "hello world hello world compressed data check"
+        val result = inflateDataInternal(compressedData, expectedString.length)
+        assertEquals(expectedString, result.decodeToString(), "Inflation output mismatched reference implementation")
     }
 }
