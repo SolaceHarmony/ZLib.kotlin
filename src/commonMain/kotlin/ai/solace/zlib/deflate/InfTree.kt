@@ -198,7 +198,7 @@ internal object InfTree {
                 }
                 r = code and ((1 shl p) - 1)
                 val baseIndex = hq[r] + (code ushr p)
-                if (baseIndex >= IBLK_MANY) return Z_MEM_ERROR
+                if (baseIndex >= hp.size) return Z_MEM_ERROR
                 hp[baseIndex] = bits
                 if (v[j] < s) {
                     hp[baseIndex + 2] = v[j]
