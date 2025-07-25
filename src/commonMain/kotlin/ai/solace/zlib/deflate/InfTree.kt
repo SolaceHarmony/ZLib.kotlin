@@ -132,321 +132,93 @@ internal object InfTree {
     @Suppress("UNUSED_PARAMETER")
     private fun huftBuild(
         b: IntArray,
-        bitLengthStartIndex: Int,
-        totalCodes: Int,
-        simpleValueCount: Int,
+        bIndex: Int,
+        n: Int,
+        s: Int,
         d: IntArray?,
         e: IntArray?,
         t: Array<IntArray>,
         m: IntArray,
-        huffmanTable: IntArray,
-        tableIndexTracker: IntArray,
-        valueTable: IntArray
+        hp: IntArray,
+        hn: IntArray,
+        v: IntArray
     ): Int {
-        // Algorithm variables with meaningful names for better code readability
-        
-        var codesAtCurrentLength: Int // Number of codes at the current bit length
-        val bitLengthCounts = IntArray(MAX_BITS + 1) // Count of codes for each bit length
-        var tableRepeatInterval: Int // Current code repeats in table every f entries  
-        var maxCodeLength: Int // Maximum code length found
-        var currentCode: Int // Current Huffman code being processed
-        var tempCounter: Int // General purpose counter variable
-        var tableBits: Int // Number of bits per table lookup (returned in m)
-        var tableMask: Int // Mask for table lookup: (1 << bitsBeforeTable) - 1
-        var tableBaseIndex: Int // Base index of current table being built
-        val tableEntry = IntArray(3) // Table entry: [operation, bits, value] for Huffman decode
-        // The table stack needs space for all possible table levels
-        // tableLevel starts at -1 and can go up to MAX_BITS, so we need MAX_BITS + 1 elements
-        val tableStack = IntArray(MAX_BITS + 1) // Stack of table base indices for multi-level tables
-        val codeOffsets = IntArray(MAX_BITS + 1) // Starting offsets for each bit length in value table
-        var unusedCodes: Int // Number of unused codes (for validation)
-        var tableSize: Int // Number of entries in current table being built
-
-        // Step 1: Count occurrences of each bit length
-        var pointer: Int = bitLengthStartIndex // Pointer/index into various arrays
-        currentCode = totalCodes
-        do {
-            val index = b[pointer++]
-            if (index >= 0 && index <= MAX_BITS) {
-                bitLengthCounts[index]++
-            } else {
-                return Z_DATA_ERROR // Invalid bit length
-            }
-        } while (--currentCode > 0)
-        
-        // Early exit if all codes have zero length (empty tree)
-        if (bitLengthCounts[0] == totalCodes) {
+        val c = IntArray(MAX_BITS + 1)
+        for (i in 0 until n) {
+            if (b[bIndex + i] < c.size) c[b[bIndex + i]]++
+        }
+        if (c[0] == n) {
             t[0] = IntArray(0)
             m[0] = 0
             return Z_OK
         }
-
-        // Step 2: Find minimum and maximum code lengths, validate table bits parameter
-        tableBits = m[0]
-        tempCounter = 1
-        while (tempCounter <= MAX_BITS && bitLengthCounts[tempCounter] == 0) {
-            tempCounter++
+        var j = 1
+        while (j <= MAX_BITS && c[j] == 0) j++
+        val minBits = j
+        var maxBits = MAX_BITS
+        while (maxBits >= 1 && c[maxBits] == 0) maxBits--
+        if (m[0] < minBits) m[0] = minBits
+        if (m[0] > maxBits) m[0] = maxBits
+        val x = IntArray(MAX_BITS + 1)
+        var code = 0
+        for (bits in minBits..maxBits) {
+            x[bits] = code
+            code += c[bits]
         }
-        var currentBitLength: Int = tempCounter // Current bit length being processed
-        if (tableBits < tempCounter) {
-            tableBits = tempCounter
+        for (i in 0 until n) {
+            val len = b[bIndex + i]
+            if (len != 0) v[x[len]++] = i
         }
-        currentCode = MAX_BITS
-        while (currentCode != 0 && bitLengthCounts[currentCode] == 0) {
-            currentCode--
-        }
-        maxCodeLength = currentCode
-        if (tableBits > currentCode) {
-            tableBits = currentCode
-        }
-        m[0] = tableBits
-        
-
-        // Step 3: Validate that we have a valid set of code lengths (Kraft inequality)
-        unusedCodes = 1 shl tempCounter
-        while (tempCounter < currentCode) {
-            unusedCodes -= bitLengthCounts[tempCounter]
-            if (unusedCodes < 0) {
-                return Z_DATA_ERROR
-            }
-            tempCounter++
-            unusedCodes = unusedCodes shl 1
-        }
-        unusedCodes -= bitLengthCounts[currentCode]
-        if (unusedCodes < 0) {
-            return Z_DATA_ERROR
-        }
-        bitLengthCounts[currentCode] += unusedCodes
-        
-
-        // Step 4: Generate starting offsets into the value table for each bit length
-        codeOffsets[1] = 0  // Starting offset for codes of length 1
-        tempCounter = 0  // Running total
-        var offsetIndex = 2  // Index into x array (starts at 2)
-        pointer = 1  // Index into c array (starts at 1)
-        var remainingLengths = currentCode - 1  // Decrement i for loop (note that i == g from above)
-        while (remainingLengths != 0) {
-            tempCounter += bitLengthCounts[pointer]
-            codeOffsets[offsetIndex] = tempCounter
-            offsetIndex++
-            pointer++
-            remainingLengths--
-        }
-        
-
-        // Step 5: Create value table - sort symbols by their bit length
-        currentCode = 0
-        pointer = 0
-        do {
-            tempCounter = b[bitLengthStartIndex + pointer]
-            if (tempCounter != 0) {
-                if (tempCounter < codeOffsets.size && codeOffsets[tempCounter] < valueTable.size) {
-                    val index = codeOffsets[tempCounter]
-                    codeOffsets[tempCounter]++
-                    valueTable[index] = currentCode
-                    
-                    // Debug value table construction for fixed literals
-                    if (simpleValueCount == 257 && (currentCode == 72 || currentCode == 78 || currentCode == 126 || currentCode == 256 || currentCode < 5)) {
-                        ZlibLogger.debug("[VALUE_TABLE] Symbol $currentCode (${if (currentCode < 256) "'${currentCode.toChar()}'" else "special"}) -> valueTable[$index], bitLength=$tempCounter")
+        x[0] = 0
+        j = 0
+        var k = 0
+        var p = -m[0]
+        val hq = IntArray(MAX_BITS + 1)
+        var r = 0
+        var u: Int
+        for (bits in minBits..maxBits) {
+            var a = c[bits]
+            while (a-- > 0) {
+                while (bits > p + m[0]) {
+                    p += m[0]
+                    k = (if (k >= hn[0]) -1 else hq[r] + (code and ((1 shl m[0]) - 1)))
+                    r = k
+                    while (k < (1 shl (p - m[0]))) {
+                        if (hn[0] >= IBLK_MANY) return Z_MEM_ERROR
+                        hp[hn[0]++] = 0
+                        k++
                     }
+                    k = (code ushr p) and ((1 shl m[0]) - 1)
+                    u = hn[0] + k
+                    if (u >= IBLK_MANY) return Z_MEM_ERROR
+                    hq[r] = u
+                    hp[u] = p
+                    hp[u + 1] = if (maxBits > p + m[0]) m[0] else maxBits - p
+                    hp[u + 2] = 0
+                }
+                r = code and ((1 shl p) - 1)
+                val baseIndex = hq[r] + (code ushr p)
+                if (baseIndex >= IBLK_MANY) return Z_MEM_ERROR
+                hp[baseIndex] = bits
+                if (v[j] < s) {
+                    hp[baseIndex + 2] = v[j]
                 } else {
-                    return Z_DATA_ERROR // Index out of bounds
+                    hp[baseIndex] = hp[baseIndex] or 64
+                    if (v[j] - s < e!!.size) hp[baseIndex + 1] = e[v[j] - s]
+                    if (v[j] - s < d!!.size) hp[baseIndex + 2] = d[v[j] - s]
                 }
-            }
-            pointer++
-        } while (++currentCode < totalCodes)
-        
-        
-        // The actual number of values is stored at codeOffsets[maxCodeLength]
-        val actualValueCount = codeOffsets[maxCodeLength]
-
-        // Step 6: Generate the Huffman codes and build the decode table
-        codeOffsets[0] = 0
-        currentCode = 0 // Current Huffman code value
-        pointer = 0 // Current position in value array
-        var tableLevel: Int = -1 // Current table level (-1 = main table)
-        // Current table level (for multi-level tables)
-        var bitsBeforeTable: Int = -tableBits // Initialize to -tableBits to match reference implementation
-        // Number of bits processed before current table level
-        tableStack[0] = 0 // Initialize table stack
-        tableBaseIndex = 0 // Base index of current table
-        tableSize = 0 // Size of current table
-
-        // Point the output table to our pre-allocated space
-        t[0] = huffmanTable
-        
-        ZlibLogger.debug("[HUFFMAN_BUILD] Building table: simpleValueCount=$simpleValueCount, huffmanTable.size=${huffmanTable.size}, tableIndexTracker[0]=${tableIndexTracker[0]}")
-        
-
-        // Main loop: process each bit length from shortest to longest
-        var loopCount = 0
-        while (currentBitLength <= maxCodeLength) {
-            loopCount++
-            if (loopCount > 1000) {
-                return Z_DATA_ERROR
-            }
-            
-            codesAtCurrentLength = bitLengthCounts[currentBitLength]
-            var innerLoopCount = 0
-            
-            // Process each code of the current bit length
-            while (codesAtCurrentLength-- > 0) {
-                innerLoopCount++
-                if (innerLoopCount > 1000) {
-                    return Z_DATA_ERROR
+                j++
+                var y = 1 shl (bits - 1)
+                while ((code and y) != 0) {
+                    code = code xor y
+                    y = y ushr 1
                 }
-                
-                // Here currentCode is the Huffman code of currentBitLength bits for value valueTable[pointer]
-                var whileLoopCount = 0
-                
-                // Check if we need to create a new table level
-                while (currentBitLength > bitsBeforeTable + tableBits) {
-                    if (whileLoopCount > 100) {
-                        return Z_DATA_ERROR
-                    }
-                    whileLoopCount++
-                    
-                    tableLevel++
-                    bitsBeforeTable += tableBits // Add bits already decoded
-
-                    // Compute minimum size table less than or equal to tableBits
-                    tableSize = maxCodeLength - bitsBeforeTable
-                    tableSize = if (tableSize > tableBits) tableBits else tableSize
-                    tempCounter = currentBitLength - bitsBeforeTable
-                    tableRepeatInterval = 1 shl tempCounter
-                    
-                    // Optimize table size: try a (currentBitLength - bitsBeforeTable) bit table
-                    if (tableRepeatInterval > codesAtCurrentLength + 1) {
-                        tableRepeatInterval -= codesAtCurrentLength + 1
-                        var xp = currentBitLength
-                        while (++tempCounter < tableSize) {
-                            tableRepeatInterval = tableRepeatInterval shl 1
-                            if (tableRepeatInterval <= bitLengthCounts[++xp]) {
-                                break
-                            }
-                            tableRepeatInterval -= bitLengthCounts[xp]
-                        }
-                    }
-                    tableSize = 1 shl tempCounter
-                    if (tableIndexTracker[0] + tableSize > IBLK_MANY) {
-                        return Z_DATA_ERROR
-                    }
-                    tableStack[tableLevel] = tableBaseIndex
-                    tableBaseIndex = tableIndexTracker[0]
-                    tableIndexTracker[0] += tableSize
-
-                    // Connect to parent table if this is not the main table
-                    if (tableLevel != 0) {
-                        codeOffsets[tableLevel] = currentCode // Save pattern for backing up
-                        tableEntry[0] = (tableBits and 0xFF) // Bits to dump before this table
-                        tableEntry[1] = (tempCounter and 0xFF) // Bits in this table
-                        tableEntry[2] = (tableBaseIndex - tableStack[tableLevel-1] - (currentCode ushr (bitsBeforeTable - tableBits))) and 0xFF // Offset to this table
-                        val index = (tableStack[tableLevel-1] + (currentCode ushr (bitsBeforeTable - tableBits))) * 3
-                        if (index >= 0 && index <= t[0].size - 3) {
-                            // Copy the 3-element entry (operation, bits, value)
-                            t[0][index] = tableEntry[0]
-                            t[0][index + 1] = tableEntry[1]
-                            t[0][index + 2] = tableEntry[2]
-                        } else {
-                            return Z_DATA_ERROR // Index out of bounds
-                        }
-                    } else {
-                        t[0] = huffmanTable // First table is returned result
-                    }
-                }
-
-                // Set up table entry for current symbol
-                if (pointer >= actualValueCount) {
-                    tableEntry[0] = (128 + 64) and 0xFF // Out of values - invalid code
-                    tableEntry[1] = 0
-                    tableEntry[2] = 0
-                } else if (valueTable[pointer] < simpleValueCount) {
-                    tableEntry[0] = (if (valueTable[pointer] < 256) 0 else 32 + 64) and 0xFF // 256 is end-of-block
-                    tableEntry[1] = (currentBitLength - bitsBeforeTable) and 0xFF // bits in this table
-                    tableEntry[2] = valueTable[pointer++] // simple code is just the value
-                    
-                    // Debug symbol processing in canonical order
-                    if (simpleValueCount == 257 && (tableEntry[2] == 72 || tableEntry[2] == 78 || tableEntry[2] == 126 || tableEntry[2] == 256 || tableEntry[2] < 5)) {
-                        ZlibLogger.debug("[CODE_ASSIGN] Processing symbol ${tableEntry[2]} at pointer ${pointer-1}, currentCode=$currentCode, currentBitLength=$currentBitLength")
-                    }
-                } else {
-                    // Non-simple code - look up in extra tables
-                    val eValue = if (e != null && valueTable[pointer] - simpleValueCount < e.size) e[valueTable[pointer] - simpleValueCount] else 0
-                    val dValue = if (d != null && valueTable[pointer] - simpleValueCount < d.size) d[valueTable[pointer] - simpleValueCount] else 0
-                    tableEntry[0] = (eValue + 16 + 64) and 0xFF
-                    tableEntry[1] = (currentBitLength - bitsBeforeTable) and 0xFF
-                    tableEntry[2] = dValue
-                    pointer++
-                }
-                
-
-                // Fill table entries with this symbol (replicate for all matching bit patterns)
-                tableRepeatInterval = 1 shl (currentBitLength - bitsBeforeTable)
-                
-                // CRITICAL FIX: Use bit-reversed lookup index for table construction
-                // In DEFLATE, Huffman codes are transmitted LSB first, so we need to reverse the bits
-                val reversedCode = reverseBits(currentCode, currentBitLength)
-                tempCounter = reversedCode ushr bitsBeforeTable
-                var writeCount = 0
-                
-                while (tempCounter < tableSize) {
-                    val index = (tableBaseIndex + tempCounter) * 3
-                    if (index >= 0 && index <= t[0].size - 3) {
-                        // Copy all 3 elements: [operation, bits, value]
-                        t[0][index] = tableEntry[0]
-                        t[0][index + 1] = tableEntry[1]
-                        t[0][index + 2] = tableEntry[2]
-                        writeCount++
-                        
-                        // Debug critical writes
-                        if (simpleValueCount == 257 && (tempCounter == 126 || tempCounter == 72 || tempCounter < 10)) {
-                            ZlibLogger.debug("[SYMBOL_ASSIGN] Code pattern $tempCounter -> symbol ${tableEntry[2]}, bits=${tableEntry[1]}, index=$index (reversedCode=$reversedCode, originalCode=$currentCode)")
-                        }
-                        
-                        // Verify the write immediately  
-                        if (t[0][index] != tableEntry[0] || t[0][index + 1] != tableEntry[1] || t[0][index + 2] != tableEntry[2]) {
-                        }
-                    } else {
-                        return Z_DATA_ERROR
-                    }
-                    tempCounter += tableRepeatInterval
-                }
-
-                // Backwards increment the currentBitLength-bit code (generate next code)
-                tempCounter = 1 shl (currentBitLength - 1)
-                while ((currentCode and tempCounter) != 0) {
-                    currentCode = currentCode xor tempCounter
-                    tempCounter = tempCounter ushr 1
-                }
-                currentCode = currentCode xor tempCounter
-
-                // Back up over finished tables
-                tableMask = (1 shl bitsBeforeTable) - 1
-                while (tableLevel >= 0 && (currentCode and tableMask) != codeOffsets[tableLevel]) {
-                    tableLevel-- // Don't need to update tableBaseIndex
-                    bitsBeforeTable -= tableBits
-                    if (bitsBeforeTable <= 0) break
-                    tableMask = (1 shl bitsBeforeTable) - 1
-                }
-            }
-            currentBitLength++
-        }
-
-        // Final validation and return
-        // Return Z_OK if we used all codes, or if this is a distance table (simpleValueCount == 0)
-        // Distance tables are allowed to be incomplete in some cases
-        val result = if (unusedCodes == 0 || maxCodeLength == 1 || simpleValueCount == 0) Z_OK else Z_DATA_ERROR
-        
-        // Debug: Print first few table entries only for literal/length tree
-        if (simpleValueCount == 257) {
-            for (i in 0 until minOf(10 * 3, t[0].size) step 3) {
-            }
-            // Check the specific index that was failing (378)
-            if (t[0].size > 380) {
+                code = code xor y
             }
         }
-        
-        return result
+        t[0] = hp
+        m[0] = p
+        return Z_OK
     }
 
     /**
@@ -558,70 +330,29 @@ internal object InfTree {
         z: ZStream
     ): Int {
         if (!fixedBuilt) {
-            // Build fixed tables if not already built
             val c = IntArray(288)
             val v = IntArray(288)
             val hn = intArrayOf(0)
-
-            // Literal table
-            for (k in 0 until 144) c[k] = 8
-            for (k in 144 until 256) c[k] = 9
-            for (k in 256 until 280) c[k] = 7
-            for (k in 280 until 288) c[k] = 8
-
+            for (k in 0..143) c[k] = 8
+            for (k in 144..255) c[k] = 9
+            for (k in 256..279) c[k] = 7
+            for (k in 280..287) c[k] = 8
             fixedBl[0] = 9
-
-            // Create separate tables for literal and distance trees
             fixedLiteralTable = IntArray(IBLK_MANY * 3)
-
-            // Build the literal/length tree
-            val literalStartIndex = hn[0]  // Remember where this table starts
-            huftBuild(c, 0, 288, 257, TREE_EXTRA_LBITS, TREE_BASE_LENGTH,
-                    fixedTl, fixedBl, fixedLiteralTable, hn, v)
-            
-            fixedLiteralIndex = literalStartIndex  // Use the start index, not the end
-            ZlibLogger.debug("[FIXED_TABLES] Literal table built starting at index: $fixedLiteralIndex, ending at: ${hn[0]}")
-            
-            // Debug: Check what's at the expected indices
-            val testIndex1 = (fixedLiteralIndex + 126) * 3
-            if (testIndex1 + 2 < fixedLiteralTable.size) {
-                ZlibLogger.debug("[TABLE_DEBUG] Index $testIndex1 for bit pattern 126: [${fixedLiteralTable[testIndex1]}, ${fixedLiteralTable[testIndex1 + 1]}, ${fixedLiteralTable[testIndex1 + 2]}]")
-            }
-            val testIndex2 = (fixedLiteralIndex + 72) * 3  // 'H' character
-            if (testIndex2 + 2 < fixedLiteralTable.size) {
-                ZlibLogger.debug("[TABLE_DEBUG] Index $testIndex2 for 'H' (72): [${fixedLiteralTable[testIndex2]}, ${fixedLiteralTable[testIndex2 + 1]}, ${fixedLiteralTable[testIndex2 + 2]}]")
-            }
-
-            // Distance table
-            for (k in 0 until 30) c[k] = 5
-
+            huftBuild(c, 0, 288, 257, TREE_EXTRA_LBITS, TREE_BASE_LENGTH, fixedTl, fixedBl, fixedLiteralTable, hn, v)
+            fixedLiteralIndex = hn[0]
+            for (k in 0..29) c[k] = 5
             fixedBd[0] = 5
-
-            // Create separate table for distance tree
             fixedDistanceTable = IntArray(IBLK_MANY * 3)
-
-            // CRITICAL FIX: Don't reset hn for distance table - it should continue from where literal table ended
-            // But since we're using separate arrays, we DO need to reset it for the separate array
-            val distanceHn = intArrayOf(0)  // Use separate tracker for distance table
-            val distanceStartIndex = distanceHn[0]  // Remember where this table starts
-            
-            // Build the distance tree in its own array space
-            huftBuild(c, 0, 30, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST,
-                    fixedTd, fixedBd, fixedDistanceTable, distanceHn, v)
-                    
-            fixedDistanceIndex = distanceStartIndex  // Use the start index, not the end
-            ZlibLogger.debug("[FIXED_TABLES] Distance table built at index: $fixedDistanceIndex, ending at: ${distanceHn[0]}")
-
-            // Mark as built
+            val distanceHn = intArrayOf(0)
+            huftBuild(c, 0, 30, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST, fixedTd, fixedBd, fixedDistanceTable, distanceHn, v)
+            fixedDistanceIndex = distanceHn[0]
             fixedBuilt = true
         }
-
-        // Copy the tree data to the caller's arrays
         bl[0] = fixedBl[0]
         bd[0] = fixedBd[0]
         tl[0] = fixedLiteralTable
         td[0] = fixedDistanceTable
-
         return Z_OK
     }
 
