@@ -138,59 +138,31 @@ internal class InfCodes {
                     continue
                 }
 
-                ICODES_LEN -> {  // i: get length/literal/eob next
-                    tempStorage = bitsNeeded
-                    while (bitsInBuffer < tempStorage) {
-                        if (bytesAvailable != 0) result = Z_OK
-                        else {
-                            s.bitb = bitBuffer
-                            s.bitk = bitsInBuffer
-                            z.availIn = bytesAvailable
-                            z.totalIn += inputPointer - z.nextInIndex
-                            z.nextInIndex = inputPointer
-                            s.write = outputWritePointer
-                            return inflateFlush(s, z, result)
+                ICODES_LEN -> {
+                    if (outputBytesLeft >= 258 && bytesAvailable >= 10) {
+                        s.bitb = bitBuffer
+                        s.bitk = bitsInBuffer
+                        z.availIn = bytesAvailable
+                        z.totalIn += inputPointer - z.nextInIndex
+                        z.nextInIndex = inputPointer
+                        s.write = outputWritePointer
+                        result = inflateFast(lbits.toInt(), dbits.toInt(), ltree, ltreeIndex, dtree, dtreeIndex, s, z)
+                        inputPointer = z.nextInIndex
+                        bytesAvailable = z.availIn
+                        bitBuffer = s.bitb
+                        bitsInBuffer = s.bitk
+                        outputWritePointer = s.write
+                        outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
+                        if (result != Z_OK) {
+                            mode = if (result == Z_STREAM_END) ICODES_WASH else ICODES_BADCODE
+                            break
                         }
-                        bytesAvailable--
-                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
-                        bitsInBuffer += 8
                     }
-                    val maskedB = bitBuffer and IBLK_INFLATE_MASK[bitsNeeded]
-                    val tableIndex = (treeIndex + maskedB) * 3
-                    val tempCounter = tree[tableIndex]
-                    bitBuffer = bitBuffer ushr tree[tableIndex + 1]
-                    bitsInBuffer -= tree[tableIndex + 1]
-                    if (tempCounter == 0) {
-                        literal = tree[tableIndex + 2]
-                        mode = ICODES_LIT
-                        break
-                    }
-                    if (tempCounter and 16 != 0) {
-                        extraBitsNeeded = tempCounter and 15
-                        length = tree[tableIndex + 2]
-                        mode = ICODES_LENEXT
-                        break
-                    }
-                    if (tempCounter and 64 == 0) {
-                        bitsNeeded = tempCounter
-                        treeIndex = tableIndex / 3 + tree[tableIndex + 2]
-                        mode = ICODES_LEN
-                        break
-                    }
-                    if (tempCounter and 32 != 0) {
-                        mode = ICODES_WASH
-                        break
-                    }
-                    mode = ICODES_BADCODE
-                    z.msg = "invalid literal/length code"
-                    result = Z_DATA_ERROR
-                    s.bitb = bitBuffer
-                    s.bitk = bitsInBuffer
-                    z.availIn = bytesAvailable
-                    z.totalIn += inputPointer - z.nextInIndex
-                    z.nextInIndex = inputPointer
-                    s.write = outputWritePointer
-                    return inflateFlush(s, z, result)
+                    bitsNeeded = lbits.toInt()
+                    tree = ltree
+                    treeIndex = ltreeIndex
+                    mode = ICODES_LEN
+                    continue
                 }
 
                 ICODES_LENEXT -> {  // i: getting length extra (have base)
