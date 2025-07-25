@@ -321,48 +321,36 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    // Pascal: z.state^.sub.check.need := uLong(z.next_in^) shl 24;
-                    val byteValue = (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toUInt()
-                    z.iState!!.need = (byteValue shl 24).toLong() and 0xFFFFFFFFL
+                    if (z.availIn == 0) return r
+                    z.availIn--
+                    z.totalIn++
+                    z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 24) and 0xff000000L
                     z.iState!!.mode = INF_CHECK3
                 }
 
                 INF_CHECK3 -> {
                     if (z.availIn == 0) return r
-                    r = fMut
-
                     z.availIn--
                     z.totalIn++
-                    // Pascal: Inc(z.state^.sub.check.need, uLong(z.next_in^) shl 16);
-                    val byteValue = (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toUInt()
-                    z.iState!!.need = (z.iState!!.need + ((byteValue shl 16).toLong())) and 0xFFFFFFFFL
+                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 16) and 0x00ff0000L
                     z.iState!!.mode = INF_CHECK2
                 }
 
                 INF_CHECK2 -> {
                     if (z.availIn == 0) return r
-                    r = fMut
-
                     z.availIn--
                     z.totalIn++
-                    // Pascal: Inc(z.state^.sub.check.need, uLong(z.next_in^) shl 8);
-                    val byteValue = (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toUInt()
-                    z.iState!!.need = (z.iState!!.need + ((byteValue shl 8).toLong())) and 0xFFFFFFFFL
+                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 8) and 0x0000ff00L
                     z.iState!!.mode = INF_CHECK1
                 }
 
                 INF_CHECK1 -> {
                     if (z.availIn == 0) return r
-                    r = fMut
-
                     z.availIn--
                     z.totalIn++
-                    // Pascal: Inc(z.state^.sub.check.need, uLong(z.next_in^));
-                    val byteValue = (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toUInt()
-                    z.iState!!.need = (z.iState!!.need + byteValue.toLong()) and 0xFFFFFFFFL
+                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() and 0x000000ffL
 
-                    // Pascal: if (z.state^.sub.check.was <> z.state^.sub.check.need) then
-                    if ((z.iState!!.was[0] and 0xFFFFFFFFL) != z.iState!!.need) {
+                    if (z.iState!!.was[0] != z.iState!!.need) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "incorrect data check"
                         z.iState!!.marker = 5 // can't try inflateSync
