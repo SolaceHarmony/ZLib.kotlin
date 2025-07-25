@@ -131,47 +131,18 @@ internal class InfCodes {
 
                 // waiting for "i:"=input, "o:"=output, "x:"=nothing
                 ICODES_START -> { // x: set up for LEN
-                    ZlibLogger.debug("[HUFFMAN] InfCodes START mode, outputBytes=${s.write}, totalBytes processed so far")
-                    ZlibLogger.debug("[HUFFMAN] Window buffer at position ${s.write}: '${s.window[s.write].toInt().toChar()}' (${s.window[s.write].toInt()})")
-                    if (outputBytesLeft >= 258 && bytesAvailable >= 10) {
-
-                        s.bitb = bitBuffer
-                        s.bitk = bitsInBuffer
-                        z.availIn = bytesAvailable
-                        z.totalIn += inputPointer - z.nextInIndex
-                        z.nextInIndex = inputPointer
-                        s.write = outputWritePointer
-                        result = inflateFast(lbits.toInt(), dbits.toInt(), ltree, ltreeIndex, dtree, dtreeIndex, s, z)
-                        ZlibLogger.debug("[HUFFMAN] inflateFast returned: $result (Z_OK=$Z_OK, Z_STREAM_END=$Z_STREAM_END)")
-
-                        inputPointer = z.nextInIndex
-                        bytesAvailable = z.availIn
-                        bitBuffer = s.bitb
-                        bitsInBuffer = s.bitk
-                        outputWritePointer = s.write
-                        outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
-
-                        if (result != Z_OK) {
-                            mode = if (result == Z_STREAM_END) ICODES_WASH else ICODES_BADCODE
-                            break
-                        }
-                    }
                     bitsNeeded = lbits.toInt()
                     tree = ltree
                     treeIndex = ltreeIndex
-
                     mode = ICODES_LEN
-                    ZlibLogger.debug("[HUFFMAN] Transitioning to ICODES_LEN mode")
                     continue
                 }
 
                 ICODES_LEN -> {  // i: get length/literal/eob next
                     tempStorage = bitsNeeded
-
                     while (bitsInBuffer < tempStorage) {
                         if (bytesAvailable != 0) result = Z_OK
                         else {
-
                             s.bitb = bitBuffer
                             s.bitk = bitsInBuffer
                             z.availIn = bytesAvailable
@@ -184,51 +155,35 @@ internal class InfCodes {
                         bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
                         bitsInBuffer += 8
                     }
-
                     val maskedB = bitBuffer and IBLK_INFLATE_MASK[bitsNeeded]
                     val tableIndex = (treeIndex + maskedB) * 3
-
                     val tempCounter = tree[tableIndex]
-                    val codeBits = tree[tableIndex + 1]
-                    val codeValue = tree[tableIndex + 2]
-                    
-                    ZlibLogger.debug("[DECODE_DEBUG] Symbol decode: maskedB=$maskedB, tableIndex=$tableIndex, tempCounter=$tempCounter, codeBits=$codeBits, codeValue=$codeValue")
-
                     bitBuffer = bitBuffer ushr tree[tableIndex + 1]
                     bitsInBuffer -= tree[tableIndex + 1]
-
                     if (tempCounter == 0) {
-                        // Literal symbol
-                        ZlibLogger.debug("[DECODE_DEBUG] Found literal: $codeValue (char: '${codeValue.toChar()}') at position $outputWritePointer")
-                        s.window[outputWritePointer++] = codeValue.toByte()
-                        outputBytesLeft--
-                        mode = ICODES_START
+                        literal = tree[tableIndex + 2]
+                        mode = ICODES_LIT
                         break
                     }
                     if (tempCounter and 16 != 0) {
-                        // Length code
-                        ZlibLogger.debug("[DECODE_DEBUG] Found length code: $codeValue")
                         extraBitsNeeded = tempCounter and 15
-                        length = codeValue
+                        length = tree[tableIndex + 2]
                         mode = ICODES_LENEXT
                         break
                     }
                     if (tempCounter and 64 == 0) {
-                        // next table
                         bitsNeeded = tempCounter
                         treeIndex = tableIndex / 3 + tree[tableIndex + 2]
-                        continue
+                        mode = ICODES_LEN
+                        break
                     }
                     if (tempCounter and 32 != 0) {
-                        // End of block
-                        ZlibLogger.debug("[DECODE_DEBUG] Found END OF BLOCK")
                         mode = ICODES_WASH
                         break
                     }
-                    ZlibLogger.debug("[DECODE_DEBUG] Invalid literal/length code")
+                    mode = ICODES_BADCODE
                     z.msg = "invalid literal/length code"
                     result = Z_DATA_ERROR
-
                     s.bitb = bitBuffer
                     s.bitk = bitsInBuffer
                     z.availIn = bytesAvailable
@@ -236,7 +191,6 @@ internal class InfCodes {
                     z.nextInIndex = inputPointer
                     s.write = outputWritePointer
                     return inflateFlush(s, z, result)
-
                 }
 
                 ICODES_LENEXT -> {  // i: getting length extra (have base)
@@ -568,195 +522,114 @@ internal class InfCodes {
             tempPointer = bitBuffer and literalLengthMask
             tempTable = tl
             tempTableIndex = tlIndex
-            ZlibLogger.debug("[BIT_DEBUG] tempPointer=$tempPointer (0x${tempPointer.toString(16)}), tlIndex=$tempTableIndex")
-            if (tempTable[(tempTableIndex + tempPointer) * 3] == 0) {
-                // Direct literal - no extra table lookup needed
-                val tableBits = tempTable[(tempTableIndex + tempPointer) * 3 + 1]
-                val literalValue = tempTable[(tempTableIndex + tempPointer) * 3 + 2]
-                
-                ZlibLogger.debug("[FAST_TABLE] tempPointer=$tempPointer, tableIndex=${(tempTableIndex + tempPointer) * 3}, exop=${tempTable[(tempTableIndex + tempPointer) * 3]}, bits=$tableBits, base=$literalValue")
-                
-                bitBuffer = bitBuffer ushr tableBits
-                bitsInBuffer -= tableBits
-
-                ZlibLogger.debug("[FAST_LITERAL] Writing literal: $literalValue ('${literalValue.toChar()}') at position $outputWritePointer")
-                s.window[outputWritePointer++] = literalValue.toByte()
+            var temp = tempTable[(tempTableIndex + tempPointer) * 3]
+            if (temp == 0) {
+                bitBuffer = bitBuffer ushr tempTable[(tempTableIndex + tempPointer) * 3 + 1]
+                bitsInBuffer -= tempTable[(tempTableIndex + tempPointer) * 3 + 1]
+                s.window[outputWritePointer++] = tempTable[(tempTableIndex + tempPointer) * 3 + 2].toByte()
                 outputBytesLeft--
                 continue
             }
 
             do {
-                bitBuffer = bitBuffer ushr tempTable[(tempTableIndex + tempPointer) * 3 + 1]
-                bitsInBuffer -= tempTable[(tempTableIndex + tempPointer) * 3 + 1]
-
-                if (tempTable[(tempTableIndex + tempPointer) * 3] and 16 != 0) {
-                    // Length code - extract extra bits for length calculation
-                    extraBitsOrOperation = tempTable[(tempTableIndex + tempPointer) * 3] and 15
-                    bytesToCopy = tempTable[(tempTableIndex + tempPointer) * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsOrOperation])
-
-                    bitBuffer = bitBuffer ushr extraBitsOrOperation
-                    bitsInBuffer -= extraBitsOrOperation
-
-                    // Decode distance base of block to copy
+                tempPointer = tempTableIndex + (bitBuffer and literalLengthMask)
+                extraBitsOrOperation = tl[tempPointer * 3]
+                if (extraBitsOrOperation == 0) {
+                    bitBuffer = bitBuffer ushr tl[tempPointer * 3 + 1]
+                    bitsInBuffer -= tl[tempPointer * 3 + 1]
+                    s.window[outputWritePointer++] = tl[tempPointer * 3 + 2].toByte()
+                    outputBytesLeft--
+                    break
+                }
+                bitBuffer = bitBuffer ushr tl[tempPointer * 3 + 1]
+                bitsInBuffer -= tl[tempPointer * 3 + 1]
+                if (extraBitsOrOperation and 16 != 0) {
+                    extraBitsNeeded = extraBitsOrOperation and 15
+                    bytesToCopy = tl[tempPointer * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsNeeded])
+                    bitBuffer = bitBuffer ushr extraBitsNeeded
+                    bitsInBuffer -= extraBitsNeeded
                     while (bitsInBuffer < 15) {
-                        // Ensure we have enough bits for distance code (max 15 bits)
                         bytesAvailable--
                         bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
                         bitsInBuffer += 8
                     }
-
-                    tempPointer = bitBuffer and distanceMask
-                    tempTable = td
-                    tempTableIndex = tdIndex
-                    extraBitsOrOperation = tempTable[(tempTableIndex + tempPointer) * 3]
-
+                    tempPointer = tdIndex + (bitBuffer and distanceMask)
+                    extraBitsOrOperation = td[tempPointer * 3]
                     do {
-                        bitBuffer = bitBuffer ushr tempTable[(tempTableIndex + tempPointer) * 3 + 1]
-                        bitsInBuffer -= tempTable[(tempTableIndex + tempPointer) * 3 + 1]
-
-                        if ((extraBitsOrOperation and 16) != 0) {
-                            // Get extra bits to add to distance base
-                            extraBitsOrOperation = extraBitsOrOperation and 15
-                            while (bitsInBuffer < extraBitsOrOperation) {
-                                // Get extra bits for distance (up to 13)
+                        bitBuffer = bitBuffer ushr td[tempPointer * 3 + 1]
+                        bitsInBuffer -= td[tempPointer * 3 + 1]
+                        if (extraBitsOrOperation and 16 != 0) {
+                            extraBitsNeeded = extraBitsOrOperation and 15
+                            while (bitsInBuffer < extraBitsNeeded) {
                                 bytesAvailable--
                                 bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
                                 bitsInBuffer += 8
                             }
-
-                            copyDistance = tempTable[(tempTableIndex + tempPointer) * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsOrOperation])
-
-                            bitBuffer = bitBuffer ushr extraBitsOrOperation
-                            bitsInBuffer -= extraBitsOrOperation
-
-                            // Perform the copy operation
+                            copyDistance = td[tempPointer * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsNeeded])
+                            bitBuffer = bitBuffer ushr extraBitsNeeded
+                            bitsInBuffer -= extraBitsNeeded
                             outputBytesLeft -= bytesToCopy
-                            if (outputWritePointer >= copyDistance) {
-                                // Source offset is before destination - straightforward copy
-                                copySourcePointer = outputWritePointer - copyDistance
-                                if (outputWritePointer - copySourcePointer > 0 && 2 > (outputWritePointer - copySourcePointer)) {
-                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
-                                    bytesToCopy-- // minimum count is three,
-                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
-                                    bytesToCopy-- // so unroll loop a little
-                                } else {
-                                    s.window.copyInto(s.window, outputWritePointer, copySourcePointer, copySourcePointer + 2)
-                                    outputWritePointer += 2
-                                    copySourcePointer += 2
-                                    bytesToCopy -= 2
-                                }
-                            } else {
-                                // Source offset crosses window boundary - handle wraparound
-                                copySourcePointer = outputWritePointer - copyDistance
-                                do {
-                                    copySourcePointer += s.end // Force pointer within window
-                                } while (copySourcePointer < 0) // Covers invalid distances
-                                extraBitsOrOperation = s.end - copySourcePointer
-                                if (bytesToCopy > extraBitsOrOperation) {
-                                    // Source crosses window boundary - wrapped copy
-                                    bytesToCopy -= extraBitsOrOperation
-                                    if (outputWritePointer - copySourcePointer > 0 && extraBitsOrOperation > (outputWritePointer - copySourcePointer)) {
-                                        do {
-                                            s.window[outputWritePointer++] = s.window[copySourcePointer++]
-                                        } while (--extraBitsOrOperation != 0)
-                                    } else {
-                                        s.window.copyInto(s.window, outputWritePointer, copySourcePointer, copySourcePointer + extraBitsOrOperation)
-                                        outputWritePointer += extraBitsOrOperation
-                                    }
-                                    copySourcePointer = 0 // Copy rest from start of window
-                                }
-                            }
-
-                            // Copy all remaining bytes or what's left
-                            if (outputWritePointer - copySourcePointer > 0 && bytesToCopy > (outputWritePointer - copySourcePointer)) {
-                                do {
-                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
-                                } while (--bytesToCopy != 0)
-                            } else {
-                                s.window.copyInto(s.window, outputWritePointer, copySourcePointer, copySourcePointer + bytesToCopy)
-                                outputWritePointer += bytesToCopy
+                            copySourcePointer = outputWritePointer - copyDistance
+                            while (copySourcePointer < 0) copySourcePointer += s.end
+                            while (bytesToCopy-- > 0) {
+                                s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                if (copySourcePointer == s.end) copySourcePointer = 0
                             }
                             break
-                        } else if ((extraBitsOrOperation and 64) == 0) {
-                            // Another level of indirection needed for distance
-                            tempPointer += tempTable[(tempTableIndex + tempPointer) * 3 + 2]
-                            tempPointer += (bitBuffer and IBLK_INFLATE_MASK[extraBitsOrOperation])
-                            extraBitsOrOperation = tempTable[(tempTableIndex + tempPointer) * 3]
+                        } else if (extraBitsOrOperation and 64 == 0) {
+                            tempPointer = tdIndex + td[tempPointer * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsOrOperation])
+                            extraBitsOrOperation = td[tempPointer * 3]
                         } else {
-                            // Invalid distance code
                             z.msg = "invalid distance code"
-
-                            bytesToCopy = z.availIn - bytesAvailable
-                            bytesToCopy = (bitsInBuffer ushr 3).coerceAtMost(bytesToCopy)
-                            bytesAvailable += bytesToCopy
-                            inputPointer -= bytesToCopy
-                            bitsInBuffer -= bytesToCopy shl 3
-
+                            val errBytes = z.availIn - bytesAvailable - (bitsInBuffer shr 3)
+                            bytesAvailable += errBytes
+                            inputPointer -= errBytes
+                            bitsInBuffer -= errBytes shl 3
                             s.bitb = bitBuffer
                             s.bitk = bitsInBuffer
                             z.availIn = bytesAvailable
                             z.totalIn += inputPointer - z.nextInIndex
                             z.nextInIndex = inputPointer
                             s.write = outputWritePointer
-
                             return Z_DATA_ERROR
                         }
                     } while (true)
                     break
                 }
-
-                if ((tempTable[(tempTableIndex + tempPointer) * 3] and 64) == 0) {
-                    // Another level of indirection needed for literal/length
-                    tempPointer += tempTable[(tempTableIndex + tempPointer) * 3 + 2]
-                    tempPointer += (bitBuffer and IBLK_INFLATE_MASK[tempTable[(tempTableIndex + tempPointer) * 3]])
-                    if (tempTable[(tempTableIndex + tempPointer) * 3] == 0) {
-                        // Direct literal after indirection
-                        val tableBits = tempTable[(tempTableIndex + tempPointer) * 3 + 1]
-                        val literalValue = tempTable[(tempTableIndex + tempPointer) * 3 + 2]
-                        
-                        ZlibLogger.debug("[FAST_INDIRECT] tempPointer=$tempPointer, tableIndex=${(tempTableIndex + tempPointer) * 3}, exop=${tempTable[(tempTableIndex + tempPointer) * 3]}, bits=$tableBits, base=$literalValue")
-                        
-                        bitBuffer = bitBuffer ushr tableBits
-                        bitsInBuffer -= tableBits
-
-                        ZlibLogger.debug("[FAST_LITERAL_INDIRECT] Writing literal: $literalValue ('${literalValue.toChar()}') at position $outputWritePointer")
-                        s.window[outputWritePointer++] = literalValue.toByte()
+                if (extraBitsOrOperation and 64 == 0) {
+                    tempPointer = tlIndex + tl[tempPointer * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsOrOperation])
+                    extraBitsOrOperation = tl[tempPointer * 3]
+                    if (extraBitsOrOperation == 0) {
+                        bitBuffer = bitBuffer ushr tl[tempPointer * 3 + 1]
+                        bitsInBuffer -= tl[tempPointer * 3 + 1]
+                        s.window[outputWritePointer++] = tl[tempPointer * 3 + 2].toByte()
                         outputBytesLeft--
                         break
                     }
-                } else if (tempTable[(tempTableIndex + tempPointer) * 3] and 32 != 0) {
-                    // End of block marker found
-                    bytesToCopy = z.availIn - bytesAvailable
-                    bytesToCopy = (bitsInBuffer ushr 3).coerceAtMost(bytesToCopy)
-                    bytesAvailable += bytesToCopy
-                    inputPointer -= bytesToCopy
-                    bitsInBuffer -= bytesToCopy shl 3
-
+                } else if (extraBitsOrOperation and 32 != 0) {
+                    val errBytes = z.availIn - bytesAvailable - (bitsInBuffer shr 3)
+                    bytesAvailable += errBytes
+                    inputPointer -= errBytes
+                    bitsInBuffer -= errBytes shl 3
                     s.bitb = bitBuffer
                     s.bitk = bitsInBuffer
                     z.availIn = bytesAvailable
                     z.totalIn += inputPointer - z.nextInIndex
                     z.nextInIndex = inputPointer
                     s.write = outputWritePointer
-
                     return Z_STREAM_END
                 } else {
-                    // Invalid literal/length code
                     z.msg = "invalid literal/length code"
-
-                    bytesToCopy = z.availIn - bytesAvailable
-                    bytesToCopy = (bitsInBuffer ushr 3).coerceAtMost(bytesToCopy)
-                    bytesAvailable += bytesToCopy
-                    inputPointer -= bytesToCopy
-                    bitsInBuffer -= bytesToCopy shl 3
-
+                    val errBytes = z.availIn - bytesAvailable - (bitsInBuffer shr 3)
+                    bytesAvailable += errBytes
+                    inputPointer -= errBytes
+                    bitsInBuffer -= errBytes shl 3
                     s.bitb = bitBuffer
                     s.bitk = bitsInBuffer
                     z.availIn = bytesAvailable
                     z.totalIn += inputPointer - z.nextInIndex
                     z.nextInIndex = inputPointer
                     s.write = outputWritePointer
-
                     return Z_DATA_ERROR
                 }
             } while (true)
