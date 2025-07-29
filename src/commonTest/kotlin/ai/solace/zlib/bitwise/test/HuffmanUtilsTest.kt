@@ -31,7 +31,7 @@ class HuffmanUtilsTest {
         assertEquals(0, HuffmanUtils.consumeBits(0, 0))
         assertEquals(0, HuffmanUtils.consumeBits(0xFF, 8))
         assertEquals(0x12, HuffmanUtils.consumeBits(0x1234, 8))
-        assertEquals(0x1, HuffmanUtils.consumeBits(0x1234, 4))
+        assertEquals(0x123, HuffmanUtils.consumeBits(0x1234, 4)) // Fixed: 0x1234 >> 4 = 0x123
         
         // Test with real-world examples
         val bitBuffer = 0b10110101 // Binary representation
@@ -48,8 +48,8 @@ class HuffmanUtilsTest {
         // Test adding bits to an empty buffer
         assertEquals(0x5A, HuffmanUtils.addBits(0, 0x5A.toByte(), 0))
         
-        // Test adding bits to a non-empty buffer
-        assertEquals(0x5A3C, HuffmanUtils.addBits(0x5A, 0x3C.toByte(), 8))
+        // Test adding bits to a non-empty buffer  
+        assertEquals(0x3C5A, HuffmanUtils.addBits(0x5A, 0x3C.toByte(), 8)) // Fixed: 0x5A | (0x3C << 8) = 0x3C5A
         
         // Test with different bit counts
         assertEquals(0x5A, HuffmanUtils.addBits(0, 0x5A.toByte(), 0))
@@ -57,7 +57,7 @@ class HuffmanUtilsTest {
         assertEquals(0x5A0000, HuffmanUtils.addBits(0, 0x5A.toByte(), 16))
         
         // Test with existing bits in the buffer
-        assertEquals(0x123405A, HuffmanUtils.addBits(0x1234, 0x5A.toByte(), 8))
+        assertEquals(0x5A34, HuffmanUtils.addBits(0x1234, 0x5A.toByte(), 8)) // Fixed: 0x1234 | (0x5A << 8) = 0x5A34 (23092)
     }
     
     @Test
@@ -107,7 +107,7 @@ class HuffmanUtilsTest {
         
         // Check if a specific bit is set in the remaining buffer
         assertTrue(HuffmanUtils.isBitSet(bitBuffer, 0)) // First bit should be 1
-        assertFalse(HuffmanUtils.isBitSet(bitBuffer, 1)) // Second bit should be 0
+        assertTrue(HuffmanUtils.isBitSet(bitBuffer, 1)) // Second bit should be 1 (0x5A >> 3 = 11 = 1011 binary)
         
         // Add more bits
         bitBuffer = HuffmanUtils.addBits(bitBuffer, 0x3C.toByte(), bitCount)
@@ -115,6 +115,6 @@ class HuffmanUtilsTest {
         
         // Extract another code
         val code2 = HuffmanUtils.extractCode(bitBuffer, 0x1F) // Extract 5 bits
-        assertEquals(0x1B, code2) // 11011 in binary
+        assertEquals(0xB, code2) // Fixed: Should be 11 (0xB) not 27 (0x1B)
     }
 }

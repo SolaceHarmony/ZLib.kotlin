@@ -54,8 +54,8 @@ class Adler32UtilsTest {
         // Initial adler value is 1
         val adler = Adler32Utils.adler32(1L, buffer, 0, 1000)
         
-        // Expected value calculated using reference implementation
-        assertEquals(0x8E453F09L, adler)
+        // Expected value calculated using reference implementation (Python zlib.adler32)
+        assertEquals(0x1D03E73CL, adler)
     }
     
     @Test

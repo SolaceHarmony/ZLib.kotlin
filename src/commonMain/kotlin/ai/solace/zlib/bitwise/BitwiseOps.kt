@@ -124,6 +124,118 @@ class BitwiseOps {
         }
         
         /**
+         * Performs left shift using arithmetic operations (multiplication by powers of 2)
+         * @param value The value to shift
+         * @param bits Number of bits to shift left (0-31)
+         * @return The shifted value
+         */
+        fun leftShiftArithmetic(value: Int, bits: Int): Int {
+            if (bits < 0 || bits > 31) return 0
+            if (bits == 0) return value
+            var result = value
+            repeat(bits) { result *= 2 }
+            return result
+        }
+        
+        /**
+         * Performs right shift using arithmetic operations (division by powers of 2)
+         * @param value The value to shift
+         * @param bits Number of bits to shift right (0-31)
+         * @return The shifted value
+         */
+        fun rightShiftArithmetic(value: Int, bits: Int): Int {
+            if (bits < 0 || bits > 31) return 0
+            if (bits == 0) return value
+            var result = value
+            repeat(bits) { result /= 2 }
+            return result
+        }
+        
+        /**
+         * Creates a bit mask using arithmetic operations
+         * @param bits Number of bits to set (0-32)
+         * @return An integer with the lowest 'bits' bits set to 1
+         */
+        fun createMaskArithmetic(bits: Int): Int {
+            if (bits < 0 || bits > 32) throw IllegalArgumentException("Bits must be between 0 and 32")
+            if (bits == 0) return 0
+            if (bits == 32) return -1
+            
+            // Calculate 2^bits - 1 using repeated multiplication
+            var result = 1
+            repeat(bits) { result *= 2 }
+            return result - 1
+        }
+        
+        /**
+         * Extracts the lowest N bits from a value using arithmetic operations
+         * @param value The value to extract bits from
+         * @param bits Number of bits to extract
+         * @return The value of the lowest 'bits' bits
+         */
+        fun extractBitsArithmetic(value: Int, bits: Int): Int {
+            if (bits <= 0) return 0
+            if (bits >= 32) return value
+            val mask = createMaskArithmetic(bits)
+            return value % (mask + 1)
+        }
+        
+        /**
+         * Checks if a bit is set using arithmetic operations
+         * @param value The value to check
+         * @param bitPosition The position of the bit to check (0-based from LSB)
+         * @return true if the bit is set, false otherwise
+         */
+        fun isBitSetArithmetic(value: Int, bitPosition: Int): Boolean {
+            if (bitPosition < 0 || bitPosition >= 32) return false
+            val powerOf2 = leftShiftArithmetic(1, bitPosition)
+            return (value / powerOf2) % 2 == 1
+        }
+        
+        /**
+         * Performs bitwise OR using arithmetic operations for combining non-overlapping bit fields
+         * This only works correctly when the two values don't have overlapping bits set
+         * @param value1 First value
+         * @param value2 Second value (must be non-overlapping with value1)
+         * @return The combined value
+         */
+        fun orArithmetic(value1: Int, value2: Int): Int {
+            return value1 + value2
+        }
+        
+        /**
+         * Performs bitwise OR using arithmetic operations that handles overlapping bits correctly
+         * @param value1 First value
+         * @param value2 Second value
+         * @return The combined value (value1 OR value2)
+         */
+        fun orArithmeticGeneral(value1: Int, value2: Int): Int {
+            var result = 0
+            var powerOf2 = 1
+            var remaining1 = value1
+            var remaining2 = value2
+            
+            // Process each bit position
+            for (i in 0 until 32) {
+                if (remaining1 == 0 && remaining2 == 0) break
+                
+                val bit1 = remaining1 % 2
+                val bit2 = remaining2 % 2
+                
+                // OR the bits: 0|0=0, 0|1=1, 1|0=1, 1|1=1
+                if (bit1 == 1 || bit2 == 1) {
+                    result += powerOf2
+                }
+                
+                remaining1 /= 2
+                remaining2 /= 2
+                powerOf2 *= 2
+            }
+            
+            return result
+        }
+
+        /**
          * Performs a bitwise rotation to the left
          * @param value The value to rotate
          * @param bits Number of bits to rotate by
