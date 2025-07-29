@@ -26,9 +26,9 @@ class Adler32UtilsTest {
         
         // Expected values:
         // s1 = 1 + 0x61 = 0x62
-        // s2 = 1 + 0x62 = 0x63
-        // adler32 = (s2 << 16) | s1 = 0x630062
-        assertEquals(0x630062L, adler)
+        // s2 = 0 + 0x62 = 0x62 (s2 starts at 0, not 1)
+        // adler32 = (s2 << 16) | s1 = 0x00620062
+        assertEquals(0x00620062L, adler)
     }
     
     @Test
@@ -41,9 +41,9 @@ class Adler32UtilsTest {
         
         // Expected values:
         // s1 = 1 + 0x61 + 0x62 + 0x63 = 0x127
-        // s2 = 1 + (1 + 0x61) + (1 + 0x61 + 0x62) + (1 + 0x61 + 0x62 + 0x63) = 0x2D0
-        // adler32 = (s2 << 16) | s1 = 0x2D00127
-        assertEquals(0x2D00127L, adler)
+        // s2 = 0 + (1 + 0x61) + (1 + 0x61 + 0x62) + (1 + 0x61 + 0x62 + 0x63) = 0x24D
+        // adler32 = (s2 << 16) | s1 = 0x024D0127
+        assertEquals(0x024D0127L, adler)
     }
     
     @Test

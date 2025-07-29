@@ -1,7 +1,11 @@
 package ai.solace.zlib.util
 
+import ai.solace.zlib.bitwise.BitwiseOps
+
 /**
  * Utility functions for bit manipulation operations.
+ * 
+ * This class now delegates to BitwiseOps for the actual implementation.
  */
 object BitUtils {
     /**
@@ -26,11 +30,7 @@ object BitUtils {
      * @return The result of the unsigned right shift operation
      */
     fun urShift(number: Int, bits: Int): Int {
-        return if (number >= 0) {
-            number ushr bits
-        } else {
-            (number ushr bits) + (2 shl bits.inv())
-        }
+        return BitwiseOps.urShift(number, bits)
     }
 
     /**
@@ -55,10 +55,6 @@ object BitUtils {
      * @return The result of the unsigned right shift operation
      */
     fun urShift(number: Long, bits: Int): Long {
-        return if (number >= 0) {
-            number ushr bits
-        } else {
-            (number ushr bits) + (2L shl bits.inv())
-        }
+        return BitwiseOps.urShift(number, bits)
     }
 }
