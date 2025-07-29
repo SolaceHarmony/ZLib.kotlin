@@ -8,3 +8,4 @@ Repository cleaned of bot references
 /orig/
 /.kotlin/
 .DS_Store
+.idea/
