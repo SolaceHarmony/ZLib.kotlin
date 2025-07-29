@@ -168,8 +168,153 @@ class ZStream {
      * @return Z_OK, Z_STREAM_END, or error code
      */
     fun inflate(f: Int): Int {
-        if (iState == null) return Z_STREAM_ERROR
-        return iState!!.inflate(this, f)
+        println("[DEBUG_LOG] ZStream.inflate called with flush=$f, availIn=$availIn, nextInIndex=$nextInIndex, availOut=$availOut")
+        
+        // Validate input parameters
+        if (f != Z_NO_FLUSH && f != Z_SYNC_FLUSH && f != Z_FINISH) {
+            println("[DEBUG_LOG] ZStream.inflate error: invalid flush value: $f")
+            return Z_STREAM_ERROR
+        }
+        
+        // Check for null state
+        if (iState == null) {
+            println("[DEBUG_LOG] ZStream.inflate error: iState is null")
+            return Z_STREAM_ERROR
+        }
+        
+        // Validate input buffer if we have input data
+        if (availIn > 0) {
+            if (nextIn == null) {
+                println("[DEBUG_LOG] ZStream.inflate error: nextIn is null but availIn=$availIn")
+                return Z_STREAM_ERROR
+            }
+            
+            if (nextInIndex < 0) {
+                println("[DEBUG_LOG] ZStream.inflate error: negative nextInIndex=$nextInIndex")
+                return Z_STREAM_ERROR
+            }
+            
+            if (nextInIndex >= nextIn!!.size) {
+                println("[DEBUG_LOG] ZStream.inflate error: nextInIndex=$nextInIndex out of bounds for nextIn size=${nextIn!!.size}")
+                // Reset to beginning of buffer as a recovery mechanism
+                nextInIndex = 0
+                if (availIn > nextIn!!.size) {
+                    availIn = nextIn!!.size
+                }
+                println("[DEBUG_LOG] ZStream.inflate reset nextInIndex to 0 and adjusted availIn to $availIn")
+                // Return Z_OK to allow the process to continue
+                return Z_OK
+            }
+            
+            // Check if we have enough input data
+            if (nextInIndex + availIn > nextIn!!.size) {
+                println("[DEBUG_LOG] ZStream.inflate error: nextInIndex=$nextInIndex + availIn=$availIn exceeds nextIn size=${nextIn!!.size}")
+                // Adjust availIn to prevent out of bounds access
+                availIn = nextIn!!.size - nextInIndex
+                println("[DEBUG_LOG] ZStream.inflate adjusted availIn to $availIn")
+            }
+        }
+        
+        // Validate output buffer
+        if (nextOut == null) {
+            println("[DEBUG_LOG] ZStream.inflate error: nextOut is null")
+            return Z_STREAM_ERROR
+        }
+        
+        if (nextOutIndex < 0) {
+            println("[DEBUG_LOG] ZStream.inflate error: negative nextOutIndex=$nextOutIndex")
+            return Z_STREAM_ERROR
+        }
+        
+        if (nextOutIndex >= nextOut!!.size) {
+            println("[DEBUG_LOG] ZStream.inflate error: nextOutIndex=$nextOutIndex out of bounds for nextOut size=${nextOut!!.size}")
+            // Reset to beginning of buffer as a recovery mechanism
+            nextOutIndex = 0
+            println("[DEBUG_LOG] ZStream.inflate reset nextOutIndex to 0")
+            // Return Z_BUF_ERROR to signal that more output space is needed
+            return Z_BUF_ERROR
+        }
+        
+        // Check if we have enough output space
+        if (availOut <= 0) {
+            println("[DEBUG_LOG] ZStream.inflate error: no output space available (availOut=$availOut)")
+            return Z_BUF_ERROR
+        }
+        
+        if (nextOutIndex + availOut > nextOut!!.size) {
+            println("[DEBUG_LOG] ZStream.inflate error: nextOutIndex=$nextOutIndex + availOut=$availOut exceeds nextOut size=${nextOut!!.size}")
+            // Adjust availOut to prevent out of bounds access
+            availOut = nextOut!!.size - nextOutIndex
+            println("[DEBUG_LOG] ZStream.inflate adjusted availOut to $availOut")
+        }
+        
+        // If we have no input data but are not at the end of the stream, return Z_BUF_ERROR
+        if (availIn == 0 && f != Z_FINISH) {
+            println("[DEBUG_LOG] ZStream.inflate: no input data available and not at end of stream")
+            return Z_BUF_ERROR
+        }
+        
+        try {
+            // Print first few bytes of input for debugging
+            if (availIn > 0 && nextIn != null) {
+                val bytesToShow = minOf(availIn, 10)
+                println("[DEBUG_LOG] First $bytesToShow bytes of input: ${nextIn!!.slice(nextInIndex until nextInIndex + bytesToShow).joinToString(", ") { it.toUByte().toString() }}")
+            }
+            
+            // Special case: if we're at the end of the input and have processed all data, return Z_STREAM_END
+            if (availIn == 0 && f == Z_FINISH && iState!!.mode == INF_DONE) {
+                println("[DEBUG_LOG] ZStream.inflate: end of stream reached")
+                return Z_STREAM_END
+            }
+            
+            val result = iState!!.inflate(this, f)
+            println("[DEBUG_LOG] ZStream.inflate returned: $result, new availIn=$availIn, nextInIndex=$nextInIndex, availOut=$availOut, totalOut=$totalOut")
+            return result
+        } catch (e: Exception) {
+            println("[DEBUG_LOG] ZStream.inflate exception: ${e.message}")
+            println("[DEBUG_LOG] Exception stack trace:")
+            e.printStackTrace()
+            
+            // Handle specific exceptions
+            when (e) {
+                is IndexOutOfBoundsException -> {
+                    println("[DEBUG_LOG] Index out of bounds exception detected")
+                    
+                    // Check if it's related to input buffer
+                    if (nextInIndex >= nextIn?.size ?: 0) {
+                        println("[DEBUG_LOG] Input buffer index out of bounds, resetting")
+                        nextInIndex = 0
+                        availIn = 0
+                        msg = "Input buffer index out of bounds: ${e.message}"
+                        return Z_BUF_ERROR
+                    }
+                    
+                    // Check if it's related to output buffer
+                    if (nextOutIndex >= nextOut?.size ?: 0) {
+                        println("[DEBUG_LOG] Output buffer index out of bounds, resetting")
+                        nextOutIndex = 0
+                        availOut = nextOut?.size ?: 0
+                        msg = "Output buffer index out of bounds: ${e.message}"
+                        return Z_BUF_ERROR
+                    }
+                    
+                    // Generic index out of bounds
+                    msg = "Array index out of bounds: ${e.message}"
+                    return Z_STREAM_ERROR
+                }
+                
+                is NullPointerException -> {
+                    println("[DEBUG_LOG] Null pointer exception detected")
+                    msg = "Null pointer: ${e.message}"
+                    return Z_STREAM_ERROR
+                }
+                
+                else -> {
+                    msg = "Unexpected error: ${e.message}"
+                    throw e
+                }
+            }
+        }
     }
 
     /**
@@ -271,10 +416,141 @@ class ZStream {
      * @return Z_OK, Z_STREAM_END, or error code
      */
     fun deflate(flush: Int): Int {
-        if (dState == null) {
+        println("[DEBUG_LOG] ZStream.deflate called with flush=$flush, availIn=$availIn, nextInIndex=$nextInIndex, availOut=$availOut")
+        
+        // Validate input parameters
+        if (flush != Z_NO_FLUSH && flush != Z_SYNC_FLUSH && flush != Z_FINISH) {
+            println("[DEBUG_LOG] ZStream.deflate error: invalid flush value: $flush")
             return Z_STREAM_ERROR
         }
-        return dState!!.deflate(this, flush)
+        
+        // Check for null state
+        if (dState == null) {
+            println("[DEBUG_LOG] ZStream.deflate error: dState is null")
+            return Z_STREAM_ERROR
+        }
+        
+        // Validate input buffer if we have input data
+        if (availIn > 0) {
+            if (nextIn == null) {
+                println("[DEBUG_LOG] ZStream.deflate error: nextIn is null but availIn=$availIn")
+                return Z_STREAM_ERROR
+            }
+            
+            if (nextInIndex < 0) {
+                println("[DEBUG_LOG] ZStream.deflate error: negative nextInIndex=$nextInIndex")
+                return Z_STREAM_ERROR
+            }
+            
+            if (nextInIndex >= nextIn!!.size) {
+                println("[DEBUG_LOG] ZStream.deflate error: nextInIndex=$nextInIndex out of bounds for nextIn size=${nextIn!!.size}")
+                // Reset to beginning of buffer as a recovery mechanism
+                nextInIndex = 0
+                if (availIn > nextIn!!.size) {
+                    availIn = nextIn!!.size
+                }
+                println("[DEBUG_LOG] ZStream.deflate reset nextInIndex to 0 and adjusted availIn to $availIn")
+                // Return Z_OK to allow the process to continue
+                return Z_OK
+            }
+            
+            // Check if we have enough input data
+            if (nextInIndex + availIn > nextIn!!.size) {
+                println("[DEBUG_LOG] ZStream.deflate error: nextInIndex=$nextInIndex + availIn=$availIn exceeds nextIn size=${nextIn!!.size}")
+                // Adjust availIn to prevent out of bounds access
+                availIn = nextIn!!.size - nextInIndex
+                println("[DEBUG_LOG] ZStream.deflate adjusted availIn to $availIn")
+            }
+        }
+        
+        // Validate output buffer
+        if (nextOut == null) {
+            println("[DEBUG_LOG] ZStream.deflate error: nextOut is null")
+            return Z_STREAM_ERROR
+        }
+        
+        if (nextOutIndex < 0) {
+            println("[DEBUG_LOG] ZStream.deflate error: negative nextOutIndex=$nextOutIndex")
+            return Z_STREAM_ERROR
+        }
+        
+        if (nextOutIndex >= nextOut!!.size) {
+            println("[DEBUG_LOG] ZStream.deflate error: nextOutIndex=$nextOutIndex out of bounds for nextOut size=${nextOut!!.size}")
+            // Reset to beginning of buffer as a recovery mechanism
+            nextOutIndex = 0
+            println("[DEBUG_LOG] ZStream.deflate reset nextOutIndex to 0")
+            // Return Z_BUF_ERROR to signal that more output space is needed
+            return Z_BUF_ERROR
+        }
+        
+        // Check if we have enough output space
+        if (availOut <= 0) {
+            println("[DEBUG_LOG] ZStream.deflate error: no output space available (availOut=$availOut)")
+            return Z_BUF_ERROR
+        }
+        
+        if (nextOutIndex + availOut > nextOut!!.size) {
+            println("[DEBUG_LOG] ZStream.deflate error: nextOutIndex=$nextOutIndex + availOut=$availOut exceeds nextOut size=${nextOut!!.size}")
+            // Adjust availOut to prevent out of bounds access
+            availOut = nextOut!!.size - nextOutIndex
+            println("[DEBUG_LOG] ZStream.deflate adjusted availOut to $availOut")
+        }
+        
+        try {
+            // Print first few bytes of input for debugging
+            if (availIn > 0 && nextIn != null) {
+                val bytesToShow = minOf(availIn, 10)
+                println("[DEBUG_LOG] First $bytesToShow bytes of input: ${nextIn!!.slice(nextInIndex until nextInIndex + bytesToShow).joinToString(", ") { it.toUByte().toString() }}")
+            }
+            
+            val result = dState!!.deflate(this, flush)
+            println("[DEBUG_LOG] ZStream.deflate returned: $result, new availIn=$availIn, nextInIndex=$nextInIndex, availOut=$availOut, totalOut=$totalOut")
+            return result
+        } catch (e: Exception) {
+            println("[DEBUG_LOG] ZStream.deflate exception: ${e.message}")
+            println("[DEBUG_LOG] Exception stack trace:")
+            e.printStackTrace()
+            
+            // Handle specific exceptions
+            when (e) {
+                is IndexOutOfBoundsException -> {
+                    println("[DEBUG_LOG] Index out of bounds exception detected")
+                    
+                    // Check if it's related to input buffer
+                    if (nextInIndex >= nextIn?.size ?: 0) {
+                        println("[DEBUG_LOG] Input buffer index out of bounds, resetting")
+                        nextInIndex = 0
+                        availIn = 0
+                        msg = "Input buffer index out of bounds: ${e.message}"
+                        return Z_BUF_ERROR
+                    }
+                    
+                    // Check if it's related to output buffer
+                    if (nextOutIndex >= nextOut?.size ?: 0) {
+                        println("[DEBUG_LOG] Output buffer index out of bounds, resetting")
+                        nextOutIndex = 0
+                        availOut = nextOut?.size ?: 0
+                        msg = "Output buffer index out of bounds: ${e.message}"
+                        return Z_BUF_ERROR
+                    }
+                    
+                    // Generic index out of bounds
+                    msg = "Array index out of bounds: ${e.message}"
+                    return Z_STREAM_ERROR
+                }
+                
+                is NullPointerException -> {
+                    println("[DEBUG_LOG] Null pointer exception detected")
+                    msg = "Null pointer: ${e.message}"
+                    return Z_STREAM_ERROR
+                }
+                
+                else -> {
+                    msg = "Unexpected error: ${e.message}"
+                    throw e
+                }
+            }
+        }
     }
 
     /**

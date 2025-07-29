@@ -167,14 +167,17 @@ internal class Inflate {
      *         or an error code (Z_STREAM_ERROR, Z_DATA_ERROR, etc.)
      */
     internal fun inflate(z: ZStream?, f: Int): Int {
-        ZlibLogger.debug("[INFLATE_DEBUG] inflate() called with flush=$f")
+        println("[DEBUG_LOG] Inflate.inflate() called with flush=$f")
         var r: Int
         var b: Int
 
         if (z == null || z.iState == null || z.nextIn == null) {
+            println("[DEBUG_LOG] Inflate.inflate error: z=$z, z.iState=${z?.iState}, z.nextIn=${z?.nextIn}")
             return Z_STREAM_ERROR
         }
 
+        println("[DEBUG_LOG] Initial state: mode=${z.iState!!.mode}, availIn=${z.availIn}, nextInIndex=${z.nextInIndex}, availOut=${z.availOut}")
+        
         // Initialize with appropriate value based on flush parameter
         val fMut = if (f == Z_FINISH) Z_BUF_ERROR else Z_OK
         r = Z_BUF_ERROR
@@ -189,60 +192,93 @@ internal class Inflate {
             if (iterations > maxIterations) {
                 z.msg = "Too many iterations during inflation, possible corrupt data"
                 z.iState!!.mode = INF_BAD
+                println("[DEBUG_LOG] Too many iterations: $iterations")
                 return Z_DATA_ERROR
             }
 
+            println("[DEBUG_LOG] Iteration $iterations: mode=${z.iState!!.mode}, availIn=${z.availIn}, nextInIndex=${z.nextInIndex}, availOut=${z.availOut}")
+
             // Check for exhausted output buffer before processing
             if (z.availOut == 0 && z.iState!!.mode != INF_BAD) {
+                println("[DEBUG_LOG] Output buffer exhausted, returning Z_BUF_ERROR")
                 return Z_BUF_ERROR
             }
+            
+            // Store the current mode for debugging
+            val currentMode = z.iState!!.mode
 
             when (z.iState!!.mode) {
                 INF_METHOD -> {
-                    if (z.availIn == 0) return r
+                    println("[DEBUG_LOG] Processing INF_METHOD state")
+                    // Need at least 1 byte for this state
+                    if (z.availIn < 1) {
+                        println("[DEBUG_LOG] Not enough input data for INF_METHOD, returning $r")
+                        return r
+                    }
                     // Removed unused assignment to r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.method = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    try {
+                        z.iState!!.method = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                        println("[DEBUG_LOG] Read method byte: ${z.iState!!.method}")
+                    } catch (e: Exception) {
+                        println("[DEBUG_LOG] Exception in INF_METHOD: ${e.message}")
+                        println("[DEBUG_LOG] nextIn size: ${z.nextIn?.size}, nextInIndex: ${z.nextInIndex}")
+                        throw e
+                    }
                     if ((z.iState!!.method and 0xf) != Z_DEFLATED) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "unknown compression method"
                         z.iState!!.marker = 5 // can't try inflateSync
+                        println("[DEBUG_LOG] Unknown compression method: ${z.iState!!.method}")
                         break
                     }
                     if ((z.iState!!.method shr 4) + 8 > z.iState!!.wbits) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "invalid window size"
                         z.iState!!.marker = 5 // can't try inflateSync
+                        println("[DEBUG_LOG] Invalid window size: ${(z.iState!!.method shr 4) + 8} > ${z.iState!!.wbits}")
                         break
                     }
                     z.iState!!.mode = INF_FLAG
+                    println("[DEBUG_LOG] Transitioning to INF_FLAG state")
                 }
 
                 INF_FLAG -> {
-                    if (z.availIn == 0) return r
+                    println("[DEBUG_LOG] Processing INF_FLAG state")
+                    // Need at least 1 byte for this state
+                    if (z.availIn < 1) {
+                        println("[DEBUG_LOG] Not enough input data for INF_FLAG, returning $r")
+                        return r
+                    }
                     // Removed unused assignment to r = fMut
 
                     z.availIn--
                     z.totalIn++
                     b = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    println("[DEBUG_LOG] Read flag byte: $b (0x${b.toString(16).uppercase()})")
 
                     if (((z.iState!!.method shl 8) + b) % 31 != 0) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "incorrect header check"
                         z.iState!!.marker = 5 // can't try inflateSync
+                        println("[DEBUG_LOG] Incorrect header check, transitioning to INF_BAD state")
                         break
                     }
 
                     if (b and PRESET_DICT == 0) {
                         z.iState!!.mode = INF_BLOCKS
-                        break
+                        println("[DEBUG_LOG] No preset dictionary, transitioning to INF_BLOCKS state")
+                        // Don't break here, continue to the next iteration with the INF_BLOCKS state
+                        continue
                     }
                     z.iState!!.mode = INF_DICT4
+                    println("[DEBUG_LOG] Preset dictionary found, transitioning to INF_DICT4 state")
                 }
 
                 INF_DICT4 -> {
-                    if (z.availIn == 0) return r
+                    // Need at least 1 byte for this state
+                    if (z.availIn < 1) return r
                     z.availIn--
                     z.totalIn++
                     z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 24)
@@ -250,7 +286,8 @@ internal class Inflate {
                 }
 
                 INF_DICT3 -> {
-                    if (z.availIn == 0) return r
+                    // Need at least 1 byte for this state
+                    if (z.availIn < 1) return r
 
                     z.availIn--
                     z.totalIn++
@@ -259,7 +296,8 @@ internal class Inflate {
                 }
 
                 INF_DICT2 -> {
-                    if (z.availIn == 0) return r
+                    // Need at least 1 byte for this state
+                    if (z.availIn < 1) return r
 
                     z.availIn--
                     z.totalIn++
@@ -268,7 +306,8 @@ internal class Inflate {
                 }
 
                 INF_DICT1 -> {
-                    if (z.availIn == 0) return r
+                    // Need at least 1 byte for this state
+                    if (z.availIn < 1) return r
 
                     z.availIn--
                     z.totalIn++
@@ -288,40 +327,78 @@ internal class Inflate {
                 }
 
                 INF_BLOCKS -> {
-                    r = z.iState!!.blocks!!.proc(z, r) // Call proc on blocks
+                    println("[DEBUG_LOG] Processing INF_BLOCKS state")
+                    
+                    // Verify blocks is not null before proceeding
+                    if (z.iState!!.blocks == null) {
+                        println("[DEBUG_LOG] Error: blocks is null in INF_BLOCKS state")
+                        z.iState!!.mode = INF_BAD
+                        z.msg = "blocks is null"
+                        return Z_DATA_ERROR
+                    }
+                    
+                    try {
+                        println("[DEBUG_LOG] Calling blocks.proc with r=$r, availIn=${z.availIn}, nextInIndex=${z.nextInIndex}")
+                        r = z.iState!!.blocks!!.proc(z, r) // Call proc on blocks
+                        println("[DEBUG_LOG] blocks.proc returned r=$r")
+                    } catch (e: Exception) {
+                        println("[DEBUG_LOG] Exception in blocks.proc: ${e.message}")
+                        println("[DEBUG_LOG] Exception stack trace: ${e.stackTraceToString()}")
+                        throw e
+                    }
+                    
                     if (r == Z_DATA_ERROR) {
+                        println("[DEBUG_LOG] Z_DATA_ERROR from blocks.proc, msg: ${z.msg}")
                         z.iState!!.mode = INF_BAD
                         z.iState!!.marker = 0 // can try inflateSync
-                        break
+                        // Return Z_DATA_ERROR directly instead of breaking to the end of the loop
+                        return Z_DATA_ERROR
                     }
                     if (r == Z_OK) {
                         r = fMut
+                        println("[DEBUG_LOG] Changed r to fMut=$fMut")
                     }
 
                     // Handle output buffer exhaustion
                     if (z.availOut == 0) {
+                        println("[DEBUG_LOG] Output buffer exhausted in INF_BLOCKS")
                         // If we can't output any more data but still have input to process
                         // return with buffer error so caller can provide more output space
                         if (z.availIn > 0) {
+                            println("[DEBUG_LOG] Still have input data, returning Z_BUF_ERROR")
                             return Z_BUF_ERROR
                         }
                     }
 
                     if (r != Z_STREAM_END) {
+                        println("[DEBUG_LOG] Not at stream end, returning r=$r")
                         return r
                     }
+                    
+                    println("[DEBUG_LOG] Stream end reached, resetting blocks")
                     r = fMut
-                    z.iState!!.blocks!!.reset(z, z.iState!!.was)
+                    try {
+                        z.iState!!.blocks!!.reset(z, z.iState!!.was)
+                    } catch (e: Exception) {
+                        println("[DEBUG_LOG] Exception in blocks.reset: ${e.message}")
+                        println("[DEBUG_LOG] Exception stack trace: ${e.stackTraceToString()}")
+                        throw e
+                    }
+                    
                     z.iState!!.mode = if (z.iState!!.nowrap != 0) INF_DONE else INF_CHECK4
+                    println("[DEBUG_LOG] Transitioning to ${if (z.iState!!.nowrap != 0) "INF_DONE" else "INF_CHECK4"} state")
                 }
 
                 INF_CHECK4 -> {
-                    if (z.availIn == 0) return r
+                    // Need at least 2 bytes for this state
+                    if (z.availIn < 2) return r
                     r = fMut
 
+                    // Read first byte
                     z.availIn--
                     z.totalIn++
-                    if (z.availIn == 0) return r
+                    
+                    // Read second byte
                     z.availIn--
                     z.totalIn++
                     z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 24) and 0xff000000L
@@ -329,7 +406,8 @@ internal class Inflate {
                 }
 
                 INF_CHECK3 -> {
-                    if (z.availIn == 0) return r
+                    // Need at least 1 byte for this state
+                    if (z.availIn < 1) return r
                     z.availIn--
                     z.totalIn++
                     z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 16) and 0x00ff0000L
@@ -337,7 +415,8 @@ internal class Inflate {
                 }
 
                 INF_CHECK2 -> {
-                    if (z.availIn == 0) return r
+                    // Need at least 1 byte for this state
+                    if (z.availIn < 1) return r
                     z.availIn--
                     z.totalIn++
                     z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 8) and 0x0000ff00L
@@ -345,7 +424,8 @@ internal class Inflate {
                 }
 
                 INF_CHECK1 -> {
-                    if (z.availIn == 0) return r
+                    // Need at least 1 byte for this state
+                    if (z.availIn < 1) return r
                     z.availIn--
                     z.totalIn++
                     z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() and 0x000000ffL
@@ -364,7 +444,18 @@ internal class Inflate {
                 INF_BAD -> return Z_DATA_ERROR
                 else -> return Z_STREAM_ERROR
             }
+            
+            // After processing a state, check if the mode has changed
+            if (z.iState!!.mode != currentMode) {
+                println("[DEBUG_LOG] Mode changed from $currentMode to ${z.iState!!.mode}, continuing to next iteration")
+                continue  // Continue to the next iteration with the new mode
+            } else {
+                println("[DEBUG_LOG] Mode unchanged, returning Z_OK")
+                return Z_OK
+            }
         }
+        
+        println("[DEBUG_LOG] Exited while loop, returning Z_OK")
         return Z_OK
     }
 
