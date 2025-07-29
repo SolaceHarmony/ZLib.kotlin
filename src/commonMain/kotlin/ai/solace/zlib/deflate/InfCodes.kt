@@ -612,9 +612,19 @@ internal class InfCodes {
         s: InfBlocks,
         z: ZStream
     ): Int {
-        ZlibLogger.debug("[FAST_DEBUG] inflateFast called with outputWrite=${s.write}, windowSize=${s.end}")
-        ZlibLogger.debug("[FAST_DEBUG] Initial window content at write position: '${if (s.write < s.window.size) s.window[s.write].toInt().toChar() else '?'}' (${if (s.write < s.window.size) s.window[s.write].toInt() else -1})")
-        ZlibLogger.debug("[FAST_DEBUG] Initial bit buffer: 0x${s.bitb.toString(16)}, bits: ${s.bitk}")
+        println("[DEBUG_LOG] inflateFast called with bl=$bl, bd=$bd, tlIndex=$tlIndex, tdIndex=$tdIndex")
+        println("[DEBUG_LOG] inflateFast called with outputWrite=${s.write}, windowSize=${s.end}")
+        println("[DEBUG_LOG] Initial window content at write position: '${if (s.write < s.window.size) s.window[s.write].toInt().toChar() else '?'}' (${if (s.write < s.window.size) s.window[s.write].toInt() else -1})")
+        println("[DEBUG_LOG] Initial bit buffer: 0x${s.bitb.toString(16)}, bits: ${s.bitk}")
+        println("[DEBUG_LOG] tl size=${tl.size}, td size=${td.size}")
+        
+        // Print the first few entries of the tables for debugging
+        if (tl.size >= 3) {
+            println("[DEBUG_LOG] First tl entry: [${tl[tlIndex * 3]}, ${tl[tlIndex * 3 + 1]}, ${tl[tlIndex * 3 + 2]}]")
+        }
+        if (td.size >= 3) {
+            println("[DEBUG_LOG] First td entry: [${td[tdIndex * 3]}, ${td[tdIndex * 3 + 1]}, ${td[tdIndex * 3 + 2]}]")
+        }
         
         var tempPointer: Int // Temporary table index
         var tempTable: IntArray // Temporary table reference
@@ -713,14 +723,19 @@ internal class InfCodes {
                         bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
                         bitsInBuffer += 8
                     }
-                    println("[DEBUG_LOG] Processing distance code: bitBuffer=$bitBuffer, distanceMask=$distanceMask, tdIndex=$tdIndex")
+                    println("[DEBUG_LOG] Processing distance code: bitBuffer=0x${bitBuffer.toString(16)}, distanceMask=0x${distanceMask.toString(16)}, tdIndex=$tdIndex")
                     
-                    // Check if tdIndex + (bitBuffer and distanceMask) is within bounds
-                    val distancePointer = tdIndex + (bitBuffer and distanceMask)
-                    println("[DEBUG_LOG] Distance pointer: $distancePointer, td.size=${td.size}")
+                    // Directly follow the C# implementation approach for distance code handling
+                    var t = bitBuffer and distanceMask
+                    println("[DEBUG_LOG] Distance code calculation: bitBuffer=0x${bitBuffer.toString(16)}, distanceMask=0x${distanceMask.toString(16)}, t=0x${t.toString(16)}")
                     
-                    if (distancePointer < 0 || distancePointer * 3 >= td.size) {
-                        println("[DEBUG_LOG] Distance pointer out of bounds: $distancePointer * 3 = ${distancePointer * 3}, td.size=${td.size}")
+                    // In C#: tp = td; tp_index = td_index; e = tp[(tp_index + t) * 3];
+                    val tp = td
+                    val tpIndex = tdIndex
+                    
+                    // Bounds check before accessing the array
+                    if ((tpIndex + t) * 3 >= tp.size) {
+                        println("[DEBUG_LOG] Distance pointer out of bounds: (tpIndex + t) * 3 = ${(tpIndex + t) * 3}, tp.size=${tp.size}")
                         z.msg = "invalid distance code - pointer out of bounds"
                         s.bitb = bitBuffer
                         s.bitk = bitsInBuffer
@@ -731,30 +746,26 @@ internal class InfCodes {
                         return Z_DATA_ERROR
                     }
                     
-                    tempPointer = distancePointer
-                    extraBitsOrOperation = td[tempPointer * 3]
-                    println("[DEBUG_LOG] extraBitsOrOperation=$extraBitsOrOperation")
+                    // Get the operation code (e in C#)
+                    var e = tp[(tpIndex + t) * 3]
+                    println("[DEBUG_LOG] Distance tree entry: e=$e, bits=${tp[(tpIndex + t) * 3 + 1]}, val=${tp[(tpIndex + t) * 3 + 2]}")
+                    
+                    // Use the operation code directly as in C#
+                    extraBitsOrOperation = e
                     
                     do {
-                        // Check if tempPointer * 3 + 1 and tempPointer * 3 + 2 are within bounds
-                        if (tempPointer * 3 + 2 >= td.size) {
-                            println("[DEBUG_LOG] tempPointer out of bounds: tempPointer=$tempPointer, index=${tempPointer * 3 + 2}, td.size=${td.size}")
-                            z.msg = "invalid distance code - table index out of bounds"
-                            s.bitb = bitBuffer
-                            s.bitk = bitsInBuffer
-                            z.availIn = bytesAvailable
-                            z.totalIn += inputPointer - z.nextInIndex
-                            z.nextInIndex = inputPointer
-                            s.write = outputWritePointer
-                            return Z_DATA_ERROR
-                        }
+                        // In C#: b >>= (tp[(tp_index + t) * 3 + 1]); k -= (tp[(tp_index + t) * 3 + 1]);
+                        bitBuffer = bitBuffer ushr tp[(tpIndex + t) * 3 + 1]
+                        bitsInBuffer -= tp[(tpIndex + t) * 3 + 1]
                         
-                        bitBuffer = bitBuffer ushr td[tempPointer * 3 + 1]
-                        bitsInBuffer -= td[tempPointer * 3 + 1]
-                        
-                        if (extraBitsOrOperation and 16 != 0) {
+                        // In C#: if ((e & 16) != 0)
+                        if (e and 16 != 0) {
                             println("[DEBUG_LOG] Distance code with extra bits")
-                            extraBitsNeeded = extraBitsOrOperation and 15
+                            
+                            // In C#: e &= 15;
+                            extraBitsNeeded = e and 15
+                            
+                            // Ensure we have enough bits for the extra bits
                             while (bitsInBuffer < extraBitsNeeded) {
                                 if (bytesAvailable <= 0) {
                                     println("[DEBUG_LOG] Not enough input bytes for extra bits")
@@ -772,15 +783,22 @@ internal class InfCodes {
                                 bitsInBuffer += 8
                             }
                             
-                            copyDistance = td[tempPointer * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsNeeded])
-                            println("[DEBUG_LOG] copyDistance=$copyDistance")
+                            // In C#: d = tp[(tp_index + t) * 3 + 2] + (b & inflate_mask[e]);
+                            copyDistance = tp[(tpIndex + t) * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsNeeded])
+                            println("[DEBUG_LOG] copyDistance=$copyDistance, extraBitsNeeded=$extraBitsNeeded, mask=0x${IBLK_INFLATE_MASK[extraBitsNeeded].toString(16)}")
                             
+                            // In C#: b >>= (e); k -= (e);
                             bitBuffer = bitBuffer ushr extraBitsNeeded
                             bitsInBuffer -= extraBitsNeeded
-                            outputBytesLeft -= bytesToCopy
-                            copySourcePointer = outputWritePointer - copyDistance
                             
-                            // Check if copyDistance is valid
+                            // In C#: m -= c;
+                            outputBytesLeft -= bytesToCopy
+                            
+                            // In C#: r = q - d;
+                            copySourcePointer = outputWritePointer - copyDistance
+                            println("[DEBUG_LOG] Copy source pointer: $copySourcePointer, outputWritePointer=$outputWritePointer")
+                            
+                            // In C#: if (d > s.end) { z.msg = "invalid distance code"; ... return Z_DATA_ERROR; }
                             if (copyDistance <= 0 || copyDistance > s.end) {
                                 println("[DEBUG_LOG] Invalid copy distance: $copyDistance, s.end=${s.end}")
                                 z.msg = "invalid distance code - distance too large"
@@ -793,15 +811,108 @@ internal class InfCodes {
                                 return Z_DATA_ERROR
                             }
                             
-                            while (copySourcePointer < 0) copySourcePointer += s.end
+                            // In C#: if (q >= d) { r = q - d; ... } else { r = q - d; do { r += s.end; } while (r < 0); ... }
+                            println("[DEBUG_LOG] Copying $bytesToCopy bytes from distance $copyDistance")
                             
-                            println("[DEBUG_LOG] Copying $bytesToCopy bytes from position $copySourcePointer to $outputWritePointer")
+                            // Directly follow the C# implementation for copy operation
+                            if (outputWritePointer >= copyDistance) {
+                                // Source is before destination in the buffer - can do direct copy
+                                // In C#: r = q - d;
+                                copySourcePointer = outputWritePointer - copyDistance
+                                println("[DEBUG_LOG] Direct copy: copySourcePointer=$copySourcePointer")
+                                
+                                // In C#: if (q - r > 0 && 2 > (q - r)) { ... } else { Array.Copy(s.window, r, s.window, q, 2); ... }
+                                // Check if we can optimize for small copies
+                                if (outputWritePointer - copySourcePointer > 0 && 2 > (outputWritePointer - copySourcePointer)) {
+                                    // In C#: s.window[q++] = s.window[r++]; c--; s.window[q++] = s.window[r++]; c--;
+                                    println("[DEBUG_LOG] Small copy optimization")
+                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                    bytesToCopy--
+                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                    bytesToCopy--
+                                } else {
+                                    // In C#: Array.Copy(s.window, r, s.window, q, 2); q += 2; r += 2; c -= 2;
+                                    println("[DEBUG_LOG] Array copy")
+                                    // Simulate Array.Copy with bounds checking
+                                    if (copySourcePointer < 0 || copySourcePointer + 2 > s.window.size || 
+                                        outputWritePointer < 0 || outputWritePointer + 2 > s.window.size) {
+                                        println("[DEBUG_LOG] Copy pointers out of bounds")
+                                        z.msg = "invalid distance code - copy pointers out of bounds"
+                                        s.bitb = bitBuffer
+                                        s.bitk = bitsInBuffer
+                                        z.availIn = bytesAvailable
+                                        z.totalIn += inputPointer - z.nextInIndex
+                                        z.nextInIndex = inputPointer
+                                        s.write = outputWritePointer
+                                        return Z_DATA_ERROR
+                                    }
+                                    
+                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                    bytesToCopy -= 2
+                                }
+                            } else {
+                                // Source is after destination or wraps around - need special handling
+                                // In C#: r = q - d; do { r += s.end; } while (r < 0);
+                                copySourcePointer = outputWritePointer - copyDistance
+                                do {
+                                    copySourcePointer += s.end
+                                } while (copySourcePointer < 0)
+                                println("[DEBUG_LOG] Wrap-around copy: copySourcePointer=$copySourcePointer")
+                                
+                                // In C#: e = s.end - r; if (c > e) { ... } 
+                                val e = s.end - copySourcePointer
+                                if (bytesToCopy > e) {
+                                    // Need to wrap around during copy
+                                    // In C#: c -= e; if (q - r > 0 && e > (q - r)) { ... } else { Array.Copy(s.window, r, s.window, q, e); ... }
+                                    bytesToCopy -= e
+                                    
+                                    if (outputWritePointer - copySourcePointer > 0 && e > (outputWritePointer - copySourcePointer)) {
+                                        // In C#: do { s.window[q++] = s.window[r++]; } while (--e != 0);
+                                        var tempE = e
+                                        while (tempE-- > 0) {
+                                            s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                        }
+                                    } else {
+                                        // In C#: Array.Copy(s.window, r, s.window, q, e); q += e; r += e; e = 0;
+                                        if (copySourcePointer < 0 || copySourcePointer + e > s.window.size || 
+                                            outputWritePointer < 0 || outputWritePointer + e > s.window.size) {
+                                            println("[DEBUG_LOG] Copy pointers out of bounds (first part)")
+                                            z.msg = "invalid distance code - copy pointers out of bounds"
+                                            s.bitb = bitBuffer
+                                            s.bitk = bitsInBuffer
+                                            z.availIn = bytesAvailable
+                                            z.totalIn += inputPointer - z.nextInIndex
+                                            z.nextInIndex = inputPointer
+                                            s.write = outputWritePointer
+                                            return Z_DATA_ERROR
+                                        }
+                                        
+                                        var tempE = e
+                                        while (tempE-- > 0) {
+                                            s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                        }
+                                    }
+                                    
+                                    // In C#: r = 0;
+                                    copySourcePointer = 0
+                                }
+                            }
                             
-                            while (bytesToCopy-- > 0) {
-                                // Check if copySourcePointer and outputWritePointer are within bounds
-                                if (copySourcePointer < 0 || copySourcePointer >= s.window.size || 
-                                    outputWritePointer < 0 || outputWritePointer >= s.window.size) {
-                                    println("[DEBUG_LOG] Copy pointers out of bounds: copySourcePointer=$copySourcePointer, outputWritePointer=$outputWritePointer, s.window.size=${s.window.size}")
+                            // In C#: if (q - r > 0 && c > (q - r)) { ... } else { Array.Copy(s.window, r, s.window, q, c); ... }
+                            // Copy remaining bytes
+                            if (outputWritePointer - copySourcePointer > 0 && bytesToCopy > (outputWritePointer - copySourcePointer)) {
+                                // In C#: do { s.window[q++] = s.window[r++]; } while (--c != 0);
+                                var count = bytesToCopy
+                                while (count-- > 0) {
+                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                    if (copySourcePointer == s.end) copySourcePointer = 0
+                                }
+                            } else {
+                                // In C#: Array.Copy(s.window, r, s.window, q, c); q += c; r += c; c = 0;
+                                if (copySourcePointer < 0 || copySourcePointer + bytesToCopy > s.window.size || 
+                                    outputWritePointer < 0 || outputWritePointer + bytesToCopy > s.window.size) {
+                                    println("[DEBUG_LOG] Copy pointers out of bounds (final part)")
                                     z.msg = "invalid distance code - copy pointers out of bounds"
                                     s.bitb = bitBuffer
                                     s.bitk = bitsInBuffer
@@ -812,16 +923,22 @@ internal class InfCodes {
                                     return Z_DATA_ERROR
                                 }
                                 
-                                s.window[outputWritePointer++] = s.window[copySourcePointer++]
-                                if (copySourcePointer == s.end) copySourcePointer = 0
+                                var count = bytesToCopy
+                                while (count-- > 0) {
+                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                    if (copySourcePointer == s.end) copySourcePointer = 0
+                                }
+                                bytesToCopy = 0
                             }
                             break
-                        } else if (extraBitsOrOperation and 64 == 0) {
+                        } else if (e and 64 == 0) {
                             println("[DEBUG_LOG] Next table reference")
                             
-                            // Check if td[tempPointer * 3 + 2] is valid
-                            if (tempPointer * 3 + 2 >= td.size) {
-                                println("[DEBUG_LOG] Table reference out of bounds: index=${tempPointer * 3 + 2}, td.size=${td.size}")
+                            // In C#: if ((e & 64) == 0) { t += tp[(tp_index + t) * 3 + 2]; t += (b & inflate_mask[e]); e = tp[(tp_index + t) * 3]; }
+                            
+                            // Check if tp[(tpIndex + t) * 3 + 2] is valid
+                            if ((tpIndex + t) * 3 + 2 >= tp.size) {
+                                println("[DEBUG_LOG] Table reference out of bounds: index=${(tpIndex + t) * 3 + 2}, tp.size=${tp.size}")
                                 z.msg = "invalid distance code - table reference out of bounds"
                                 s.bitb = bitBuffer
                                 s.bitk = bitsInBuffer
@@ -832,11 +949,15 @@ internal class InfCodes {
                                 return Z_DATA_ERROR
                             }
                             
-                            val nextTablePointer = tdIndex + td[tempPointer * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsOrOperation])
+                            // In C#: t += tp[(tp_index + t) * 3 + 2];
+                            t += tp[(tpIndex + t) * 3 + 2]
                             
-                            // Check if nextTablePointer is valid
-                            if (nextTablePointer < 0 || nextTablePointer * 3 >= td.size) {
-                                println("[DEBUG_LOG] Next table pointer out of bounds: $nextTablePointer * 3 = ${nextTablePointer * 3}, td.size=${td.size}")
+                            // In C#: t += (b & inflate_mask[e]);
+                            t += (bitBuffer and IBLK_INFLATE_MASK[e])
+                            
+                            // Check if (tpIndex + t) * 3 is valid
+                            if ((tpIndex + t) * 3 >= tp.size) {
+                                println("[DEBUG_LOG] Next table pointer out of bounds: (tpIndex + t)=${tpIndex + t}, tp.size=${tp.size}")
                                 z.msg = "invalid distance code - next table pointer out of bounds"
                                 s.bitb = bitBuffer
                                 s.bitk = bitsInBuffer
@@ -847,8 +968,8 @@ internal class InfCodes {
                                 return Z_DATA_ERROR
                             }
                             
-                            tempPointer = nextTablePointer
-                            extraBitsOrOperation = td[tempPointer * 3]
+                            // In C#: e = tp[(tp_index + t) * 3];
+                            e = tp[(tpIndex + t) * 3]
                             println("[DEBUG_LOG] New extraBitsOrOperation=$extraBitsOrOperation")
                         } else {
                             println("[DEBUG_LOG] Invalid distance code: extraBitsOrOperation=$extraBitsOrOperation")
