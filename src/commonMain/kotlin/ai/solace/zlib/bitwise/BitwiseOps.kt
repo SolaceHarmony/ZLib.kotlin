@@ -85,12 +85,42 @@ class BitwiseOps {
         }
         
         /**
-         * Converts a signed byte to an unsigned integer (0-255)
+         * Converts a signed byte to an unsigned integer (0-255) using arithmetic-only operations
          * @param b The byte to convert
          * @return An integer in the range 0-255
          */
         fun byteToUnsignedInt(b: Byte): Int {
-            return b.toInt() and 0xFF
+            var unsigned = b.toInt()
+            if (unsigned < 0) unsigned += 256
+            return unsigned
+        }
+        
+        /**
+         * Extracts the high 16 bits from a 32-bit value using arithmetic operations
+         * @param value The 32-bit value
+         * @return The high 16 bits as an integer (0-65535)
+         */
+        fun getHigh16BitsArithmetic(value: Long): Int {
+            return ((value / 65536) % 65536 + 65536).toInt() % 65536
+        }
+        
+        /**
+         * Extracts the low 16 bits from a 32-bit value using arithmetic operations
+         * @param value The 32-bit value  
+         * @return The low 16 bits as an integer (0-65535)
+         */
+        fun getLow16BitsArithmetic(value: Long): Int {
+            return ((value % 65536) + 65536).toInt() % 65536
+        }
+        
+        /**
+         * Combines two 16-bit values into a 32-bit value using arithmetic operations
+         * @param high The high 16 bits (0-65535)
+         * @param low The low 16 bits (0-65535)
+         * @return A 32-bit value combining both
+         */
+        fun combine16BitArithmetic(high: Int, low: Int): Long {
+            return (high.toLong() * 65536) + low.toLong()
         }
         
         /**
