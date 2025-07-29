@@ -198,10 +198,17 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
      *         - Z_STREAM_ERROR if the stream state is inconsistent
      */
     fun proc(z: ZStream?, rIn: Int): Int {
-        if (z == null) return Z_STREAM_ERROR
+        if (z == null) {
+            println("[DEBUG_LOG] InfBlocks.proc error: z is null")
+            return Z_STREAM_ERROR
+        }
 
         // Store the ZStream for use by inflateFlush
         proc_z = z
+
+        println("[DEBUG_LOG] InfBlocks.proc called with rIn=$rIn, mode=$mode")
+        println("[DEBUG_LOG] Initial state: availIn=${z.availIn}, nextInIndex=${z.nextInIndex}, availOut=${z.availOut}, nextOutIndex=${z.nextOutIndex}")
+        println("[DEBUG_LOG] Block state: write=$write, read=$read, bitb=$bitb, bitk=$bitk, end=$end")
 
         // Initialize local variables from the zstream and blocks state
         var inputPointer = z.nextInIndex
@@ -213,57 +220,97 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         var result: Int
         var returnCode = rIn
 
+        println("[DEBUG_LOG] Calculated outputBytesLeft=$outputBytesLeft")
+
         ZlibLogger.debug("[PROC_DEBUG] InfBlocks.proc called: mode=$mode, write=$write, read=$read, outputPointer=$outputPointer")
 
         // Process input and output based on current state
         while (true) {
             when (mode) {
                 IBLK_TYPE -> {
+                    println("[DEBUG_LOG] Processing IBLK_TYPE state, bitsInBuffer=$bitsInBuffer")
+                    
                     // Need at least 3 bits to determine block type
                     while (bitsInBuffer < 3) {
+                        println("[DEBUG_LOG] Need more bits, currently have $bitsInBuffer bits, need 3")
                         if (bytesAvailable == 0) {
+                            println("[DEBUG_LOG] No more input bytes available, returning")
                             bitb = bitBuffer; bitk = bitsInBuffer; z.availIn =
                                 bytesAvailable; z.totalIn += (inputPointer - z.nextInIndex).toLong(); z.nextInIndex =
                                 inputPointer; write = outputPointer
                             return inflateFlush(z, returnCode)
                         }
-                        bytesAvailable--
-                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
-                        bitsInBuffer += 8
+                        
+                        try {
+                            bytesAvailable--
+                            println("[DEBUG_LOG] Reading byte from nextIn[${inputPointer}], bytesAvailable=$bytesAvailable")
+                            if (z.nextIn == null) {
+                                println("[DEBUG_LOG] Error: nextIn is null")
+                                throw NullPointerException("nextIn is null")
+                            }
+                            if (inputPointer < 0 || inputPointer >= z.nextIn!!.size) {
+                                println("[DEBUG_LOG] Error: inputPointer=$inputPointer out of bounds for nextIn size=${z.nextIn!!.size}")
+                                throw IndexOutOfBoundsException("inputPointer=$inputPointer out of bounds for nextIn size=${z.nextIn!!.size}")
+                            }
+                            
+                            val nextByte = z.nextIn!![inputPointer++].toInt() and 0xff
+                            println("[DEBUG_LOG] Read byte: $nextByte")
+                            bitBuffer = bitBuffer or (nextByte shl bitsInBuffer)
+                            bitsInBuffer += 8
+                            println("[DEBUG_LOG] Updated bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer")
+                        } catch (e: Exception) {
+                            println("[DEBUG_LOG] Exception reading from input buffer: ${e.message}")
+                            println("[DEBUG_LOG] Exception stack trace: ${e.stackTraceToString()}")
+                            throw e
+                        }
                     }
 
                     // Extract block type info
                     val t = bitBuffer and 7
                     last = t and 1
+                    println("[DEBUG_LOG] Block type info: t=$t, last=$last")
 
                     // Consume the block type bits
                     bitBuffer = bitBuffer ushr 3; bitsInBuffer -= 3
+                    println("[DEBUG_LOG] After consuming type bits: bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer")
 
                     when (t ushr 1) {
                         0 -> { // Stored block
+                            println("[DEBUG_LOG] Processing stored block")
                             // Skip any remaining bits in current byte
                             val bitsToSkip = bitsInBuffer and 7
                             bitBuffer = bitBuffer ushr bitsToSkip; bitsInBuffer -= bitsToSkip
+                            println("[DEBUG_LOG] Skipped $bitsToSkip bits, transitioning to IBLK_LENS")
                             mode = IBLK_LENS
                         }
 
                         1 -> { // Fixed Huffman block
-                            val bl = IntArray(1)
-                            val bd = IntArray(1)
-                            val tl = arrayOf(IntArray(0))
-                            val tlIndex = IntArray(1)
-                            val td = arrayOf(IntArray(0))
-                            val tdIndex = IntArray(1)
-                            InfTree.inflateTreesFixedWithIndices(bl, bd, tl, tlIndex, td, tdIndex, z)
-                            codes = InfCodes(bl[0], bd[0], tl[0], tlIndex[0], td[0], tdIndex[0])
-                            mode = IBLK_CODES
+                            println("[DEBUG_LOG] Processing fixed Huffman block")
+                            try {
+                                val bl = IntArray(1)
+                                val bd = IntArray(1)
+                                val tl = arrayOf(IntArray(0))
+                                val td = arrayOf(IntArray(0))
+                                println("[DEBUG_LOG] Calling inflateTreesFixed")
+                                InfTree.inflateTreesFixed(bl, bd, tl, td, z)
+                                println("[DEBUG_LOG] Creating InfCodes with bl=${bl[0]}, bd=${bd[0]}")
+                                codes = InfCodes(bl[0], bd[0], tl[0], td[0])
+                                println("[DEBUG_LOG] Transitioning to IBLK_CODES")
+                                mode = IBLK_CODES
+                            } catch (e: Exception) {
+                                println("[DEBUG_LOG] Exception in fixed Huffman block processing: ${e.message}")
+                                println("[DEBUG_LOG] Exception stack trace: ${e.stackTraceToString()}")
+                                throw e
+                            }
                         }
 
                         2 -> { // Dynamic Huffman block
+                            println("[DEBUG_LOG] Processing dynamic Huffman block, transitioning to IBLK_TABLE")
                             mode = IBLK_TABLE
                         }
 
                         else -> { // Invalid block type
+                            println("[DEBUG_LOG] Invalid block type: ${t ushr 1}")
                             mode = IBLK_BAD
                             z.msg = "invalid block type"
                             returnCode = Z_DATA_ERROR
@@ -586,84 +633,120 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                 }
 
                 IBLK_CODES -> {
+                    println("[DEBUG_LOG] Processing IBLK_CODES state")
+                    
+                    // Check if codes is null
+                    if (codes == null) {
+                        println("[DEBUG_LOG] Error: codes is null in IBLK_CODES state")
+                        mode = IBLK_BAD
+                        z.msg = "codes is null"
+                        return Z_DATA_ERROR
+                    }
+                    
                     // Debug log for code processing
+                    println("[DEBUG_LOG] Processing codes: bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer, availIn=${z.availIn}, nextInIndex=${z.nextInIndex}")
                     ZlibLogger.debug("[INFBLOCKS_DEBUG] Processing codes: bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer")
 
                     // Save bit buffer state
                     bitb = bitBuffer
                     bitk = bitsInBuffer
 
+                    println("[DEBUG_LOG] Before InfCodes.proc: write=$write, outputPointer=$outputPointer, returnCode=$returnCode")
                     ZlibLogger.debug("[CODES_DEBUG] Before InfCodes.proc: write=$write, outputPointer=$outputPointer")
 
                     while (true) {
-                        val codesResult = codes!!.proc(this, z, returnCode)
+                        try {
+                            println("[DEBUG_LOG] Calling codes.proc with returnCode=$returnCode")
+                            val codesResult = codes!!.proc(this, z, returnCode)
+                            println("[DEBUG_LOG] codes.proc returned: $codesResult")
+                            
+                            ZlibLogger.debug("[CODES_DEBUG] After InfCodes.proc: write=$write, codesResult=$codesResult")
 
-                        ZlibLogger.debug("[CODES_DEBUG] After InfCodes.proc: write=$write, codesResult=$codesResult")
+                            // Update local variables from object state
+                            bitBuffer = bitb
+                            bitsInBuffer = bitk
+                            println("[DEBUG_LOG] Updated from state: bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer")
 
-                        // Update local variables from object state
-                        bitBuffer = bitb
-                        bitsInBuffer = bitk
+                            var shouldReturn = false
+                            var returnValue = returnCode
 
-                        var shouldReturn = false
-                        var returnValue = returnCode
-
-                        if (codesResult == Z_STREAM_END) {
-                            // End of block
-                            codes = null
-                            mode = if (last != 0) IBLK_DRY else IBLK_TYPE
-                            saveState(z, bitBuffer, bitsInBuffer, bytesAvailable, inputPointer, outputPointer)
-                            shouldReturn = true
-                            returnValue = inflateFlush(z, returnCode)
-                        } else {
-                            // Not at end of block yet
-                            if (codesResult == Z_DATA_ERROR) {
-                                // Handle data error
-                                mode = IBLK_BAD
-                                z.msg = "invalid distance code"
-                                result = Z_DATA_ERROR
-                                saveState(z, bitBuffer, bitsInBuffer, z.availIn, z.nextInIndex, write)
+                            if (codesResult == Z_STREAM_END) {
+                                // End of block
+                                println("[DEBUG_LOG] End of block (Z_STREAM_END)")
+                                codes = null
+                                mode = if (last != 0) IBLK_DRY else IBLK_TYPE
+                                println("[DEBUG_LOG] Transitioning to ${if (last != 0) "IBLK_DRY" else "IBLK_TYPE"} state")
+                                saveState(z, bitBuffer, bitsInBuffer, bytesAvailable, inputPointer, outputPointer)
                                 shouldReturn = true
-                                returnValue = inflateFlush(z, result)
-                            }
-
-                            if (!shouldReturn && codesResult == Z_BUF_ERROR) {
-                                // No progress is possible, need more input or output space
-                                saveState(z, bitBuffer, bitsInBuffer, z.availIn, z.nextInIndex, write)
-                                shouldReturn = true
-                                returnValue = inflateFlush(z, codesResult)
-                            }
-
-                            // Otherwise we got Z_OK, update our state from the saved values
-
-                            // Make sure we're advancing - if not, we're stuck and need to return
-                            if (!shouldReturn && z.availIn == bytesAvailable && z.availOut == z.nextOut!!.size - z.nextOutIndex) {
-                                result = Z_BUF_ERROR
-                                saveState(z, bitBuffer, bitsInBuffer, z.availIn, z.nextInIndex, write)
-                                shouldReturn = true
-                                returnValue = inflateFlush(z, result)
-                            }
-
-                            // Update our local variables
-                            if (!shouldReturn) {
-                                inputPointer = z.nextInIndex
-                                bytesAvailable = z.availIn
-                                outputPointer = write
-                                outputBytesLeft = if (outputPointer < read) read - outputPointer - 1 else end - outputPointer
-
-                                // Check if we need to return for more output space
-                                if (outputBytesLeft == 0) {
-                                    bitb = bitBuffer
-                                    bitk = bitsInBuffer
-                                    z.availIn = bytesAvailable
-                                    z.totalIn += (inputPointer - z.nextInIndex).toLong()
-                                    z.nextInIndex = inputPointer
-                                    write = outputPointer
+                                returnValue = inflateFlush(z, returnCode)
+                                println("[DEBUG_LOG] inflateFlush returned: $returnValue")
+                            } else {
+                                // Not at end of block yet
+                                if (codesResult == Z_DATA_ERROR) {
+                                    // Handle data error
+                                    println("[DEBUG_LOG] Data error (Z_DATA_ERROR): ${z.msg}")
+                                    mode = IBLK_BAD
+                                    z.msg = "invalid distance code"
+                                    result = Z_DATA_ERROR
+                                    saveState(z, bitBuffer, bitsInBuffer, z.availIn, z.nextInIndex, write)
                                     shouldReturn = true
-                                    returnValue = inflateFlush(z, returnCode)
+                                    returnValue = inflateFlush(z, result)
+                                    println("[DEBUG_LOG] inflateFlush returned: $returnValue")
+                                }
+
+                                if (!shouldReturn && codesResult == Z_BUF_ERROR) {
+                                    // No progress is possible, need more input or output space
+                                    println("[DEBUG_LOG] Buffer error (Z_BUF_ERROR)")
+                                    saveState(z, bitBuffer, bitsInBuffer, z.availIn, z.nextInIndex, write)
+                                    shouldReturn = true
+                                    returnValue = inflateFlush(z, codesResult)
+                                    println("[DEBUG_LOG] inflateFlush returned: $returnValue")
+                                }
+
+                                // Otherwise we got Z_OK, update our state from the saved values
+
+                                // Make sure we're advancing - if not, we're stuck and need to return
+                                if (!shouldReturn && z.availIn == bytesAvailable && z.availOut == z.nextOut!!.size - z.nextOutIndex) {
+                                    println("[DEBUG_LOG] No progress made, returning Z_BUF_ERROR")
+                                    result = Z_BUF_ERROR
+                                    saveState(z, bitBuffer, bitsInBuffer, z.availIn, z.nextInIndex, write)
+                                    shouldReturn = true
+                                    returnValue = inflateFlush(z, result)
+                                    println("[DEBUG_LOG] inflateFlush returned: $returnValue")
+                                }
+
+                                // Update our local variables
+                                if (!shouldReturn) {
+                                    inputPointer = z.nextInIndex
+                                    bytesAvailable = z.availIn
+                                    outputPointer = write
+                                    outputBytesLeft = if (outputPointer < read) read - outputPointer - 1 else end - outputPointer
+                                    println("[DEBUG_LOG] Updated local variables: inputPointer=$inputPointer, bytesAvailable=$bytesAvailable, outputPointer=$outputPointer, outputBytesLeft=$outputBytesLeft")
+
+                                    // Check if we need to return for more output space
+                                    if (outputBytesLeft == 0) {
+                                        println("[DEBUG_LOG] No output space left, returning")
+                                        bitb = bitBuffer
+                                        bitk = bitsInBuffer
+                                        z.availIn = bytesAvailable
+                                        z.totalIn += (inputPointer - z.nextInIndex).toLong()
+                                        z.nextInIndex = inputPointer
+                                        write = outputPointer
+                                        shouldReturn = true
+                                        returnValue = inflateFlush(z, returnCode)
+                                        println("[DEBUG_LOG] inflateFlush returned: $returnValue")
+                                    }
                                 }
                             }
+                            if (shouldReturn) {
+                                println("[DEBUG_LOG] Returning from IBLK_CODES with value: $returnValue")
+                                return returnValue
+                            }
+                        } catch (e: Exception) {
+                            println("[DEBUG_LOG] Exception in IBLK_CODES: ${e.message}")
+                            println("[DEBUG_LOG] Exception stack trace: ${e.stackTraceToString()}")
+                            throw e
                         }
-                        if (shouldReturn) return returnValue
                     }
                 }
 
