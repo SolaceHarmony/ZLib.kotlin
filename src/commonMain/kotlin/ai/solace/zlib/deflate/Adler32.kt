@@ -1,6 +1,8 @@
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.*
+import ai.solace.zlib.common.ADLER_BASE
+import ai.solace.zlib.common.ADLER_NMAX
 
 /**
  * Adler-32 checksum algorithm implementation.
@@ -21,11 +23,9 @@ import ai.solace.zlib.common.*
  * the modulo operation after each chunk (not after each byte) for efficiency.
  */
 class Adler32 {
-    // largest prime smaller than 65536
-    private val BASE = 65521L
-
-    // NMAX is the largest n such that 255n(n+1)/2 + (n+1)(BASE-1) <= 2^32-1
-    private val NMAX = 5552
+    // Use constants from Constants.kt to ensure consistency across the codebase
+    private val BASE = ADLER_BASE.toLong()
+    private val NMAX = ADLER_NMAX
 
     fun adler32(adler: Long, buf: ByteArray?, index: Int, len: Int): Long {
         if (buf == null) {
