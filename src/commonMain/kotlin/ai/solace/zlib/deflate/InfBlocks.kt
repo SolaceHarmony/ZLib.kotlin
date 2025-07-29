@@ -1,6 +1,7 @@
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.*
+import ai.solace.zlib.bitwise.BitwiseOps
 
 /**
  * Handles the processing of compressed data blocks during decompression.
@@ -209,9 +210,9 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                                 throw IndexOutOfBoundsException("inputPointer=$inputPointer out of bounds for nextIn size=${z.nextIn!!.size}")
                             }
                             
-                            val nextByte = z.nextIn!![inputPointer++].toInt() and 0xff
+                            val nextByte = BitwiseOps.byteToUnsignedInt(z.nextIn!![inputPointer++])
                             println("[DEBUG_LOG] Read byte: $nextByte")
-                            bitBuffer = bitBuffer or (nextByte shl bitsInBuffer)
+                            bitBuffer = BitwiseOps.orArithmetic(bitBuffer, BitwiseOps.leftShiftArithmetic(nextByte, bitsInBuffer))
                             bitsInBuffer += 8
                             println("[DEBUG_LOG] Updated bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer")
                         } catch (e: Exception) {
@@ -222,20 +223,20 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     }
 
                     // Extract block type info
-                    val t = bitBuffer and 7
-                    last = t and 1
+                    val t = BitwiseOps.extractBitsArithmetic(bitBuffer, 3)
+                    last = BitwiseOps.extractBitsArithmetic(t, 1)
                     println("[DEBUG_LOG] Block type info: t=$t, last=$last")
 
                     // Consume the block type bits
-                    bitBuffer = bitBuffer ushr 3; bitsInBuffer -= 3
+                    bitBuffer = BitwiseOps.rightShiftArithmetic(bitBuffer, 3); bitsInBuffer -= 3
                     println("[DEBUG_LOG] After consuming type bits: bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer")
 
-                    when (t ushr 1) {
+                    when (BitwiseOps.rightShiftArithmetic(t, 1)) {
                         0 -> { // Stored block
                             println("[DEBUG_LOG] Processing stored block")
                             // Skip any remaining bits in current byte
-                            val bitsToSkip = bitsInBuffer and 7
-                            bitBuffer = bitBuffer ushr bitsToSkip; bitsInBuffer -= bitsToSkip
+                            val bitsToSkip = BitwiseOps.extractBitsArithmetic(bitsInBuffer, 3)
+                            bitBuffer = BitwiseOps.rightShiftArithmetic(bitBuffer, bitsToSkip); bitsInBuffer -= bitsToSkip
                             println("[DEBUG_LOG] Skipped $bitsToSkip bits, transitioning to IBLK_LENS")
                             mode = IBLK_LENS
                         }
@@ -266,7 +267,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                         }
 
                         else -> { // Invalid block type
-                            println("[DEBUG_LOG] Invalid block type: ${t ushr 1}")
+                            println("[DEBUG_LOG] Invalid block type: ${BitwiseOps.rightShiftArithmetic(t, 1)}")
                             mode = IBLK_BAD
                             z.msg = "invalid block type"
                             returnCode = Z_DATA_ERROR
@@ -290,17 +291,17 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             return inflateFlush(z, returnCode)
                         }
                         bytesAvailable--
-                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitBuffer = BitwiseOps.orArithmetic(bitBuffer, BitwiseOps.leftShiftArithmetic(BitwiseOps.byteToUnsignedInt(z.nextIn!![inputPointer++]), bitsInBuffer))
                         bitsInBuffer += 8
                     }
 
 
                     // Extract stored length and its complement from the bit buffer
-                    val storedLen = bitBuffer and 0xffff
-                    val storedNLen = (bitBuffer ushr 16) and 0xffff
+                    val storedLen = BitwiseOps.extractBitsArithmetic(bitBuffer, 16)
+                    val storedNLen = BitwiseOps.extractBitsArithmetic(BitwiseOps.rightShiftArithmetic(bitBuffer, 16), 16)
 
                     // Verify block length integrity following zlib's reference implementation
-                    if (storedLen != (storedNLen.inv() and 0xffff)) {
+                    if (storedLen != BitwiseOps.extractBitsArithmetic(storedNLen.inv(), 16)) {
                         mode = IBLK_BAD
                         z.msg = "invalid stored block lengths"
                         returnCode = Z_DATA_ERROR
@@ -389,12 +390,12 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             return inflateFlush(z, returnCode)
                         }
                         bytesAvailable--
-                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitBuffer = BitwiseOps.orArithmetic(bitBuffer, BitwiseOps.leftShiftArithmetic(BitwiseOps.byteToUnsignedInt(z.nextIn!![inputPointer++]), bitsInBuffer))
                         bitsInBuffer += 8
                     }
-                    table = (bitBuffer and 0x3fff)
+                    table = BitwiseOps.extractBitsArithmetic(bitBuffer, 14)
                     val t = table
-                    if ((t and 0x1f) > 29 || ((t ushr 5) and 0x1f) > 29) {
+                    if (BitwiseOps.extractBitsArithmetic(t, 5) > 29 || BitwiseOps.extractBitsArithmetic(BitwiseOps.rightShiftArithmetic(t, 5), 5) > 29) {
                         mode = IBLK_BAD
                         z.msg = "too many length or distance symbols"
                         returnCode = Z_DATA_ERROR

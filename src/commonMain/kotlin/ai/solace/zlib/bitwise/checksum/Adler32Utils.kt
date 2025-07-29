@@ -29,50 +29,24 @@ class Adler32Utils {
          * @return Updated Adler-32 checksum
          */
         fun adler32(adler: Long, buf: ByteArray?, index: Int, len: Int): Long {
-            if (buf == null) {
-                return 1L
+            if (buf == null) return 1L
+
+            val MOD = ADLER_BASE
+            // Extract a and b from the input adler value correctly using the same logic as pigz
+            var a = (adler and 0xFFFF).toInt()
+            var b = ((adler shr 16) and 0xFFFF).toInt()
+
+            var i = index
+            val end = index + len
+            while (i < end) {
+                val unsigned = BitwiseOps.byteToUnsignedInt(buf[i])
+                a = (a + unsigned) % MOD
+                b = (b + a) % MOD
+                i++
             }
-            
-            // Extract initial s1 and s2 values using arithmetic operations
-            var s1 = BitwiseOps.getLow16BitsArithmetic(adler).toLong()
-            var s2 = BitwiseOps.getHigh16BitsArithmetic(adler).toLong()
-            var k: Int
-            var localLen = len
-            var localIndex = index
-            
-            while (localLen > 0) {
-                k = if (localLen < ADLER_NMAX) localLen else ADLER_NMAX
-                localLen -= k
-                
-                // Process chunks of 16 bytes for better performance
-                while (k >= 16) {
-                    for (i in 0 until 16) {
-                        // Convert signed byte to unsigned using arithmetic only
-                        val unsigned = BitwiseOps.byteToUnsignedInt(buf[localIndex++])
-                        s1 += unsigned
-                        s2 += s1
-                    }
-                    k -= 16
-                }
-                
-                // Process remaining bytes
-                if (k != 0) {
-                    do {
-                        // Convert signed byte to unsigned using arithmetic only
-                        val unsigned = BitwiseOps.byteToUnsignedInt(buf[localIndex++])
-                        s1 += unsigned
-                        s2 += s1
-                        k--
-                    } while (k != 0)
-                }
-                
-                // Apply modulo operation
-                s1 %= ADLER_BASE
-                s2 %= ADLER_BASE
-            }
-            
-            // Combine s1 and s2 into the final checksum using arithmetic operations only
-            return BitwiseOps.combine16BitArithmetic(s2.toInt(), s1.toInt())
+
+            // Combine a and b into the final result using the same logic as pigz
+            return ((b.toLong() and 0xFFFF) shl 16) or (a.toLong() and 0xFFFF)
         }
     }
 }
