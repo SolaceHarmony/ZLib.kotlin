@@ -507,7 +507,6 @@ internal class Inflate {
     @OptIn(kotlin.ExperimentalUnsignedTypes::class)
     internal fun inflateSync(z: ZStream?): Int {
         var m: Int // number of marker bytes found in a row
-        var w: Long
 
         // set up
         if (z == null || z.iState == null) return Z_STREAM_ERROR
@@ -541,7 +540,7 @@ internal class Inflate {
             return Z_DATA_ERROR
         }
         var r: Long = z.totalIn
-        w = z.totalOut
+        var w: Long = z.totalOut
         inflateReset(z)
         z.totalIn = r
         z.totalOut = w

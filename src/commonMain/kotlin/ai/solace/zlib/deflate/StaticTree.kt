@@ -643,12 +643,12 @@ internal class StaticTree(
         internal val static_l_desc: StaticTree =
             StaticTree(static_ltree, TREE_EXTRA_LBITS, LITERALS + 1, L_CODES, MAX_BITS, L_CODES - 1)
 
-        internal val static_d_desc: StaticTree
+        internal val static_d_desc: StaticTree =
+            StaticTree(static_dtree, TREE_EXTRA_DBITS, 0, D_CODES, MAX_BITS, D_CODES - 1)
 
         internal val static_bl_desc: StaticTree
 
         init {
-            static_d_desc = StaticTree(static_dtree, TREE_EXTRA_DBITS, 0, D_CODES, MAX_BITS, D_CODES - 1)
             static_bl_desc = StaticTree(null, TREE_EXTRA_BLBITS, 0, BL_CODES, TREE_MAX_BL_BITS, BL_CODES - 1)
         }
     }
