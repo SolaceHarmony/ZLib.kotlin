@@ -44,8 +44,10 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.* // Import all constants
+import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
 
 internal class InfCodes {
+    private val bitwiseOps = ArithmeticBitwiseOps.BITS_32
 
     private var mode: Int = 0 // current inflate_codes mode
 
@@ -173,15 +175,16 @@ internal class InfCodes {
                             return inflateFlush(s, z, result)
                         }
                         bytesAvailable--
-                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        println("[BITWISE_DEBUG] InfCodes START loading byte: ${bitwiseOps.and(z.nextIn!![inputPointer].toLong(), 0xffL)}")
+                        bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                         bitsInBuffer += 8
                     }
                     
                     // Get the table index
-                    tableIndex = (treeIndex + (bitBuffer and IBLK_INFLATE_MASK[tempStorage])) * 3
+                    tableIndex = (treeIndex + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[tempStorage].toLong()).toInt()) * 3
                     
                     // Remove the bits we've used
-                    bitBuffer = bitBuffer ushr tree[tableIndex + 1]
+                    bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tree[tableIndex + 1]).toInt()
                     bitsInBuffer -= tree[tableIndex + 1]
                     
                     // Get the operation/extra bits
@@ -195,22 +198,22 @@ internal class InfCodes {
                         break
                     }
                     
-                    if ((extraBitsOrOperation and 16) != 0) {
+                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 16L).toInt() != 0) {
                         // Length
-                        extraBitsNeeded = extraBitsOrOperation and 15
+                        extraBitsNeeded = bitwiseOps.and(extraBitsOrOperation.toLong(), 15L).toInt()
                         length = tree[tableIndex + 2]
                         mode = ICODES_LENEXT
                         break
                     }
                     
-                    if ((extraBitsOrOperation and 64) == 0) {
+                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
                         // Next table
                         bitsNeeded = extraBitsOrOperation
                         treeIndex = tableIndex / 3 + tree[tableIndex + 2]
                         break
                     }
                     
-                    if ((extraBitsOrOperation and 32) != 0) {
+                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
                         // End of block
                         mode = ICODES_WASH
                         break
@@ -702,19 +705,19 @@ internal class InfCodes {
             }
 
             do {
-                tempPointer = tempTableIndex + (bitBuffer and literalLengthMask)
+                tempPointer = tempTableIndex + bitwiseOps.and(bitBuffer.toLong(), literalLengthMask.toLong()).toInt()
                 extraBitsOrOperation = tl[tempPointer * 3]
                 if (extraBitsOrOperation == 0) {
-                    bitBuffer = bitBuffer ushr tl[tempPointer * 3 + 1]
+                    bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tl[tempPointer * 3 + 1]).toInt()
                     bitsInBuffer -= tl[tempPointer * 3 + 1]
                     s.window[outputWritePointer++] = tl[tempPointer * 3 + 2].toByte()
                     outputBytesLeft--
                     break
                 }
-                bitBuffer = bitBuffer ushr tl[tempPointer * 3 + 1]
+                bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tl[tempPointer * 3 + 1]).toInt()
                 bitsInBuffer -= tl[tempPointer * 3 + 1]
-                if (extraBitsOrOperation and 16 != 0) {
-                    extraBitsNeeded = extraBitsOrOperation and 15
+                if (bitwiseOps.and(extraBitsOrOperation.toLong(), 16L).toInt() != 0) {
+                    extraBitsNeeded = bitwiseOps.and(extraBitsOrOperation.toLong(), 15L).toInt()
                     bytesToCopy = tl[tempPointer * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsNeeded])
                     bitBuffer = bitBuffer ushr extraBitsNeeded
                     bitsInBuffer -= extraBitsNeeded

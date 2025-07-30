@@ -42,13 +42,21 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
      * @return The shifted value, normalized to bit length
      */
     fun leftShift(value: Long, bits: Int): Long {
-        if (bits < 0 || bits >= bitLength) return 0L
-        if (bits == 0) return normalize(value)
+        if (bits < 0 || bits >= bitLength) {
+            println("[BITWISE_DEBUG] leftShift($value, $bits) -> 0 (out of range)")
+            return 0L
+        }
+        if (bits == 0) {
+            val result = normalize(value)
+            println("[BITWISE_DEBUG] leftShift($value, $bits) -> $result (no shift)")
+            return result
+        }
         
         var result = normalize(value)
         repeat(bits) { 
             result = normalize(result * 2)
         }
+        println("[BITWISE_DEBUG] leftShift($value, $bits) -> $result")
         return result
     }
     
@@ -172,6 +180,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
             powerOf2 *= 2
         }
         
+        println("[BITWISE_DEBUG] and($value1, $value2) -> $result")
         return result
     }
     
