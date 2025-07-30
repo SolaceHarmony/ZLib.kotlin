@@ -80,7 +80,7 @@ class LegacyPortingExamples {
             
             for (byte in data) {
                 // Convert signed byte to unsigned
-                val unsignedByte = if (byte < 0) byte + 256 else byte.toLong()
+                val unsignedByte = (byte.toLong() and 0xFFL)
                 
                 // Legacy hash algorithm using arithmetic operations
                 hash = ops.xor(hash, unsignedByte)
@@ -128,7 +128,7 @@ class LegacyPortingExamples {
             var crc = 0L
             
             for (byte in data) {
-                val unsignedByte = if (byte < 0) byte + 256 else byte.toLong()
+                val unsignedByte = (byte.toLong() and 0xFFL)
                 crc = ops16.xor(crc, ops16.leftShift(unsignedByte, 8))
                 
                 repeat(8) {

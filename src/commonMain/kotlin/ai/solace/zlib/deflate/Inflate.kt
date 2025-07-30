@@ -44,6 +44,7 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.*
+import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
 
 /**
  * Internal implementation of the decompression algorithm.
@@ -52,6 +53,7 @@ import ai.solace.zlib.common.*
  * It processes the zlib header, manages decompression blocks, and verifies checksums.
  */
 internal class Inflate {
+    private val bitwiseOps = ArithmeticBitwiseOps.BITS_32
 
     // Constants previously defined here are now in ai.solace.zlib.common.Constants
     // MAX_WBITS, PRESET_DICT, Z_NO_FLUSH, Z_PARTIAL_FLUSH, Z_SYNC_FLUSH, Z_FULL_FLUSH,
@@ -233,7 +235,7 @@ internal class Inflate {
                         println("[DEBUG_LOG] Unknown compression method: ${z.iState!!.method}")
                         break
                     }
-                    if ((z.iState!!.method shr 4) + 8 > z.iState!!.wbits) {
+                    if (((z.iState!!.method shr 4) + 8) > z.iState!!.wbits) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "invalid window size"
                         z.iState!!.marker = 5 // can't try inflateSync
@@ -255,10 +257,10 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    b = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    b = bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL).toInt()
                     println("[DEBUG_LOG] Read flag byte: $b (0x${b.toString(16).uppercase()})")
 
-                    if (((z.iState!!.method shl 8) + b) % 31 != 0) {
+                    if ((bitwiseOps.leftShift(z.iState!!.method.toLong(), 8).toInt() + b) % 31 != 0) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "incorrect header check"
                         z.iState!!.marker = 5 // can't try inflateSync
@@ -266,7 +268,7 @@ internal class Inflate {
                         break
                     }
 
-                    if (b and PRESET_DICT == 0) {
+                    if (bitwiseOps.and(b.toLong(), PRESET_DICT.toLong()).toInt() == 0) {
                         z.iState!!.mode = INF_BLOCKS
                         println("[DEBUG_LOG] No preset dictionary, transitioning to INF_BLOCKS state")
                         // Don't break here, continue to the next iteration with the INF_BLOCKS state
@@ -281,7 +283,7 @@ internal class Inflate {
                     if (z.availIn < 1) return r
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 24)
+                    z.iState!!.need = bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL), 24)
                     z.iState!!.mode = INF_DICT3
                 }
 
@@ -291,7 +293,7 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 16)
+                    z.iState!!.need += bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL), 16)
                     z.iState!!.mode = INF_DICT2
                 }
 
@@ -301,7 +303,7 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 8)
+                    z.iState!!.need += bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL), 8)
                     z.iState!!.mode = INF_DICT1
                 }
 
@@ -311,7 +313,7 @@ internal class Inflate {
 
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong()
+                    z.iState!!.need += bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL)
                     // Store expected Adler-32 checksum from stream
                     z.adler = z.iState!!.need
                     z.iState!!.mode = INF_DICT0
@@ -401,7 +403,7 @@ internal class Inflate {
                     // Read second byte
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need = ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 24) and 0xff000000L
+                    z.iState!!.need = bitwiseOps.and(bitwiseOps.leftShift(z.nextIn!![z.nextInIndex++].toLong(), 24), 0xff000000L)
                     z.iState!!.mode = INF_CHECK3
                 }
 
@@ -410,7 +412,7 @@ internal class Inflate {
                     if (z.availIn < 1) return r
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 16) and 0x00ff0000L
+                    z.iState!!.need += bitwiseOps.and(bitwiseOps.leftShift(z.nextIn!![z.nextInIndex++].toLong(), 16), 0x00ff0000L)
                     z.iState!!.mode = INF_CHECK2
                 }
 
@@ -419,7 +421,7 @@ internal class Inflate {
                     if (z.availIn < 1) return r
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += ((z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() shl 8) and 0x0000ff00L
+                    z.iState!!.need += bitwiseOps.and(bitwiseOps.leftShift(z.nextIn!![z.nextInIndex++].toLong(), 8), 0x0000ff00L)
                     z.iState!!.mode = INF_CHECK1
                 }
 
@@ -428,7 +430,7 @@ internal class Inflate {
                     if (z.availIn < 1) return r
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong() and 0x000000ffL
+                    z.iState!!.need += bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0x000000ffL)
 
                     if (z.iState!!.was[0] != z.iState!!.need) {
                         z.iState!!.mode = INF_BAD
