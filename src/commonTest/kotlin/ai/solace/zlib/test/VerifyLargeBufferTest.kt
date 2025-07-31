@@ -1,5 +1,6 @@
 package ai.solace.zlib.test
 
+import ai.solace.zlib.common.ZlibLogger
 import ai.solace.zlib.deflate.Adler32
 import kotlin.test.Test
 
@@ -19,6 +20,6 @@ class VerifyLargeBufferTest {
         val result = adler32.adler32(1L, buffer, 0, 1000)
         
         // Print the result for comparison
-        println("[DEBUG_LOG] Adler32 of large buffer: 0x${result.toString(16)} (${result})")
+        ZlibLogger.log("[DEBUG_LOG] Adler32 of large buffer: 0x${result.toString(16)} (${result})")
     }
 }

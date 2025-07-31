@@ -13,8 +13,8 @@ import ai.solace.zlib.common.*
  */
 
 fun main(args: Array<String>) {
-    println("ZLib.kotlin Compression CLI Tool")
-    println("=============================")
+    ZlibLogger.log("ZLib.kotlin Compression CLI Tool")
+    ZlibLogger.log("=============================")
 
     if (args.isEmpty() || args[0] == "-h" || args[0] == "--help") {
         printUsage()
@@ -25,7 +25,7 @@ fun main(args: Array<String>) {
         when (args[0]) {
             "compress", "c" -> {
                 if (args.size < 3) {
-                    println("Error: Not enough arguments for compression")
+                    ZlibLogger.log("Error: Not enough arguments for compression")
                     printUsage()
                     return
                 }
@@ -45,7 +45,7 @@ fun main(args: Array<String>) {
 
             "decompress", "d" -> {
                 if (args.size < 3) {
-                    println("Error: Not enough arguments for decompression")
+                    ZlibLogger.log("Error: Not enough arguments for decompression")
                     printUsage()
                     return
                 }
@@ -57,12 +57,12 @@ fun main(args: Array<String>) {
             }
 
             else -> {
-                println("Error: Unknown command '${args[0]}'")
+                ZlibLogger.log("Error: Unknown command '${args[0]}'")
                 printUsage()
             }
         }
     } catch (e: Exception) {
-        println("Error: ${e.message}")
+        ZlibLogger.log("Error: ${e.message}")
     }
 }
 
@@ -70,43 +70,43 @@ fun main(args: Array<String>) {
  * Print usage information
  */
 fun printUsage() {
-    println("Usage:")
-    println("  compress|c <input-file> <output-file> [compression-level]")
-    println("  decompress|d <input-file> <output-file>")
-    println()
-    println("Commands:")
-    println("  compress, c     Compress a file using zlib format")
-    println("  decompress, d   Decompress a file in zlib format")
-    println()
-    println("Notes:")
-    println("  - This tool uses zlib compression format (RFC 1950), not ZIP archive format")
-    println("  - Compressed files cannot be opened with standard ZIP tools")
-    println()
-    println("Options:")
-    println("  compression-level   Optional compression level (0-9)")
-    println("                      0: No compression")
-    println("                      1: Best speed")
-    println("                      6: Default compression")
-    println("                      9: Best compression")
+    ZlibLogger.log("Usage:")
+    ZlibLogger.log("  compress|c <input-file> <output-file> [compression-level]")
+    ZlibLogger.log("  decompress|d <input-file> <output-file>")
+    ZlibLogger.log("")
+    ZlibLogger.log("Commands:")
+    ZlibLogger.log("  compress, c     Compress a file using zlib format")
+    ZlibLogger.log("  decompress, d   Decompress a file in zlib format")
+    ZlibLogger.log("")
+    ZlibLogger.log("Notes:")
+    ZlibLogger.log("  - This tool uses zlib compression format (RFC 1950), not ZIP archive format")
+    ZlibLogger.log("  - Compressed files cannot be opened with standard ZIP tools")
+    ZlibLogger.log("")
+    ZlibLogger.log("Options:")
+    ZlibLogger.log("  compression-level   Optional compression level (0-9)")
+    ZlibLogger.log("                      0: No compression")
+    ZlibLogger.log("                      1: Best speed")
+    ZlibLogger.log("                      6: Default compression")
+    ZlibLogger.log("                      9: Best compression")
 }
 
 /**
  * Compress a file using ZLib compression
  */
 fun compressFile(inputFile: String, outputFile: String, level: Int = Z_DEFAULT_COMPRESSION) {
-    println("Compressing $inputFile to $outputFile (level: $level)...")
+    ZlibLogger.log("Compressing $inputFile to $outputFile (level: $level)...")
 
     try {
         val inputData = readFile(inputFile)
-        println("Input file size: ${inputData.size} bytes")
+        ZlibLogger.log("Input file size: ${inputData.size} bytes")
 
         val compressedData = compressData(inputData, level)
-        println("Compressed size: ${compressedData.size} bytes")
+        ZlibLogger.log("Compressed size: ${compressedData.size} bytes")
         val ratio = (inputData.size.toDouble() / compressedData.size)
-        println("Compression ratio: ${(ratio * 100).toInt() / 100.0}")
+        ZlibLogger.log("Compression ratio: ${(ratio * 100).toInt() / 100.0}")
 
         writeFile(outputFile, compressedData)
-        println("Compression complete!")
+        ZlibLogger.log("Compression complete!")
 
     } catch (e: Exception) {
         throw Exception("Failed to compress file: ${e.message}")
@@ -117,24 +117,24 @@ fun compressFile(inputFile: String, outputFile: String, level: Int = Z_DEFAULT_C
  * Decompress a file using ZLib decompression
  */
 fun decompressFile(inputFile: String, outputFile: String) {
-    println("Decompressing $inputFile to $outputFile...")
+    ZlibLogger.log("Decompressing $inputFile to $outputFile...")
 
     try {
         val inputData = readFile(inputFile)
-        println("Input file size: ${inputData.size} bytes")
+        ZlibLogger.log("Input file size: ${inputData.size} bytes")
 
         try {
             // Use the new ZLibCompression wrapper for direct decompression
             val decompressedData = ZLibCompression.decompress(inputData)
-            println("Decompressed size: ${decompressedData.size} bytes")
+            ZlibLogger.log("Decompressed size: ${decompressedData.size} bytes")
 
             // Write the output
             writeFile(outputFile, decompressedData)
-            println("Decompression complete!")
+            ZlibLogger.log("Decompression complete!")
         } catch (e: ZStreamException) {
             // If direct decompression fails, try the alternative approach with recompression
-            println("Direct decompression failed: ${e.message}")
-            println("Trying alternative approach...")
+            ZlibLogger.log("Direct decompression failed: ${e.message}")
+            ZlibLogger.log("Trying alternative approach...")
 
             decompressUsingAlternativeMethod(inputData, outputFile)
         }
@@ -147,16 +147,16 @@ fun decompressFile(inputFile: String, outputFile: String) {
  * Alternative decompression method that first recompresses the data
  */
 private fun decompressUsingAlternativeMethod(inputData: ByteArray, outputFile: String) {
-    println("Using alternative decompression method...")
+    ZlibLogger.log("Using alternative decompression method...")
 
     try {
         // First recompress the data
         val recompressedData = ZLibCompression.compress(inputData)
-        println("Recompressed size: ${recompressedData.size} bytes")
+        ZlibLogger.log("Recompressed size: ${recompressedData.size} bytes")
 
         // Now decompress the recompressed data
         val decompressedData = ZLibCompression.decompress(recompressedData)
-        println("Alternative decompression size: ${decompressedData.size} bytes")
+        ZlibLogger.log("Alternative decompression size: ${decompressedData.size} bytes")
 
         if (decompressedData.isEmpty()) {
             throw ZStreamException("Alternative decompression produced no output")
@@ -164,7 +164,7 @@ private fun decompressUsingAlternativeMethod(inputData: ByteArray, outputFile: S
 
         // Write the output
         writeFile(outputFile, decompressedData)
-        println("Alternative decompression complete!")
+        ZlibLogger.log("Alternative decompression complete!")
     } catch (e: Exception) {
         throw Exception("Alternative decompression failed: ${e.message}")
     }

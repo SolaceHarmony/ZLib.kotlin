@@ -2,72 +2,31 @@ package ai.solace.zlib.test
 
 import ai.solace.zlib.deflate.ZStream // Inflate class not directly used, ZStream handles it
 import ai.solace.zlib.common.*
-import kotlin.test.Test
-import kotlin.test.assertTrue
-import kotlin.test.assertEquals
+import kotlin.test.*
 
 class InflateTest {
 
-    // Helper function to deflate data (used for test setup)
     private fun deflateDataForTestSetup(input: ByteArray, level: Int): ByteArray {
-        println("[DEBUG_LOG] deflateDataForTestSetup called with input size=${input.size}, level=$level")
-        
-        try {
-            val stream = ZStream()
-            var err = stream.deflateInit(level)
-            println("[DEBUG_LOG] deflateInit returned: $err, msg=${stream.msg}")
-            assertTrue(err == Z_OK, "Test setup deflateInit failed. Error: $err, Msg: ${stream.msg}")
+        val stream = ZStream()
+        var err = stream.deflateInit(level)
+        assertTrue(err == Z_OK, "Test setup deflateInit failed. Error: $err, Msg: ${stream.msg}")
 
-            stream.nextIn = input
-            stream.availIn = input.size
-            println("[DEBUG_LOG] Set nextIn with availIn=${stream.availIn}")
+        stream.nextIn = input
+        stream.availIn = input.size
 
-            // Ensure buffer is large enough for this simple test case
-            val outputBuffer = ByteArray(input.size * 2 + 20)
-            stream.nextOut = outputBuffer
-            stream.availOut = outputBuffer.size
-            println("[DEBUG_LOG] Set nextOut with availOut=${stream.availOut}")
+        val outputBuffer = ByteArray(input.size * 2 + 20)
+        stream.nextOut = outputBuffer
+        stream.availOut = outputBuffer.size
 
-            // Print first few bytes of input for debugging
-            if (input.isNotEmpty()) {
-                val bytesToShow = minOf(input.size, 10)
-                println("[DEBUG_LOG] First $bytesToShow bytes of input: ${input.slice(0 until bytesToShow).joinToString(", ") { "0x" + (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase() }}")
-            }
+        err = stream.deflate(Z_FINISH)
+        assertTrue(err == Z_STREAM_END, "Test setup deflate failed, error: $err, Msg: ${stream.msg}")
 
-            println("[DEBUG_LOG] Calling deflate with Z_FINISH")
-            err = stream.deflate(Z_FINISH)
-            println("[DEBUG_LOG] deflate returned: $err, msg=${stream.msg}, totalOut=${stream.totalOut}")
-            
-            if (err != Z_STREAM_END) {
-                println("[DEBUG_LOG] deflate did not return Z_STREAM_END, checking stream state")
-                println("[DEBUG_LOG] Stream state: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
-                println("[DEBUG_LOG] Stream internal state: dState=${stream.dState}, iState=${stream.iState}, adler=${stream.adler}")
-            }
-            
-            assertTrue(err == Z_STREAM_END, "Test setup deflate failed, error: $err, msg: ${stream.msg}")
+        val result = outputBuffer.copyOf(stream.totalOut.toInt())
 
-            val result = outputBuffer.copyOf(stream.totalOut.toInt())
-            println("[DEBUG_LOG] Created result with size=${result.size}")
+        err = stream.deflateEnd()
+        assertTrue(err == Z_OK, "Test setup deflateEnd failed. Error: $err, Msg: ${stream.msg}")
 
-            // Print first few bytes of output for debugging
-            if (result.isNotEmpty()) {
-                val bytesToShow = minOf(result.size, 10)
-                println("[DEBUG_LOG] First $bytesToShow bytes of output: ${result.slice(0 until bytesToShow).joinToString(", ") { "0x" + (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase() }}")
-            } else {
-                println("[DEBUG_LOG] WARNING: Output is empty!")
-            }
-
-            err = stream.deflateEnd()
-            println("[DEBUG_LOG] deflateEnd returned: $err, msg=${stream.msg}")
-            assertTrue(err == Z_OK, "Test setup deflateEnd failed. Error: $err, Msg: ${stream.msg}")
-            
-            return result
-        } catch (e: Exception) {
-            println("[DEBUG_LOG] Exception in deflateDataForTestSetup: ${e.message}")
-            println("[DEBUG_LOG] Exception type: ${e::class.simpleName}")
-            e.printStackTrace()
-            throw e
-        }
+        return result
     }
 
     // Convert a hex string to a byte array for reference compressed data
@@ -83,146 +42,27 @@ class InflateTest {
     }
 
     private fun inflateDataInternal(inputDeflated: ByteArray, originalSizeHint: Int): ByteArray {
-        try {
+        val stream = ZStream()
 
-            val stream = ZStream()
+        var err = stream.inflateInit(MAX_WBITS)
+        assertTrue(err == Z_OK, "inflateInit failed. Error: $err, Msg: ${stream.msg}")
 
-            // Default window bits for zlib is 15 (MAX_WBITS)
-            var err = stream.inflateInit(MAX_WBITS)
-            assertTrue(err == Z_OK, "inflateInit failed. Error: $err, Msg: ${stream.msg}")
+        stream.nextIn = inputDeflated
+        stream.availIn = inputDeflated.size
 
-            stream.nextIn = inputDeflated
-            stream.availIn = inputDeflated.size
-            stream.nextInIndex = 0
+        val outputBuffer = ByteArray(originalSizeHint * 4 + 200)
+        stream.nextOut = outputBuffer
+        stream.availOut = outputBuffer.size
 
-            val outputBuffer = ByteArray(originalSizeHint * 4 + 200) // Increased buffer size for safety
-            stream.nextOut = outputBuffer
-            stream.availOut = outputBuffer.size
-            stream.nextOutIndex = 0
+        err = stream.inflate(Z_FINISH)
+        assertTrue(err == Z_STREAM_END, "Inflation failed, error: $err, Msg: ${stream.msg}")
 
-            // Loop to fully inflate the data
-            var loopCount = 0
-            var lastInIndex: Int
-            var lastOutIndex: Int
+        val result = outputBuffer.copyOf(stream.totalOut.toInt())
 
-            do {
+        err = stream.inflateEnd()
+        assertTrue(err == Z_OK, "inflateEnd failed. Error: $err, Msg: ${stream.msg}")
 
-                // Store current positions to detect stalls
-                lastInIndex = stream.nextInIndex
-                lastOutIndex = stream.nextOutIndex
-
-                try {
-                    println("[DEBUG_LOG] Before inflate call: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
-                    
-                    // Verify input buffer is valid
-                    if (stream.nextIn == null) {
-                        println("[DEBUG_LOG] Error: nextIn is null")
-                        throw NullPointerException("nextIn is null")
-                    }
-                    
-                    if (stream.nextInIndex < 0 || (stream.availIn > 0 && stream.nextInIndex >= stream.nextIn!!.size)) {
-                        println("[DEBUG_LOG] Error: nextInIndex=${stream.nextInIndex} out of bounds for nextIn size=${stream.nextIn!!.size}")
-                        throw IndexOutOfBoundsException("nextInIndex=${stream.nextInIndex} out of bounds for nextIn size=${stream.nextIn!!.size}")
-                    }
-                    
-                    // Verify output buffer is valid
-                    if (stream.nextOut == null) {
-                        println("[DEBUG_LOG] Error: nextOut is null")
-                        throw NullPointerException("nextOut is null")
-                    }
-                    
-                    if (stream.nextOutIndex < 0 || stream.nextOutIndex >= stream.nextOut!!.size) {
-                        println("[DEBUG_LOG] Error: nextOutIndex=${stream.nextOutIndex} out of bounds for nextOut size=${stream.nextOut!!.size}")
-                        throw IndexOutOfBoundsException("nextOutIndex=${stream.nextOutIndex} out of bounds for nextOut size=${stream.nextOut!!.size}")
-                    }
-                    
-                    // Print first few bytes of input for debugging
-                    if (stream.availIn > 0 && stream.nextIn != null) {
-                        val bytesToShow = minOf(stream.availIn, 10)
-                        println("[DEBUG_LOG] First $bytesToShow bytes of input: ${stream.nextIn!!.slice(stream.nextInIndex until stream.nextInIndex + bytesToShow).joinToString(", ") { it.toUByte().toString() }}")
-                    }
-                    
-                    err = stream.inflate(Z_NO_FLUSH)
-                    println("[DEBUG_LOG] After inflate call: err=$err, availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
-                } catch (e: Exception) {
-                    println("[DEBUG_LOG] Exception during inflate: ${e.message}")
-                    println("[DEBUG_LOG] Exception type: ${e::class.simpleName}")
-                    println("[DEBUG_LOG] Stream state: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
-                    if (stream.nextIn != null) {
-                        println("[DEBUG_LOG] nextIn size: ${stream.nextIn!!.size}")
-                    }
-                    if (stream.nextOut != null) {
-                        println("[DEBUG_LOG] nextOut size: ${stream.nextOut!!.size}")
-                    }
-                    throw e
-                }
-
-
-                // Z_BUF_ERROR is normally ok, but if we're not making progress, we need to break the loop
-                if (err == Z_BUF_ERROR &&
-                    lastInIndex == stream.nextInIndex &&
-                    lastOutIndex == stream.nextOutIndex) {
-                    break
-                }
-
-                // Z_OK means progress was made.
-                // Z_STREAM_END means we are done.
-                if (err < Z_OK && err != Z_BUF_ERROR) {
-                    val errorMsg = """
-                        [DEBUG_LOG] Inflation failed with error: $err, msg: ${stream.msg}
-                        [DEBUG_LOG] Error code details: Z_STREAM_ERROR=$Z_STREAM_ERROR, Z_DATA_ERROR=$Z_DATA_ERROR, Z_MEM_ERROR=$Z_MEM_ERROR
-                        [DEBUG_LOG] Input data (full): ${inputDeflated.joinToString(", ") { it.toString() }}
-                        [DEBUG_LOG] Expected output size: $originalSizeHint
-                        [DEBUG_LOG] Stream state: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}
-                        [DEBUG_LOG] Stream internal state: iState=${stream.iState}, dState=${stream.dState}, adler=${stream.adler}
-                        [DEBUG_LOG] Partial output so far (first 50 chars): ${outputBuffer.copyOf(stream.totalOut.toInt()).decodeToString().take(50)}
-                    """.trimIndent()
-                    println(errorMsg)
-                    
-                    // Print the first few bytes of input data in hex format for better debugging
-                    if (inputDeflated.isNotEmpty()) {
-                        val bytesToShow = minOf(inputDeflated.size, 20)
-                        println("[DEBUG_LOG] First $bytesToShow bytes of input in hex: ${inputDeflated.slice(0 until bytesToShow).joinToString(", ") { "0x" + (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase() }}")
-                    }
-                    
-                    // Print detailed information about the error
-                    println("[DEBUG_LOG] DETAILED ERROR INFORMATION:")
-                    println("[DEBUG_LOG] Error code: $err (${when(err) {
-                        Z_OK -> "Z_OK"
-                        Z_STREAM_END -> "Z_STREAM_END"
-                        Z_NEED_DICT -> "Z_NEED_DICT"
-                        Z_ERRNO -> "Z_ERRNO"
-                        Z_STREAM_ERROR -> "Z_STREAM_ERROR"
-                        Z_DATA_ERROR -> "Z_DATA_ERROR"
-                        Z_MEM_ERROR -> "Z_MEM_ERROR"
-                        Z_BUF_ERROR -> "Z_BUF_ERROR"
-                        Z_VERSION_ERROR -> "Z_VERSION_ERROR"
-                        else -> "UNKNOWN"
-                    }})")
-                    println("[DEBUG_LOG] Error message: ${stream.msg ?: "No error message"}")
-                    
-                    // Intentionally fail with the error message
-                    assertTrue(false, "Inflation failed with unexpected error: $err, msg: ${stream.msg}")
-                }
-
-                // Add a safety check to prevent extremely long loops
-                if (loopCount > 1000) {
-                    assertTrue(false, "Inflation appears to be in an infinite loop after $loopCount iterations")
-                }
-
-            } while (err != Z_STREAM_END)
-
-            val inflatedSize = stream.totalOut.toInt()
-            val result = outputBuffer.copyOf(inflatedSize)
-
-            err = stream.inflateEnd()
-            assertTrue(err == Z_OK, "inflateEnd failed. Error: $err, Msg: ${stream.msg}")
-
-            return result
-        } catch (e: Exception) {
-            e.printStackTrace()
-            throw e
-        }
+        return result
     }
 
     @Test
@@ -256,8 +96,6 @@ class InflateTest {
 
     @Test
     fun minimalInputDataTest() {
-        println("[DEBUG] Testing with minimal input data for compression and decompression.")
-
         val originalString = "A"
         val originalData = originalString.encodeToByteArray()
 

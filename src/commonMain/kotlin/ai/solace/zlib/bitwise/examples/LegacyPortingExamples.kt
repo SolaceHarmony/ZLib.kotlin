@@ -1,6 +1,7 @@
 package ai.solace.zlib.bitwise.examples
 
 import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
+import ai.solace.zlib.common.ZlibLogger
 
 /**
  * Example showing how to use ArithmeticBitwiseOps for porting legacy programs
@@ -27,13 +28,13 @@ class LegacyPortingExamples {
         val zeroSet = ops.isBitSet(statusRegister, 1)
         val negativeSet = ops.isBitSet(statusRegister, 7)
         
-        println("8-bit Status Register: 0x${statusRegister.toString(16)}")
-        println("Carry: $carrySet, Zero: $zeroSet, Negative: $negativeSet")
+        ZlibLogger.log("8-bit Status Register: 0x${statusRegister.toString(16)}")
+        ZlibLogger.log("Carry: $carrySet, Zero: $zeroSet, Negative: $negativeSet")
         
         // Arithmetic with overflow behavior matching 8-bit systems
         var counter = 255L
         counter = ops.normalize(counter + 1) // Should wrap to 0
-        println("8-bit counter after overflow: $counter")
+        ZlibLogger.log("8-bit counter after overflow: $counter")
     }
     
     /**
@@ -55,8 +56,8 @@ class LegacyPortingExamples {
         val value2 = 0x8000L
         val sum = ops.normalize(value1 + value2) // Should wrap around
         
-        println("16-bit Physical Address: 0x${physicalAddress.toString(16)}")
-        println("16-bit arithmetic: 0x8000 + 0x8000 = 0x${sum.toString(16)}")
+        ZlibLogger.log("16-bit Physical Address: 0x${physicalAddress.toString(16)}")
+        ZlibLogger.log("16-bit arithmetic: 0x8000 + 0x8000 = 0x${sum.toString(16)}")
         
         // Bit manipulation for 16-bit flags
         var dosFlags = 0L
@@ -64,7 +65,7 @@ class LegacyPortingExamples {
         dosFlags = ops.or(dosFlags, 0x0040L) // Zero flag
         dosFlags = ops.or(dosFlags, 0x0200L) // Interrupt enable
         
-        println("DOS Flags Register: 0x${dosFlags.toString(16)}")
+        ZlibLogger.log("DOS Flags Register: 0x${dosFlags.toString(16)}")
     }
     
     /**
@@ -93,7 +94,7 @@ class LegacyPortingExamples {
         
         val testData = "Hello, World!".encodeToByteArray()
         val hashResult = legacyHash(testData)
-        println("Legacy 32-bit hash: 0x${hashResult.toString(16)}")
+        ZlibLogger.log("Legacy 32-bit hash: 0x${hashResult.toString(16)}")
         
         // Simulating color manipulation (common in graphics programming)
         val red = 0xFFL
@@ -107,7 +108,7 @@ class LegacyPortingExamples {
         color = ops.or(color, ops.leftShift(green, 8))
         color = ops.or(color, blue)
         
-        println("32-bit ARGB color: 0x${color.toString(16)}")
+        ZlibLogger.log("32-bit ARGB color: 0x${color.toString(16)}")
         
         // Extract components back
         val extractedAlpha = ops.rightShift(color, 24)
@@ -115,7 +116,7 @@ class LegacyPortingExamples {
         val extractedGreen = ops.and(ops.rightShift(color, 8), 0xFFL)
         val extractedBlue = ops.and(color, 0xFFL)
         
-        println("Extracted ARGB: A=$extractedAlpha, R=$extractedRed, G=$extractedGreen, B=$extractedBlue")
+        ZlibLogger.log("Extracted ARGB: A=$extractedAlpha, R=$extractedRed, G=$extractedGreen, B=$extractedBlue")
     }
     
     /**
@@ -145,7 +146,7 @@ class LegacyPortingExamples {
         
         val testData = "123456789".encodeToByteArray()
         val crcResult = crc16(testData)
-        println("CRC-16 result: 0x${crcResult.toString(16)}")
+        ZlibLogger.log("CRC-16 result: 0x${crcResult.toString(16)}")
     }
     
     /**
@@ -173,7 +174,7 @@ class LegacyPortingExamples {
         val deviceId = 0xABL
         controlRegister = ops.or(controlRegister, ops.leftShift(deviceId, 8))
         
-        println("Control Register: 0x${controlRegister.toString(16)}")
+        ZlibLogger.log("Control Register: 0x${controlRegister.toString(16)}")
         
         // Extract bit fields back
         val extractedMode = ops.and(controlRegister, 0x07L)
@@ -181,7 +182,7 @@ class LegacyPortingExamples {
         val enableFlag = ops.isBitSet(controlRegister, 6)
         val extractedId = ops.rightShift(controlRegister, 8)
         
-        println("Extracted - Mode: $extractedMode, Speed: $extractedSpeed, Enable: $enableFlag, ID: 0x${extractedId.toString(16)}")
+        ZlibLogger.log("Extracted - Mode: $extractedMode, Speed: $extractedSpeed, Enable: $enableFlag, ID: 0x${extractedId.toString(16)}")
     }
 }
 
@@ -191,18 +192,18 @@ class LegacyPortingExamples {
 fun main() {
     val examples = LegacyPortingExamples()
     
-    println("=== 8-bit Microcontroller Example ===")
+    ZlibLogger.log("=== 8-bit Microcontroller Example ===")
     examples.example8BitMicrocontroller()
     
-    println("\n=== 16-bit DOS Program Example ===")
+    ZlibLogger.log("\n=== 16-bit DOS Program Example ===")
     examples.example16BitDosProgram()
     
-    println("\n=== 32-bit Legacy Application Example ===")
+    ZlibLogger.log("\n=== 32-bit Legacy Application Example ===")
     examples.example32BitLegacyApp()
     
-    println("\n=== CRC Calculation Example ===")
+    ZlibLogger.log("\n=== CRC Calculation Example ===")
     examples.exampleCrcCalculation()
     
-    println("\n=== Bit Fields Example ===")
+    ZlibLogger.log("\n=== Bit Fields Example ===")
     examples.exampleBitFields()
 }

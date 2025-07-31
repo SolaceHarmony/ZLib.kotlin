@@ -43,12 +43,13 @@ EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 package ai.solace.zlib.deflate
 
+
 import ai.solace.zlib.common.*
 import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
 
 /**
  * Internal implementation of the decompression algorithm.
- * 
+ *
  * This class handles the state machine for decompression of zlib-compressed data.
  * It processes the zlib header, manages decompression blocks, and verifies checksums.
  */
@@ -104,6 +105,7 @@ internal class Inflate {
         z.msg = null
         z.iState!!.mode = if (z.iState!!.nowrap != 0) INF_BLOCKS else INF_METHOD
         z.iState!!.blocks!!.reset(z, null)
+        ZlibLogger.debug("inflateReset: mode=${z.iState!!.mode}")
         return Z_OK
     }
 
@@ -114,6 +116,7 @@ internal class Inflate {
      * @return Z_OK on success
      */
     internal fun inflateEnd(z: ZStream?): Int {
+        ZlibLogger.debug("inflateEnd")
         blocks?.free(z)
         blocks = null
         //    ZFREE(z, z->state);
@@ -151,6 +154,7 @@ internal class Inflate {
         wbits = wMut
 
         z.iState!!.blocks = InfBlocks(z, if (z.iState!!.nowrap != 0) null else this, bitwiseOps.leftShift(1L, wMut).toInt())
+        ZlibLogger.debug("inflateInit: wbits=$wbits nowrap=$nowrap")
 
         // reset state
         inflateReset(z)
@@ -169,297 +173,182 @@ internal class Inflate {
      * @return Z_OK on success, Z_STREAM_END when decompression is complete,
      *         or an error code (Z_STREAM_ERROR, Z_DATA_ERROR, etc.)
      */
-    internal fun inflate(z: ZStream?, f: Int): Int {
-        println("[DEBUG_LOG] Inflate.inflate() called with flush=$f")
-        var r: Int
-        var b: Int
-
-        if (z == null || z.iState == null || z.nextIn == null) {
-            println("[DEBUG_LOG] Inflate.inflate error: z=$z, z.iState=${z?.iState}, z.nextIn=${z?.nextIn}")
+    internal fun inflate(z: ZStream, f: Int): Int {
+        if (z.iState == null || z.nextIn == null) {
+            ZlibLogger.debug("inflate: Z_STREAM_ERROR: iState or nextIn is null")
             return Z_STREAM_ERROR
         }
 
-        println("[DEBUG_LOG] Initial state: mode=${z.iState!!.mode}, availIn=${z.availIn}, nextInIndex=${z.nextInIndex}, availOut=${z.availOut}")
-        
-        // Initialize with appropriate value based on flush parameter
         val fMut = if (f == Z_FINISH) Z_BUF_ERROR else Z_OK
-        r = Z_BUF_ERROR
-
-        // Safety counter to prevent infinite loops
-        var iterations = 0
-        val maxIterations = 1000
+        var r = Z_BUF_ERROR
 
         while (true) {
-            // Safety check to prevent infinite loops
-            iterations++
-            if (iterations > maxIterations) {
-                z.msg = "Too many iterations during inflation, possible corrupt data"
-                z.iState!!.mode = INF_BAD
-                println("[DEBUG_LOG] Too many iterations: $iterations")
-                return Z_DATA_ERROR
-            }
-
-            println("[DEBUG_LOG] Iteration $iterations: mode=${z.iState!!.mode}, availIn=${z.availIn}, nextInIndex=${z.nextInIndex}, availOut=${z.availOut}")
-
-            // Check for exhausted output buffer before processing
-            if (z.availOut == 0 && z.iState!!.mode != INF_BAD) {
-                println("[DEBUG_LOG] Output buffer exhausted, returning Z_BUF_ERROR")
-                return Z_BUF_ERROR
-            }
-            
-            // Store the current mode for debugging
-            val currentMode = z.iState!!.mode
-
+            ZlibLogger.debug("inflate: mode=${z.iState!!.mode}")
             when (z.iState!!.mode) {
                 INF_METHOD -> {
-                    println("[DEBUG_LOG] Processing INF_METHOD state")
-                    // Need at least 1 byte for this state
-                    if (z.availIn < 1) {
-                        println("[DEBUG_LOG] Not enough input data for INF_METHOD, returning $r")
-                        return r
-                    }
-                    // Removed unused assignment to r = fMut
+                    if (z.availIn == 0) return r
+                    r = fMut
                     z.availIn--
                     z.totalIn++
-                    try {
-                        z.iState!!.method = bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL).toInt()
-                        println("[DEBUG_LOG] Read method byte: ${z.iState!!.method}")
-                    } catch (e: Exception) {
-                        println("[DEBUG_LOG] Exception in INF_METHOD: ${e.message}")
-                        println("[DEBUG_LOG] nextIn size: ${z.nextIn?.size}, nextInIndex: ${z.nextInIndex}")
-                        throw e
-                    }
-                    if (bitwiseOps.and(z.iState!!.method.toLong(), 0xfL).toInt() != Z_DEFLATED) {
+                    z.iState!!.method = z.nextIn!![z.nextInIndex++].toInt()
+                    if ((z.iState!!.method and 0xf) != Z_DEFLATED) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "unknown compression method"
                         z.iState!!.marker = 5 // can't try inflateSync
-                        println("[DEBUG_LOG] Unknown compression method: ${z.iState!!.method}")
+                        ZlibLogger.debug("inflate: unknown compression method")
                         break
                     }
-                    if ((bitwiseOps.rightShift(z.iState!!.method.toLong(), 4).toInt() + 8) > z.iState!!.wbits) {
+                    if ((z.iState!!.method shr 4) + 8 > z.iState!!.wbits) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "invalid window size"
                         z.iState!!.marker = 5 // can't try inflateSync
-                        println("[DEBUG_LOG] Invalid window size: ${(bitwiseOps.rightShift(z.iState!!.method.toLong(), 4).toInt() + 8)} > ${z.iState!!.wbits}")
+                        ZlibLogger.debug("inflate: invalid window size")
                         break
                     }
                     z.iState!!.mode = INF_FLAG
-                    println("[DEBUG_LOG] Transitioning to INF_FLAG state")
                 }
 
                 INF_FLAG -> {
-                    println("[DEBUG_LOG] Processing INF_FLAG state")
-                    // Need at least 1 byte for this state
-                    if (z.availIn < 1) {
-                        println("[DEBUG_LOG] Not enough input data for INF_FLAG, returning $r")
-                        return r
-                    }
-                    // Removed unused assignment to r = fMut
-
+                    if (z.availIn == 0) return r
+                    r = fMut
                     z.availIn--
                     z.totalIn++
-                    b = bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL).toInt()
-                    println("[DEBUG_LOG] Read flag byte: $b (0x${b.toString(16).uppercase()})")
-
-                    if ((bitwiseOps.leftShift(z.iState!!.method.toLong(), 8).toInt() + b) % 31 != 0) {
+                    val b = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    if (((z.iState!!.method shl 8) + b) % 31 != 0) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "incorrect header check"
                         z.iState!!.marker = 5 // can't try inflateSync
-                        println("[DEBUG_LOG] Incorrect header check, transitioning to INF_BAD state")
+                        ZlibLogger.debug("inflate: incorrect header check")
                         break
                     }
-
-                    if (bitwiseOps.and(b.toLong(), PRESET_DICT.toLong()).toInt() == 0) {
+                    ZlibLogger.debug("inflate: FLAG: b=$b")
+                    if (b and PRESET_DICT == 0) {
                         z.iState!!.mode = INF_BLOCKS
-                        println("[DEBUG_LOG] No preset dictionary, transitioning to INF_BLOCKS state")
-                        // Don't break here, continue to the next iteration with the INF_BLOCKS state
-                        continue
+                        break
                     }
                     z.iState!!.mode = INF_DICT4
-                    println("[DEBUG_LOG] Preset dictionary found, transitioning to INF_DICT4 state")
                 }
 
                 INF_DICT4 -> {
-                    // Need at least 1 byte for this state
-                    if (z.availIn < 1) return r
+                    if (z.availIn == 0) return r
+                    r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need = bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL), 24)
+                    z.iState!!.need = (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 24 and -0x1000000).toLong()
                     z.iState!!.mode = INF_DICT3
                 }
 
                 INF_DICT3 -> {
-                    // Need at least 1 byte for this state
-                    if (z.availIn < 1) return r
-
+                    if (z.availIn == 0) return r
+                    r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL), 16)
+                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 16).toLong()
                     z.iState!!.mode = INF_DICT2
                 }
 
                 INF_DICT2 -> {
-                    // Need at least 1 byte for this state
-                    if (z.availIn < 1) return r
-
+                    if (z.availIn == 0) return r
+                    r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL), 8)
+                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 8).toLong()
                     z.iState!!.mode = INF_DICT1
                 }
 
                 INF_DICT1 -> {
-                    // Need at least 1 byte for this state
-                    if (z.availIn < 1) return r
-
+                    if (z.availIn == 0) return r
+                    r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL)
-                    // Store expected Adler-32 checksum from stream
+                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong()
                     z.adler = z.iState!!.need
                     z.iState!!.mode = INF_DICT0
-                    ZlibLogger.debug("[DEBUG] INF_DICT1: Calculated Adler checksum: ${z.adler}, Expected: ${z.iState!!.need}")
-                    // Signal to caller that a dictionary is needed
+                    ZlibLogger.debug("inflate: DICT: adler=${z.adler}")
                     return Z_NEED_DICT
                 }
 
                 INF_DICT0 -> {
-                    // Remain in INF_DICT0 until inflateSetDictionary is called and succeeds
+                    z.iState!!.mode = INF_BAD
                     z.msg = "need dictionary"
+                    z.iState!!.marker = 0
+                    ZlibLogger.debug("inflate: need dictionary")
                     return Z_STREAM_ERROR
                 }
 
                 INF_BLOCKS -> {
-                    println("[DEBUG_LOG] Processing INF_BLOCKS state")
-                    
-                    // Verify blocks is not null before proceeding
-                    if (z.iState!!.blocks == null) {
-                        println("[DEBUG_LOG] Error: blocks is null in INF_BLOCKS state")
-                        z.iState!!.mode = INF_BAD
-                        z.msg = "blocks is null"
-                        return Z_DATA_ERROR
-                    }
-                    
-                    try {
-                        println("[DEBUG_LOG] Calling blocks.proc with r=$r, availIn=${z.availIn}, nextInIndex=${z.nextInIndex}")
-                        r = z.iState!!.blocks!!.proc(z, r) // Call proc on blocks
-                        println("[DEBUG_LOG] blocks.proc returned r=$r")
-                    } catch (e: Exception) {
-                        println("[DEBUG_LOG] Exception in blocks.proc: ${e.message}")
-                        println("[DEBUG_LOG] Exception stack trace: ${e.stackTraceToString()}")
-                        throw e
-                    }
-                    
+                    r = z.iState!!.blocks!!.proc(z, r)
+                    ZlibLogger.debug("inflate: BLOCKS: r=$r")
                     if (r == Z_DATA_ERROR) {
-                        println("[DEBUG_LOG] Z_DATA_ERROR from blocks.proc, msg: ${z.msg}")
                         z.iState!!.mode = INF_BAD
-                        z.iState!!.marker = 0 // can try inflateSync
-                        // Return Z_DATA_ERROR directly instead of breaking to the end of the loop
-                        return Z_DATA_ERROR
+                        z.iState!!.marker = 0 // can't try inflateSync
+                        ZlibLogger.debug("inflate: BLOCKS: Z_DATA_ERROR")
+                        break
                     }
                     if (r == Z_OK) {
                         r = fMut
-                        println("[DEBUG_LOG] Changed r to fMut=$fMut")
                     }
-
-                    // Handle output buffer exhaustion
-                    if (z.availOut == 0) {
-                        println("[DEBUG_LOG] Output buffer exhausted in INF_BLOCKS")
-                        // If we can't output any more data but still have input to process
-                        // return with buffer error so caller can provide more output space
-                        if (z.availIn > 0) {
-                            println("[DEBUG_LOG] Still have input data, returning Z_BUF_ERROR")
-                            return Z_BUF_ERROR
-                        }
-                    }
-
                     if (r != Z_STREAM_END) {
-                        println("[DEBUG_LOG] Not at stream end, returning r=$r")
                         return r
                     }
-                    
-                    println("[DEBUG_LOG] Stream end reached, resetting blocks")
                     r = fMut
-                    try {
-                        z.iState!!.blocks!!.reset(z, z.iState!!.was)
-                    } catch (e: Exception) {
-                        println("[DEBUG_LOG] Exception in blocks.reset: ${e.message}")
-                        println("[DEBUG_LOG] Exception stack trace: ${e.stackTraceToString()}")
-                        throw e
+                    z.iState!!.blocks!!.reset(z, z.iState!!.was)
+                    if (z.iState!!.nowrap != 0) {
+                        z.iState!!.mode = INF_DONE
+                        break
                     }
-                    
-                    z.iState!!.mode = if (z.iState!!.nowrap != 0) INF_DONE else INF_CHECK4
-                    println("[DEBUG_LOG] Transitioning to ${if (z.iState!!.nowrap != 0) "INF_DONE" else "INF_CHECK4"} state")
+                    z.iState!!.mode = INF_CHECK4
                 }
 
                 INF_CHECK4 -> {
-                    // Need at least 2 bytes for this state
-                    if (z.availIn < 2) return r
+                    if (z.availIn == 0) return r
                     r = fMut
-
-                    // Read first byte
                     z.availIn--
                     z.totalIn++
-                    
-                    // Read second byte
-                    z.availIn--
-                    z.totalIn++
-                    z.iState!!.need = bitwiseOps.and(bitwiseOps.leftShift(z.nextIn!![z.nextInIndex++].toLong(), 24), 0xff000000L)
+                    z.iState!!.need = (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 24 and -0x1000000).toLong()
                     z.iState!!.mode = INF_CHECK3
                 }
 
                 INF_CHECK3 -> {
-                    // Need at least 1 byte for this state
-                    if (z.availIn < 1) return r
+                    if (z.availIn == 0) return r
+                    r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += bitwiseOps.and(bitwiseOps.leftShift(z.nextIn!![z.nextInIndex++].toLong(), 16), 0x00ff0000L)
+                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 16).toLong()
                     z.iState!!.mode = INF_CHECK2
                 }
 
                 INF_CHECK2 -> {
-                    // Need at least 1 byte for this state
-                    if (z.availIn < 1) return r
+                    if (z.availIn == 0) return r
+                    r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += bitwiseOps.and(bitwiseOps.leftShift(z.nextIn!![z.nextInIndex++].toLong(), 8), 0x0000ff00L)
+                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 8).toLong()
                     z.iState!!.mode = INF_CHECK1
                 }
 
                 INF_CHECK1 -> {
-                    // Need at least 1 byte for this state
-                    if (z.availIn < 1) return r
+                    if (z.availIn == 0) return r
+                    r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0x000000ffL)
-
+                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong()
+                    ZlibLogger.debug("inflate: CHECK: was=${z.iState!!.was[0]} need=${z.iState!!.need}")
                     if (z.iState!!.was[0] != z.iState!!.need) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "incorrect data check"
                         z.iState!!.marker = 5 // can't try inflateSync
+                        ZlibLogger.debug("inflate: incorrect data check")
                         break
                     }
-
                     z.iState!!.mode = INF_DONE
                 }
-
                 INF_DONE -> return Z_STREAM_END
                 INF_BAD -> return Z_DATA_ERROR
                 else -> return Z_STREAM_ERROR
             }
-            
-            // After processing a state, check if the mode has changed
-            if (z.iState!!.mode != currentMode) {
-                println("[DEBUG_LOG] Mode changed from $currentMode to ${z.iState!!.mode}, continuing to next iteration")
-                continue  // Continue to the next iteration with the new mode
-            } else {
-                println("[DEBUG_LOG] Mode unchanged, returning Z_OK")
-                return Z_OK
-            }
         }
-        
-        println("[DEBUG_LOG] Exited while loop, returning Z_OK")
-        return Z_OK
+        return r
     }
 
     /**
@@ -473,26 +362,28 @@ internal class Inflate {
      * @param dictLength The length of the dictionary
      * @return Z_OK on success, Z_STREAM_ERROR if state is invalid, Z_DATA_ERROR if checksum fails
      */
-    internal fun inflateSetDictionary(z: ZStream?, dictionary: ByteArray?, dictLength: Int): Int {
-        var lengthMut = dictLength
+    internal fun inflateSetDictionary(z: ZStream, dictionary: ByteArray, dictLength: Int): Int {
+        var length = dictLength
         var index = 0
+        if (z.iState == null || z.iState!!.mode != INF_DICT0) {
+            return Z_STREAM_ERROR
+        }
 
-        if (z == null || z.iState == null || z.iState!!.mode != INF_DICT0) return Z_STREAM_ERROR
-
-        ZlibLogger.debug("[DEBUG] Validating Adler-32 checksum: Calculated=${z.adlerChecksum!!.adler32(1L, dictionary, 0, dictLength)}, Expected=${z.adler}")
-        if (z.adlerChecksum!!.adler32(1L, dictionary, 0, dictLength) != z.adler) {
+        val adler = z.adlerChecksum!!.adler32(1L, dictionary, 0, length)
+        if (adler != z.adler) {
             return Z_DATA_ERROR
         }
 
         z.adler = z.adlerChecksum!!.adler32(0, null, 0, 0)
 
         val wsize = bitwiseOps.leftShift(1L, z.iState!!.wbits).toInt()
-        if (lengthMut >= wsize) {
-            lengthMut = wsize
-            index = dictLength - lengthMut
+        if (length >= wsize) {
+            length = wsize
+            index = dictLength - length
         }
-        ZlibLogger.debug("[DEBUG] Dictionary content: ${dictionary?.joinToString(", ")}")
-        z.iState!!.blocks!!.setDictionary(dictionary!!, index, lengthMut)
+
+        ZlibLogger.debug("inflateSetDictionary: wsize=$wsize length=$length index=$index")
+        z.iState!!.blocks!!.setDictionary(dictionary, index, length)
         z.iState!!.mode = INF_BLOCKS
         return Z_OK
     }
@@ -548,6 +439,7 @@ internal class Inflate {
         z.totalIn = r
         z.totalOut = w
         z.iState!!.mode = INF_BLOCKS
+        ZlibLogger.debug("inflateSync: sync found")
         return Z_OK
     }
 

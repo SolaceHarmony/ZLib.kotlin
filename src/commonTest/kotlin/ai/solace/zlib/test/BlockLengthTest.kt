@@ -4,6 +4,7 @@ import ai.solace.zlib.common.Z_FINISH
 import ai.solace.zlib.common.Z_NO_COMPRESSION
 import ai.solace.zlib.common.Z_OK
 import ai.solace.zlib.common.Z_STREAM_END
+import ai.solace.zlib.common.ZlibLogger
 import ai.solace.zlib.deflate.ZStream
 import kotlin.test.Test
 import kotlin.test.assertTrue
@@ -21,8 +22,8 @@ class BlockLengthTest {
         val originalString = "This is a test string"
         val originalData = originalString.encodeToByteArray()
 
-        println("Original data length: ${originalData.size}")
-        println("Original data: $originalString")
+        ZlibLogger.log("Original data length: ${originalData.size}")
+        ZlibLogger.log("Original data: $originalString")
 
         // Create a ZStream for deflation with specific settings to encourage stored blocks
         val deflateStream = ZStream()
@@ -46,14 +47,14 @@ class BlockLengthTest {
         val compressedSize = deflateStream.totalOut.toInt()
         val compressedData = outputBuffer.copyOf(compressedSize)
 
-        println("Compressed data length: $compressedSize")
-        println("First 16 bytes of compressed data (hex): ${compressedData.take(16).joinToString("") { byteToHex(it) }}")
+        ZlibLogger.log("Compressed data length: $compressedSize")
+        ZlibLogger.log("First 16 bytes of compressed data (hex): ${compressedData.take(16).joinToString("") { byteToHex(it) }}")
 
         // Clean up deflate stream
         deflateStream.deflateEnd()
 
         // Basic test validation - just ensure that compression completed successfully
-        println("Successfully deflated data with Z_NO_COMPRESSION")
+        ZlibLogger.log("Successfully deflated data with Z_NO_COMPRESSION")
         assertTrue(true, "Stored block length handling is functioning properly")
     }
 }

@@ -3,6 +3,7 @@ package ai.solace.zlib.test
 import ai.solace.zlib.deflate.Adler32
 import ai.solace.zlib.common.ADLER_BASE
 import ai.solace.zlib.common.ADLER_NMAX
+import ai.solace.zlib.common.ZlibLogger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -212,7 +213,7 @@ class Adler32Test {
         }
 
         // Print the duration for informational purposes
-        println("Time to calculate Adler32 for 1,000,000 bytes: $duration")
+        ZlibLogger.log("Time to calculate Adler32 for 1,000,000 bytes: $duration")
 
         // No assertion here, just informational
     }

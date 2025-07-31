@@ -7,7 +7,6 @@ plugins {
 }
 
 kotlin {
-    // jvm() // JVM target removed
     macosArm64 {
         binaries {
             framework {
@@ -58,41 +57,53 @@ kotlin {
             dependencies {
                 implementation(kotlin("stdlib-common"))
                 implementation("com.squareup.okio:okio:3.9.0")
+                implementation("co.touchlab:kermit:2.0.4")
+                implementation("org.jetbrains.kotlinx:kotlinx-datetime:0.7.1")
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.8.1")
             }
         }
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation(kotlin("test-common"))
+                implementation(kotlin("test-annotations-common"))
             }
+        }
+
+        val nativeMain by creating {
+            dependsOn(commonMain)
+        }
+        val nativeTest by creating {
+            dependsOn(commonTest)
         }
 
         // Configure platform-specific source sets
         @Suppress("unused")
         val macosArm64Main by getting {
-            dependsOn(commonMain)
+            dependsOn(nativeMain)
             dependencies {
                 implementation(kotlin("stdlib-common"))
             }
         }
         @Suppress("unused")
         val macosArm64Test by getting {
-            dependsOn(commonTest)
+            dependsOn(nativeTest)
         }
         @Suppress("unused")
         val linuxX64Main by getting {
-            dependsOn(commonMain)
+            dependsOn(nativeMain)
         }
         @Suppress("unused")
         val linuxX64Test by getting {
-            dependsOn(commonTest)
+            dependsOn(nativeTest)
         }
         @Suppress("unused")
         val linuxArm64Main by getting {
-            dependsOn(commonMain)
+            dependsOn(nativeMain)
         }
         @Suppress("unused")
         val linuxArm64Test by getting {
-            dependsOn(commonTest)
+            dependsOn(nativeTest)
         }
     }
 

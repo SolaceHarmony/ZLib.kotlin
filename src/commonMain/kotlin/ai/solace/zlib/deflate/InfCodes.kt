@@ -119,6 +119,8 @@ internal class InfCodes {
         val maxIterations = 10000
         var iterationCount = 0
 
+        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() started. Initial mode: $mode")
+
         // process input and output based on current state
         while (true) {
             iterationCount++
@@ -126,8 +128,12 @@ internal class InfCodes {
             // Safety check to prevent hanging
             if (iterationCount > maxIterations) {
                 z.msg = "Too many iterations in InfCodes.proc, possible corrupt data"
+                ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - Too many iterations: $iterationCount")
                 return Z_DATA_ERROR
             }
+
+            val currentMode = mode // Store current mode for logging
+            ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - Iteration $iterationCount, Mode: $mode, availIn: $bytesAvailable, bitsInBuffer: $bitsInBuffer")
 
             when (mode) {
 
@@ -137,9 +143,11 @@ internal class InfCodes {
                     tree = ltree
                     treeIndex = ltreeIndex
                     mode = ICODES_LEN
+                    ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START: Transitioning to ICODES_LEN. bitsNeeded=$bitsNeeded, treeIndex=$treeIndex")
                     
                     // Fall through to ICODES_LEN state
                     if (outputBytesLeft >= 258 && bytesAvailable >= 10) {
+                        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START: Calling inflateFast. outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
                         s.bitb = bitBuffer
                         s.bitk = bitsInBuffer
                         z.availIn = bytesAvailable
@@ -153,8 +161,10 @@ internal class InfCodes {
                         bitsInBuffer = s.bitk
                         outputWritePointer = s.write
                         outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
+                        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - inflateFast returned: $result. availIn=$bytesAvailable, bitsInBuffer=$bitsInBuffer")
                         if (result != Z_OK) {
                             mode = if (result == Z_STREAM_END) ICODES_WASH else ICODES_BADCODE
+                            ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - inflateFast resulted in non-OK: new mode=$mode")
                             continue  // Changed from break to continue
                         }
                     }
@@ -164,8 +174,10 @@ internal class InfCodes {
                     
                     // Ensure we have enough bits
                     while (bitsInBuffer < tempStorage) {
+                        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: Need more bits. bitsInBuffer=$bitsInBuffer, tempStorage=$tempStorage")
                         if (bytesAvailable != 0) result = Z_OK
                         else {
+                            ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: No more bytes available, returning Z_BUF_ERROR")
                             s.bitb = bitBuffer
                             s.bitk = bitsInBuffer
                             z.availIn = bytesAvailable
@@ -175,7 +187,7 @@ internal class InfCodes {
                             return inflateFlush(s, z, result)
                         }
                         bytesAvailable--
-                        println("[BITWISE_DEBUG] InfCodes START loading byte: ${bitwiseOps.and(z.nextIn!![inputPointer].toLong(), 0xffL)}")
+                        ZlibLogger.log("[BITWISE_DEBUG] InfCodes START loading byte: ${bitwiseOps.and(z.nextIn!![inputPointer].toLong(), 0xffL)}")
                         bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                         bitsInBuffer += 8
                     }
@@ -183,15 +195,16 @@ internal class InfCodes {
                     // Get the table index
                     tableIndex = (treeIndex + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[tempStorage].toLong()).toInt()) * 3
                     
-                    println("[DEBUG_LOG] ICODES_START: tableIndex=$tableIndex, treeIndex=$treeIndex, bitBuffer=0x${bitBuffer.toString(16)}, mask=0x${IBLK_INFLATE_MASK[tempStorage].toString(16)}")
-                    println("[DEBUG_LOG] ICODES_START: tree.size=${tree.size}, checking bounds for tableIndex=$tableIndex")
+                    ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: tableIndex=$tableIndex, treeIndex=$treeIndex, bitBuffer=0x${bitBuffer.toString(16)}, mask=0x${IBLK_INFLATE_MASK[tempStorage].toString(16)}")
+                    ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: tree.size=${tree.size}, checking bounds for tableIndex=$tableIndex")
                     
-                    if (tableIndex + 2 >= tree.size) {
-                        println("[DEBUG_LOG] ICODES_START: ERROR - tableIndex=$tableIndex out of bounds for tree.size=${tree.size}")
+                    if (tableIndex < 0 || tableIndex + 2 >= tree.size) {
+                        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: ERROR - tableIndex=$tableIndex out of bounds for tree.size=${tree.size}")
+                        z.msg = "Array index out of bounds"
                         return Z_DATA_ERROR
                     }
                     
-                    println("[DEBUG_LOG] ICODES_START: tree[${tableIndex}]=${tree[tableIndex]}, tree[${tableIndex+1}]=${tree[tableIndex+1]}, tree[${tableIndex+2}]=${tree[tableIndex+2]}")
+                    ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: tree[${tableIndex}]=${tree[tableIndex]}, tree[${tableIndex+1}]=${tree[tableIndex+1]}, tree[${tableIndex+2}]=${tree[tableIndex+2]}")
                     
                     // Remove the bits we've used
                     bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tree[tableIndex + 1]).toInt()
@@ -200,13 +213,13 @@ internal class InfCodes {
                     // Get the operation/extra bits
                     extraBitsOrOperation = tree[tableIndex]
                     
-                    println("[DEBUG_LOG] ICODES_START: After consuming ${tree[tableIndex + 1]} bits: bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer, op=$extraBitsOrOperation")
+                    ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: After consuming ${tree[tableIndex + 1]} bits: bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer, op=$extraBitsOrOperation")
                     
                     // Process based on the operation
                     if (extraBitsOrOperation == 0) {
                         // Literal
                         literal = tree[tableIndex + 2]
-                        println("[DEBUG_LOG] ICODES_START: Found literal=$literal (ASCII '${literal.toChar()}'), switching to ICODES_LIT")
+                        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: Found literal=$literal (ASCII '${literal.toChar()}'), switching to ICODES_LIT")
                         mode = ICODES_LIT
                         continue  // Continue to process ICODES_LIT state
                     }
@@ -216,6 +229,7 @@ internal class InfCodes {
                         extraBitsNeeded = bitwiseOps.and(extraBitsOrOperation.toLong(), 15L).toInt()
                         length = tree[tableIndex + 2]
                         mode = ICODES_LENEXT
+                        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: Found length code. extraBitsNeeded=$extraBitsNeeded, length=$length. Transitioning to ICODES_LENEXT")
                         continue  // Continue to process ICODES_LENEXT state
                     }
                     
@@ -223,12 +237,14 @@ internal class InfCodes {
                         // Next table
                         bitsNeeded = extraBitsOrOperation
                         treeIndex = tableIndex / 3 + tree[tableIndex + 2]
+                        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: Next table reference. bitsNeeded=$bitsNeeded, treeIndex=$treeIndex")
                         continue  // Continue with new table reference
                     }
                     
                     if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
                         // End of block
                         mode = ICODES_WASH
+                        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: End of block found. Transitioning to ICODES_WASH")
                         continue  // Continue to process ICODES_WASH state
                     }
                     
@@ -236,6 +252,7 @@ internal class InfCodes {
                     mode = ICODES_BADCODE
                     z.msg = "invalid literal/length code"
                     result = Z_DATA_ERROR
+                    ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: Invalid literal/length code. Error: ${z.msg}")
                     
                     s.bitb = bitBuffer
                     s.bitk = bitsInBuffer
@@ -247,9 +264,9 @@ internal class InfCodes {
                 }
 
                 ICODES_LEN -> {
-                    println("[DEBUG_LOG] ICODES_LEN: checking inflateFast conditions: outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
+                    ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_LEN: checking inflateFast conditions: outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
                     if (outputBytesLeft >= 258 && bytesAvailable >= 10) {
-                        println("[DEBUG_LOG] Calling inflateFast: conditions met")
+                        ZlibLogger.log("[DEBUG_LOG] Calling inflateFast: conditions met")
                         s.bitb = bitBuffer
                         s.bitk = bitsInBuffer
                         z.availIn = bytesAvailable
@@ -529,7 +546,6 @@ internal class InfCodes {
                     }
                     result = Z_OK
 
-                    println("[DEBUG_LOG] ICODES_LIT: Writing literal=$literal (ASCII '${literal.toChar()}') to window[$outputWritePointer]")
                     s.window[outputWritePointer++] = literal.toByte()
                     outputBytesLeft--
 
@@ -631,18 +647,18 @@ internal class InfCodes {
         s: InfBlocks,
         z: ZStream
     ): Int {
-        println("[DEBUG_LOG] inflateFast called with bl=$bl, bd=$bd, tlIndex=$tlIndex, tdIndex=$tdIndex")
-        println("[DEBUG_LOG] inflateFast called with outputWrite=${s.write}, windowSize=${s.end}")
-        println("[DEBUG_LOG] Initial window content at write position: '${if (s.write < s.window.size) s.window[s.write].toInt().toChar() else '?'}' (${if (s.write < s.window.size) s.window[s.write].toInt() else -1})")
-        println("[DEBUG_LOG] Initial bit buffer: 0x${s.bitb.toString(16)}, bits: ${s.bitk}")
-        println("[DEBUG_LOG] tl size=${tl.size}, td size=${td.size}")
+        ZlibLogger.log("[DEBUG_LOG] inflateFast called with bl=$bl, bd=$bd, tlIndex=$tlIndex, tdIndex=$tdIndex")
+        ZlibLogger.log("[DEBUG_LOG] inflateFast called with outputWrite=${s.write}, windowSize=${s.end}")
+        ZlibLogger.log("[DEBUG_LOG] Initial window content at write position: '${if (s.write < s.window.size) s.window[s.write].toInt().toChar() else '?'}' (${if (s.write < s.window.size) s.window[s.write].toInt() else -1})")
+        ZlibLogger.log("[DEBUG_LOG] Initial bit buffer: 0x${s.bitb.toString(16)}, bits: ${s.bitk}")
+        ZlibLogger.log("[DEBUG_LOG] tl size=${tl.size}, td size=${td.size}")
         
         // Print the first few entries of the tables for debugging
         if (tl.size >= 3) {
-            println("[DEBUG_LOG] First tl entry: [${tl[tlIndex * 3]}, ${tl[tlIndex * 3 + 1]}, ${tl[tlIndex * 3 + 2]}]")
+            ZlibLogger.log("[DEBUG_LOG] First tl entry: [${tl[tlIndex * 3]}, ${tl[tlIndex * 3 + 1]}, ${tl[tlIndex * 3 + 2]}]")
         }
         if (td.size >= 3) {
-            println("[DEBUG_LOG] First td entry: [${td[tdIndex * 3]}, ${td[tdIndex * 3 + 1]}, ${td[tdIndex * 3 + 2]}]")
+            ZlibLogger.log("[DEBUG_LOG] First td entry: [${td[tdIndex * 3]}, ${td[tdIndex * 3 + 1]}, ${td[tdIndex * 3 + 2]}]")
         }
         
         var tempPointer: Int // Temporary table index
@@ -667,40 +683,42 @@ internal class InfCodes {
         var literalLengthMask: Int = IBLK_INFLATE_MASK[bl] // Bit mask for literal/length tree lookups
         var distanceMask: Int = IBLK_INFLATE_MASK[bd] // Bit mask for distance tree lookups
 
-        println("[DEBUG_LOG] Initial state: inputPointer=$inputPointer, bytesAvailable=$bytesAvailable")
-        println("[DEBUG_LOG] bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
-        println("[DEBUG_LOG] outputWritePointer=$outputWritePointer, outputBytesLeft=$outputBytesLeft")
-        println("[DEBUG_LOG] literalLengthMask=0x${literalLengthMask.toString(16)}, distanceMask=0x${distanceMask.toString(16)}")
+        ZlibLogger.log("[DEBUG_LOG] inflateFast - Initial state: inputPointer=$inputPointer, bytesAvailable=$bytesAvailable")
+        ZlibLogger.log("[DEBUG_LOG] inflateFast - bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
+        ZlibLogger.log("[DEBUG_LOG] inflateFast - outputWritePointer=$outputWritePointer, outputBytesLeft=$outputBytesLeft")
+        ZlibLogger.log("[DEBUG_LOG] inflateFast - literalLengthMask=0x${literalLengthMask.toString(16)}, distanceMask=0x${distanceMask.toString(16)}")
 
         // Check if we have sufficient space for fast processing
         if (outputBytesLeft < 258 || bytesAvailable < 10) {
-            println("[DEBUG_LOG] Insufficient space for fast processing: outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
+            ZlibLogger.log("[DEBUG_LOG] inflateFast - Insufficient space for fast processing: outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable. Returning Z_OK")
             return Z_OK  // Return to slow path
         }
 
         // Main processing loop - continue until insufficient input or output space
         do {
-            println("[DEBUG_LOG] Starting main loop iteration: outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
+            ZlibLogger.log("[DEBUG_LOG] inflateFast - Starting main loop iteration: outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
             // Assumption: called with outputBytesLeft >= 258 && bytesAvailable >= 10
             // Get literal/length code
             while (bitsInBuffer < 20) {
                 // Ensure we have enough bits for literal/length code (max 15 bits + extra)
+                ZlibLogger.log("[DEBUG_LOG] inflateFast - Need more bits for literal/length code. bitsInBuffer=$bitsInBuffer")
                 bytesAvailable--
                 bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                 bitsInBuffer += 8
+                ZlibLogger.log("[DEBUG_LOG] inflateFast - Fetched byte. New bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
             }
 
-            ZlibLogger.debug("[BIT_DEBUG] bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer, literalLengthMask=0x${literalLengthMask.toString(16)}")
+            ZlibLogger.log("[DEBUG_LOG] inflateFast - Before literal/length table lookup. bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer, literalLengthMask=0x${literalLengthMask.toString(16)}")
             tempPointer = bitwiseOps.and(bitBuffer.toLong(), literalLengthMask.toLong()).toInt()
             tempTable = tl
             tempTableIndex = tlIndex
             
-            println("[DEBUG_LOG] InfCodes.inflateFast: tempTableIndex=$tempTableIndex, tempPointer=$tempPointer, tempTable.size=${tempTable.size}")
+            ZlibLogger.log("[DEBUG_LOG] inflateFast - Literal/length lookup: tempTableIndex=$tempTableIndex, tempPointer=$tempPointer, tempTable.size=${tempTable.size}")
             
             // Use the same table access pattern as the slow path
             val tableIndex = (tempTableIndex + tempPointer) * 3
             if (tableIndex < 0 || tableIndex + 2 >= tempTable.size) {
-                println("[DEBUG_LOG] ArrayIndexOutOfBoundsException prevented: tableIndex=$tableIndex, tempTable.size=${tempTable.size}")
+                ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Literal/length table index out of bounds: tableIndex=$tableIndex, tempTable.size=${tempTable.size}")
                 z.msg = "Array index out of bounds"
                 return Z_DATA_ERROR
             }
@@ -710,81 +728,88 @@ internal class InfCodes {
             val bits = tempTable[tableIndex + 1]
             val value = tempTable[tableIndex + 2]
             
-            println("[DEBUG_LOG] Table lookup: op=$op, bits=$bits, value=$value")
-            println("[DEBUG_LOG] About to consume $bits bits from bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
+            ZlibLogger.log("[DEBUG_LOG] inflateFast - Literal/length table entry: op=$op, bits=$bits, value=$value")
+            ZlibLogger.log("[DEBUG_LOG] inflateFast - About to consume $bits bits from bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
             
             // Consume the bits
             bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), bits).toInt()
             bitsInBuffer -= bits
             
-            println("[DEBUG_LOG] After consuming bits: bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
+            ZlibLogger.log("[DEBUG_LOG] inflateFast - After consuming bits: bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
             
             if (op == 0) {
                 // Direct literal - same as slow path
-                println("[DEBUG_LOG] FAST LITERAL: op=$op, bits=$bits, value=$value")
+                ZlibLogger.log("[DEBUG_LOG] inflateFast - Direct literal found. op=$op, bits=$bits, value=$value")
                 
                 // Check if outputWritePointer is within bounds
                 if (outputWritePointer < 0 || outputWritePointer >= s.window.size) {
-                    println("[DEBUG_LOG] ArrayIndexOutOfBoundsException prevented: outputWritePointer=$outputWritePointer, s.window.size=${s.window.size}")
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: OutputWritePointer out of bounds: outputWritePointer=$outputWritePointer, s.window.size=${s.window.size}")
                     z.msg = "Array index out of bounds"
                     return Z_DATA_ERROR
                 }
                 
                 // Like C: if (op == 0) { *out++ = (unsigned char)(here->val); }
                 val fastLiteralByte = bitwiseOps.and(value.toLong(), 0xFFL).toByte()  // Mask to byte range
-                println("[DEBUG_LOG] FAST LITERAL: Writing '${fastLiteralByte.toInt().toChar()}' (${fastLiteralByte.toInt()}) to window[$outputWritePointer]")
+                ZlibLogger.log("[DEBUG_LOG] inflateFast - Writing literal: '${fastLiteralByte.toInt().toChar()}' (${fastLiteralByte.toInt()}) to window[$outputWritePointer]")
                 s.window[outputWritePointer++] = fastLiteralByte
                 outputBytesLeft--
                 continue
             }
 
             do {
+                ZlibLogger.log("[DEBUG_LOG] inflateFast - Inner loop for length/distance. Current op=$op")
                 // Same pattern as slow path: get literal/length code
                 tempPointer = bitwiseOps.and(bitBuffer.toLong(), literalLengthMask.toLong()).toInt()
                 
                 // Use the same table access pattern as slow path
                 // Removed unused variable 'innerTableIndex'
-                if (tableIndex < 0 || tableIndex + 2 >= tl.size) {
-                    println("[DEBUG_LOG] Table access out of bounds: tableIndex=$tableIndex, tl.size=${tl.size}")
+                val innerTableIndex = (tempTableIndex + tempPointer) * 3
+                if (innerTableIndex < 0 || innerTableIndex + 2 >= tl.size) {
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Inner table access out of bounds: innerTableIndex=$innerTableIndex, tl.size=${tl.size}")
                     z.msg = "invalid literal/length code - out of bounds"
                     return Z_DATA_ERROR
                 }
                 
                 // Get the table entry: [operation, bits, value] - same as slow path
-                val innerOp = tl[tableIndex]
-                val innerBits = tl[tableIndex + 1]
-                val innerValue = tl[tableIndex + 2]
+                val innerOp = tl[innerTableIndex]
+                val innerBits = tl[innerTableIndex + 1]
+                val innerValue = tl[innerTableIndex + 2]
                 
-                println("[DEBUG_LOG] Huffman lookup: tempPointer=$tempPointer, op=$innerOp, bits=$innerBits, value=$innerValue")
+                ZlibLogger.log("[DEBUG_LOG] inflateFast - Huffman lookup: tempPointer=$tempPointer, op=$innerOp, bits=$innerBits, value=$innerValue")
                 
                 // Consume the bits - same as slow path
                 bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), innerBits).toInt()
                 bitsInBuffer -= innerBits
                 extraBitsOrOperation = innerOp
                 
-                println("[DEBUG_LOG] Table entry: op=$innerOp, bits=$innerBits, value=$innerValue")
+                ZlibLogger.log("[DEBUG_LOG] inflateFast - Table entry: op=$innerOp, bits=$innerBits, value=$innerValue")
                 if (innerOp == 0) {  // Literal - same as slow path
                     val literalByte = bitwiseOps.and(innerValue.toLong(), 0xFFL).toByte()  // Mask to byte range
-                    println("[DEBUG_LOG] Writing literal: '${literalByte.toInt().toChar()}' (${literalByte.toInt()}) to window[$outputWritePointer]")
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Writing literal: '${literalByte.toInt().toChar()}' (${literalByte.toInt()}) to window[$outputWritePointer]")
                     s.window[outputWritePointer++] = literalByte
                     outputBytesLeft--
                     break
                 }
                 else if (bitwiseOps.and(innerOp.toLong(), 16L).toInt() != 0) {  // Length - same as slow path
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Found length code. innerOp=$innerOp")
                     extraBitsNeeded = bitwiseOps.and(innerOp.toLong(), 15L).toInt()  // Like C: op &= 15
                     bytesToCopy = innerValue + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[extraBitsNeeded].toLong()).toInt()
                     bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), extraBitsNeeded).toInt()
                     bitsInBuffer -= extraBitsNeeded
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Length: bytesToCopy=$bytesToCopy, extraBitsNeeded=$extraBitsNeeded. New bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
+
                     while (bitsInBuffer < 15) {
+                        ZlibLogger.log("[DEBUG_LOG] inflateFast - Need more bits for distance code. bitsInBuffer=$bitsInBuffer")
                         bytesAvailable--
                         bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                         bitsInBuffer += 8
+                        ZlibLogger.log("[DEBUG_LOG] inflateFast - Fetched byte. New bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
                     }
-                    println("[DEBUG_LOG] Processing distance code: bitBuffer=0x${bitBuffer.toString(16)}, distanceMask=0x${distanceMask.toString(16)}")
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Processing distance code: bitBuffer=0x${bitBuffer.toString(16)}, distanceMask=0x${distanceMask.toString(16)}")
                     
                     // Like C: here = dcode + (hold & dmask)
                     var distIndex = bitwiseOps.and(bitBuffer.toLong(), distanceMask.toLong()).toInt()
-                    println("[DEBUG_LOG] Distance code calculation: distIndex=$distIndex")
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Distance code calculation: distIndex=$distIndex")
                     
                     // Use the passed distance table (td), not the fixed DISTFIX table
                     var tp = td  // distance table 
@@ -793,7 +818,7 @@ internal class InfCodes {
                     
                     // Check if (tpIndex + t) * 3 is within bounds
                     if ((tpIndex + t) * 3 >= tp.size) {
-                        println("[DEBUG_LOG] Distance index out of bounds: index=${(tpIndex + t) * 3}, tp.size=${tp.size}")
+                        ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Distance index out of bounds: index=${(tpIndex + t) * 3}, tp.size=${tp.size}")
                         z.msg = "invalid distance code - index out of bounds"
                         s.bitb = bitBuffer
                         s.bitk = bitsInBuffer
@@ -809,22 +834,24 @@ internal class InfCodes {
                     var distBits = tp[(tpIndex + t) * 3 + 1]  // bits needed
                     var distValue = tp[(tpIndex + t) * 3 + 2]  // base value
                     
-                    println("[DEBUG_LOG] Distance tree entry: op=$e, bits=$distBits, val=$distValue")
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Distance tree entry: op=$e, bits=$distBits, val=$distValue")
                     
                     do {
+                        ZlibLogger.log("[DEBUG_LOG] inflateFast - Distance inner loop. Current e=$e, distBits=$distBits")
                         // Like C: hold >>= here->bits; bits -= here->bits; op = here->op;
                         bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), distBits).toInt()
                         bitsInBuffer -= distBits
                         
                         if (bitwiseOps.and(e.toLong(), 16L).toInt() != 0) {  // Like C: if (op & 16) { /* distance base */ }
-                            println("[DEBUG_LOG] Distance code with extra bits")
+                            ZlibLogger.log("[DEBUG_LOG] inflateFast - Distance code with extra bits. e=$e")
                             
                             extraBitsNeeded = bitwiseOps.and(e.toLong(), 15L).toInt()  // Like C: op &= 15
                             
                             // Ensure we have enough bits for the extra bits
                             while (bitsInBuffer < extraBitsNeeded) {
+                                ZlibLogger.log("[DEBUG_LOG] inflateFast - Need more bits for distance extra. bitsInBuffer=$bitsInBuffer, extraBitsNeeded=$extraBitsNeeded")
                                 if (bytesAvailable <= 0) {
-                                    println("[DEBUG_LOG] Not enough input bytes for extra bits")
+                                    ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Not enough input bytes for extra bits")
                                     z.msg = "invalid distance code - not enough input"
                                     s.bitb = bitBuffer
                                     s.bitk = bitsInBuffer
@@ -837,11 +864,12 @@ internal class InfCodes {
                                 bytesAvailable--
                                 bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                                 bitsInBuffer += 8
+                                ZlibLogger.log("[DEBUG_LOG] inflateFast - Fetched byte. New bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
                             }
                             
                             // Like C: dist = (unsigned)(here->val) + ((unsigned)hold & ((1U << op) - 1))
                             copyDistance = distValue + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[extraBitsNeeded].toLong()).toInt()
-                            println("[DEBUG_LOG] copyDistance=$copyDistance, extraBitsNeeded=$extraBitsNeeded, mask=0x${IBLK_INFLATE_MASK[extraBitsNeeded].toString(16)}")
+                            ZlibLogger.log("[DEBUG_LOG] inflateFast - copyDistance=$copyDistance, extraBitsNeeded=$extraBitsNeeded, mask=0x${IBLK_INFLATE_MASK[extraBitsNeeded].toString(16)}")
                             
                             // Like C: hold >>= op; bits -= op;
                             bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), extraBitsNeeded).toInt()
@@ -852,11 +880,11 @@ internal class InfCodes {
                             
                             // In C#: r = q - d;
                             copySourcePointer = outputWritePointer - copyDistance
-                            println("[DEBUG_LOG] Copy source pointer: $copySourcePointer, outputWritePointer=$outputWritePointer")
+                            ZlibLogger.log("[DEBUG_LOG] inflateFast - Copy source pointer: $copySourcePointer, outputWritePointer=$outputWritePointer")
                             
                             // In C#: if (d > s.end) { z.msg = "invalid distance code"; ... return Z_DATA_ERROR; }
                             if (copyDistance <= 0 || copyDistance > s.end) {
-                                println("[DEBUG_LOG] Invalid copy distance: $copyDistance, s.end=${s.end}")
+                                ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Invalid copy distance: $copyDistance, s.end=${s.end}")
                                 z.msg = "invalid distance code - distance too large"
                                 s.bitb = bitBuffer
                                 s.bitk = bitsInBuffer
@@ -868,35 +896,35 @@ internal class InfCodes {
                             }
                             
                             // In C#: if (q >= d) { r = q - d; ... } else { r = q - d; do { r += s.end; } while (r < 0); ... }
-                            println("[DEBUG_LOG] Copying $bytesToCopy bytes from distance $copyDistance")
+                            ZlibLogger.log("[DEBUG_LOG] inflateFast - Copying $bytesToCopy bytes from distance $copyDistance")
                             
                             // Directly follow the C# implementation for copy operation
                             if (outputWritePointer >= copyDistance) {
                                 // Source is before destination in the buffer - can do direct copy
                                 // In C#: r = q - d;
                                 copySourcePointer = outputWritePointer - copyDistance
-                                println("[DEBUG_LOG] Direct copy: copySourcePointer=$copySourcePointer")
+                                ZlibLogger.log("[DEBUG_LOG] inflateFast - Direct copy: copySourcePointer=$copySourcePointer")
                                 
                                 // In C#: if (q - r > 0 && 2 > (q - r)) { ... } else { Array.Copy(s.window, r, s.window, q, 2); ... }
                                 // Check if we can optimize for small copies
                                 if (outputWritePointer - copySourcePointer > 0 && 2 > (outputWritePointer - copySourcePointer)) {
                                     // In C#: s.window[q++] = s.window[r++]; c--; s.window[q++] = s.window[r++]; c--;
-                                    println("[DEBUG_LOG] Small copy optimization")
+                                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Small copy optimization")
                                     val byte1 = s.window[copySourcePointer]
                                     val byte2 = s.window[copySourcePointer + 1]
-                                    println("[DEBUG_LOG] Small copy: copying '${byte1.toInt().toChar()}' (${byte1.toInt()}) from pos $copySourcePointer to $outputWritePointer")
-                                    println("[DEBUG_LOG] Small copy: copying '${byte2.toInt().toChar()}' (${byte2.toInt()}) from pos ${copySourcePointer + 1} to ${outputWritePointer + 1}")
+                                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Small copy: copying '${byte1.toInt().toChar()}' (${byte1.toInt()}) from pos $copySourcePointer to $outputWritePointer")
+                                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Small copy: copying '${byte2.toInt().toChar()}' (${byte2.toInt()}) from pos ${copySourcePointer + 1} to ${outputWritePointer + 1}")
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                     bytesToCopy--
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                     bytesToCopy--
                                 } else {
-                                    // In C#: Array.Copy(s.window, r, s.window, q, 2); q += 2; r += 2; c -= 2;
-                                    println("[DEBUG_LOG] Array copy")
+                                    // In C#: Array.Copy(s.window, r, s.window, q, e); q += e; r += e; c -= e;
+                                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Array copy")
                                     // Simulate Array.Copy with bounds checking
-                                    if (copySourcePointer < 0 || copySourcePointer + 2 > s.window.size || 
-                                        outputWritePointer < 0 || outputWritePointer + 2 > s.window.size) {
-                                        println("[DEBUG_LOG] Copy pointers out of bounds")
+                                    if (copySourcePointer < 0 || copySourcePointer + bytesToCopy > s.window.size || 
+                                        outputWritePointer < 0 || outputWritePointer + bytesToCopy > s.window.size) {
+                                        ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Copy pointers out of bounds")
                                         z.msg = "invalid distance code - copy pointers out of bounds"
                                         s.bitb = bitBuffer
                                         s.bitk = bitsInBuffer
@@ -907,13 +935,12 @@ internal class InfCodes {
                                         return Z_DATA_ERROR
                                     }
                                     
-                                    val byte1 = s.window[copySourcePointer]
-                                    val byte2 = s.window[copySourcePointer + 1]
-                                    println("[DEBUG_LOG] Array copy: copying '${byte1.toInt().toChar()}' (${byte1.toInt()}) from pos $copySourcePointer to $outputWritePointer")
-                                    println("[DEBUG_LOG] Array copy: copying '${byte2.toInt().toChar()}' (${byte2.toInt()}) from pos ${copySourcePointer + 1} to ${outputWritePointer + 1}")
-                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
-                                    s.window[outputWritePointer++] = s.window[copySourcePointer++]
-                                    bytesToCopy -= 2
+                                    var count = bytesToCopy
+                                    while (count-- > 0) {
+                                        s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                        if (copySourcePointer == s.end) copySourcePointer = 0
+                                    }
+                                    bytesToCopy = 0 // All bytes copied
                                 }
                             } else {
                                 // Source is after destination or wraps around - need special handling
@@ -922,7 +949,7 @@ internal class InfCodes {
                                 do {
                                     copySourcePointer += s.end
                                 } while (copySourcePointer < 0)
-                                println("[DEBUG_LOG] Wrap-around copy: copySourcePointer=$copySourcePointer")
+                                ZlibLogger.log("[DEBUG_LOG] inflateFast - Wrap-around copy: copySourcePointer=$copySourcePointer")
                                 
                                 // In C#: e = s.end - r; if (c > e) { ... } 
                                 val endDistance = s.end - copySourcePointer
@@ -941,7 +968,7 @@ internal class InfCodes {
                                         // In C#: Array.Copy(s.window, r, s.window, q, e); q += e; r += e; e = 0;
                                         if (copySourcePointer < 0 || copySourcePointer + endDistance > s.window.size || 
                                             outputWritePointer < 0 || outputWritePointer + endDistance > s.window.size) {
-                                            println("[DEBUG_LOG] Copy pointers out of bounds (first part)")
+                                            ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Copy pointers out of bounds (first part)")
                                             z.msg = "invalid distance code - copy pointers out of bounds"
                                             s.bitb = bitBuffer
                                             s.bitk = bitsInBuffer
@@ -952,8 +979,8 @@ internal class InfCodes {
                                             return Z_DATA_ERROR
                                         }
                                         
-                                        var tempE = endDistance
-                                        while (tempE-- > 0) {
+                                        var count = endDistance
+                                        while (count-- > 0) {
                                             s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                         }
                                     }
@@ -976,7 +1003,7 @@ internal class InfCodes {
                                 // In C#: Array.Copy(s.window, r, s.window, q, c); q += c; r += c; c = 0;
                                 if (copySourcePointer < 0 || copySourcePointer + bytesToCopy > s.window.size || 
                                     outputWritePointer < 0 || outputWritePointer + bytesToCopy > s.window.size) {
-                                    println("[DEBUG_LOG] Copy pointers out of bounds (final part)")
+                                    ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Copy pointers out of bounds (final part)")
                                     z.msg = "invalid distance code - copy pointers out of bounds"
                                     s.bitb = bitBuffer
                                     s.bitk = bitsInBuffer
@@ -995,14 +1022,14 @@ internal class InfCodes {
                             }
                             break
                         } else if (bitwiseOps.and(e.toLong(), 64L).toInt() == 0) {
-                            println("[DEBUG_LOG] Next distance table reference")
+                            ZlibLogger.log("[DEBUG_LOG] inflateFast - Next distance table reference")
                             
                             // Handle next table reference for distance codes
                             // In C#: if ((e & 64) == 0) { t += tp[(tp_index + t) * 3 + 2]; t += (b & inflate_mask[e]); e = tp[(tp_index + t) * 3]; }
                             
                             // Check if tp[(tpIndex + t) * 3 + 2] is valid
                             if ((tpIndex + t) * 3 + 2 >= tp.size) {
-                                println("[DEBUG_LOG] Table reference out of bounds: index=${(tpIndex + t) * 3 + 2}, tp.size=${tp.size}")
+                                ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Table reference out of bounds: index=${(tpIndex + t) * 3 + 2}, tp.size=${tp.size}")
                                 z.msg = "invalid distance code - table reference out of bounds"
                                 s.bitb = bitBuffer
                                 s.bitk = bitsInBuffer
@@ -1021,7 +1048,7 @@ internal class InfCodes {
                             
                             // Check if (tpIndex + t) * 3 is valid
                             if ((tpIndex + t) * 3 >= tp.size) {
-                                println("[DEBUG_LOG] Next table pointer out of bounds: (tpIndex + t)=${tpIndex + t}, tp.size=${tp.size}")
+                                ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Next table pointer out of bounds: (tpIndex + t)=${tpIndex + t}, tp.size=${tp.size}")
                                 z.msg = "invalid distance code - next table pointer out of bounds"
                                 s.bitb = bitBuffer
                                 s.bitk = bitsInBuffer
@@ -1032,13 +1059,13 @@ internal class InfCodes {
                                 return Z_DATA_ERROR
                             }
                             
-                            // In C#: e = tp[(tp_index + t) * 3];
+                            // In C#: e = tp[(tpIndex + t) * 3];
                             e = tp[(tpIndex + t) * 3]
                             distBits = tp[(tpIndex + t) * 3 + 1]
                             distValue = tp[(tpIndex + t) * 3 + 2]
-                            println("[DEBUG_LOG] New distance table entry: e=$e, bits=$distBits, val=$distValue")
+                            ZlibLogger.log("[DEBUG_LOG] inflateFast - New distance table entry: e=$e, bits=$distBits, val=$distValue")
                         } else {
-                            println("[DEBUG_LOG] Invalid distance code: e=$e")
+                            ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Invalid distance code: e=$e")
                             z.msg = "invalid distance code"
                             val errBytes = z.availIn - bytesAvailable - bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt()
                             bytesAvailable += errBytes
@@ -1056,6 +1083,7 @@ internal class InfCodes {
                     break
                 }
                 if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Navigating to next literal/length table entry. extraBitsOrOperation=$extraBitsOrOperation")
                     // Fixed for pairs format: navigate to next table entry
                     val nextValueIndex = tempPointer * 2
                     if (nextValueIndex + 1 < tl.size) {
@@ -1069,6 +1097,7 @@ internal class InfCodes {
                                 if (newBitsIndex < tl.size) {
                                     bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tl[newBitsIndex]).toInt()
                                     bitsInBuffer -= tl[newBitsIndex]
+                                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Writing literal from next table entry: ${newValue.toByte()} to window[$outputWritePointer]")
                                     s.window[outputWritePointer++] = newValue.toByte()
                                     outputBytesLeft--
                                     break
@@ -1077,6 +1106,7 @@ internal class InfCodes {
                         }
                     }
                 } else if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - End of block in fast path. extraBitsOrOperation=$extraBitsOrOperation")
                     val errBytes = z.availIn - bytesAvailable - bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt()
                     bytesAvailable += errBytes
                     inputPointer -= errBytes
@@ -1089,6 +1119,7 @@ internal class InfCodes {
                     s.write = outputWritePointer
                     return Z_STREAM_END
                 } else {
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Invalid literal/length code in fast path. extraBitsOrOperation=$extraBitsOrOperation")
                     z.msg = "invalid literal/length code"
                     val errBytes = z.availIn - bytesAvailable - bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt()
                     bytesAvailable += errBytes
@@ -1117,9 +1148,9 @@ internal class InfCodes {
         z.availIn = bytesAvailable
         z.totalIn += inputPointer - z.nextInIndex
         z.nextInIndex = inputPointer
-        println("[DEBUG_LOG] inflateFast ending: outputWritePointer=$outputWritePointer, setting s.write")
+        ZlibLogger.log("[DEBUG_LOG] inflateFast ending: outputWritePointer=$outputWritePointer, setting s.write")
         s.write = outputWritePointer
-        println("[DEBUG_LOG] inflateFast ended: s.write=${s.write}")
+        ZlibLogger.log("[DEBUG_LOG] inflateFast ended: s.write=${s.write}")
 
         return Z_OK
     }

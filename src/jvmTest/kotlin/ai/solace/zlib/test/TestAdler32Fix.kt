@@ -1,25 +1,28 @@
+import ai.solace.zlib.common.Z_DEFAULT_COMPRESSION
+import ai.solace.zlib.common.Z_FINISH
+import ai.solace.zlib.common.Z_STREAM_END
+import ai.solace.zlib.common.ZlibLogger
 import ai.solace.zlib.deflate.ZStream
-import ai.solace.zlib.common.*
 
 /**
  * A simple test program to verify the Adler32 fix.
  * This is based on the SimpleTest.kt file.
  */
 fun main() {
-    println("Starting Adler32 fix verification test...")
+    ZlibLogger.log("Starting Adler32 fix verification test...")
     
     // Test with minimal input - a single character
     val originalString = "A"
     val originalData = originalString.encodeToByteArray()
     
-    println("Original data: '$originalString' (${originalData.size} bytes)")
+    ZlibLogger.log("Original data: '$originalString' (${originalData.size} bytes)")
     
     // Compress the data
     val deflatedData = deflateData(originalData)
-    println("Compressed data size: ${deflatedData.size} bytes")
+    ZlibLogger.log("Compressed data size: ${deflatedData.size} bytes")
     
     // Print the compressed data in hex format
-    println("Compressed data (hex): ${deflatedData.joinToString("") { 
+    ZlibLogger.log("Compressed data (hex): ${deflatedData.joinToString("") { 
         val hex = (it.toInt() and 0xFF).toString(16).uppercase()
         if (hex.length == 1) "0$hex" else hex 
     }}")
@@ -30,28 +33,28 @@ fun main() {
     // Check if decompression was successful
     if (inflatedData.isNotEmpty()) {
         val inflatedString = inflatedData.decodeToString()
-        println("Decompressed data: '$inflatedString' (${inflatedData.size} bytes)")
+        ZlibLogger.log("Decompressed data: '$inflatedString' (${inflatedData.size} bytes)")
         
         if (originalString == inflatedString) {
-            println("SUCCESS: Decompressed data matches original")
+            ZlibLogger.log("SUCCESS: Decompressed data matches original")
         } else {
-            println("FAILURE: Decompressed data does not match original")
-            println("Original: '$originalString'")
-            println("Decompressed: '$inflatedString'")
+            ZlibLogger.log("FAILURE: Decompressed data does not match original")
+            ZlibLogger.log("Original: '$originalString'")
+            ZlibLogger.log("Decompressed: '$inflatedString'")
         }
     } else {
-        println("FAILURE: Decompression failed, no data returned")
+        ZlibLogger.log("FAILURE: Decompression failed, no data returned")
     }
     
     // Test with a longer string
     val longerString = "Hello, World! This is a test of the Adler32 fix."
     val longerData = longerString.encodeToByteArray()
     
-    println("\nTesting with longer string: '$longerString'")
+    ZlibLogger.log("\nTesting with longer string: '$longerString'")
     
     // Compress the longer data
     val deflatedLongerData = deflateData(longerData)
-    println("Compressed data size: ${deflatedLongerData.size} bytes")
+    ZlibLogger.log("Compressed data size: ${deflatedLongerData.size} bytes")
     
     // Decompress the longer data
     val inflatedLongerData = inflateData(deflatedLongerData, longerData.size)
@@ -59,15 +62,15 @@ fun main() {
     // Check if decompression was successful
     if (inflatedLongerData.isNotEmpty()) {
         val inflatedLongerString = inflatedLongerData.decodeToString()
-        println("Decompressed data: '$inflatedLongerString'")
+        ZlibLogger.log("Decompressed data: '$inflatedLongerString'")
         
         if (longerString == inflatedLongerString) {
-            println("SUCCESS: Decompressed longer data matches original")
+            ZlibLogger.log("SUCCESS: Decompressed longer data matches original")
         } else {
-            println("FAILURE: Decompressed longer data does not match original")
+            ZlibLogger.log("FAILURE: Decompressed longer data does not match original")
         }
     } else {
-        println("FAILURE: Decompression of longer data failed, no data returned")
+        ZlibLogger.log("FAILURE: Decompression of longer data failed, no data returned")
     }
 }
 
@@ -75,11 +78,11 @@ fun main() {
  * Compress the given data using ZStream.
  */
 fun deflateData(input: ByteArray): ByteArray {
-    println("Deflating data...")
+    ZlibLogger.log("Deflating data...")
     
     val stream = ZStream()
     var err = stream.deflateInit(Z_DEFAULT_COMPRESSION)
-    println("deflateInit returned: $err, msg=${stream.msg}")
+    ZlibLogger.log("deflateInit returned: $err, msg=${stream.msg}")
     
     stream.nextIn = input
     stream.availIn = input.size
@@ -88,19 +91,19 @@ fun deflateData(input: ByteArray): ByteArray {
     stream.nextOut = outputBuffer
     stream.availOut = outputBuffer.size
     
-    println("Before deflate: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}")
+    ZlibLogger.log("Before deflate: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}")
     err = stream.deflate(Z_FINISH)
-    println("deflate returned: $err, msg=${stream.msg}, totalOut=${stream.totalOut}")
+    ZlibLogger.log("deflate returned: $err, msg=${stream.msg}, totalOut=${stream.totalOut}")
     
     if (err != Z_STREAM_END) {
-        println("deflate did not return Z_STREAM_END, checking stream state")
-        println("Stream state: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
+        ZlibLogger.log("deflate did not return Z_STREAM_END, checking stream state")
+        ZlibLogger.log("Stream state: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
     }
     
     val result = outputBuffer.copyOf(stream.totalOut.toInt())
     
     err = stream.deflateEnd()
-    println("deflateEnd returned: $err, msg=${stream.msg}")
+    ZlibLogger.log("deflateEnd returned: $err, msg=${stream.msg}")
     
     return result
 }
@@ -109,11 +112,11 @@ fun deflateData(input: ByteArray): ByteArray {
  * Decompress the given data using ZStream.
  */
 fun inflateData(input: ByteArray, originalSize: Int): ByteArray {
-    println("Inflating data...")
+    ZlibLogger.log("Inflating data...")
     
     val stream = ZStream()
     var err = stream.inflateInit()
-    println("inflateInit returned: $err, msg=${stream.msg}")
+    ZlibLogger.log("inflateInit returned: $err, msg=${stream.msg}")
     
     stream.nextIn = input
     stream.availIn = input.size
@@ -124,21 +127,21 @@ fun inflateData(input: ByteArray, originalSize: Int): ByteArray {
     stream.availOut = outputBuffer.size
     stream.nextOutIndex = 0
     
-    println("Before inflate: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}")
+    ZlibLogger.log("Before inflate: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}")
     
     // Print the input data in hex format
-    println("Input data (hex): ${input.joinToString("") { 
+    ZlibLogger.log("Input data (hex): ${input.joinToString("") { 
         val hex = (it.toInt() and 0xFF).toString(16).uppercase()
         if (hex.length == 1) "0$hex" else hex 
     }}")
     
     err = stream.inflate(Z_FINISH)
-    println("inflate returned: $err, msg=${stream.msg}, totalOut=${stream.totalOut}")
+    ZlibLogger.log("inflate returned: $err, msg=${stream.msg}, totalOut=${stream.totalOut}")
     
     if (err != Z_STREAM_END) {
-        println("inflate did not return Z_STREAM_END, checking stream state")
-        println("Stream state: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
-        println("Stream internal state: iState=${stream.iState}, dState=${stream.dState}, adler=${stream.adler}")
+        ZlibLogger.log("inflate did not return Z_STREAM_END, checking stream state")
+        ZlibLogger.log("Stream state: availIn=${stream.availIn}, nextInIndex=${stream.nextInIndex}, availOut=${stream.availOut}, nextOutIndex=${stream.nextOutIndex}")
+        ZlibLogger.log("Stream internal state: iState=${stream.iState}, dState=${stream.dState}, adler=${stream.adler}")
         
         // If there was an error, return an empty array
         return ByteArray(0)
@@ -147,7 +150,7 @@ fun inflateData(input: ByteArray, originalSize: Int): ByteArray {
     val result = outputBuffer.copyOf(stream.totalOut.toInt())
     
     err = stream.inflateEnd()
-    println("inflateEnd returned: $err, msg=${stream.msg}")
+    ZlibLogger.log("inflateEnd returned: $err, msg=${stream.msg}")
     
     return result
 }
