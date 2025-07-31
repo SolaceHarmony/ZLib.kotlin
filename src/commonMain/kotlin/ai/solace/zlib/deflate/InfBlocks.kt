@@ -192,7 +192,9 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             val bd = IntArray(1)
                             val tl = arrayOf(IntArray(0))
                             val td = arrayOf(IntArray(0))
-                            InfTree.inflateTreesFixed(bl, bd, tl, td, z)
+                            ZlibLogger.log("[DEBUG_LOG] Calling InfTree.inflateTreesFixed with bl=${bl[0]}, bd=${bd[0]}")
+                            val fixedTreeResult = InfTree.inflateTreesFixed(bl, bd, tl, td, z)
+                            ZlibLogger.log("[DEBUG_LOG] InfTree.inflateTreesFixed returned: $fixedTreeResult, bl=${bl[0]}, bd=${bd[0]}, tl.size=${tl[0].size}, td.size=${td[0].size}")
                             codes = InfCodes(bl[0], bd[0], tl[0], td[0])
                             mode = IBLK_CODES
                         }

@@ -269,7 +269,7 @@ class Deflate {
 
     @OptIn(kotlin.ExperimentalUnsignedTypes::class)
     internal fun trTally(dist: Int, lc: Int): Boolean {
-        println("[DEBUG_TALLY] trTally called: dist=$dist, lc=$lc (char='${if (lc in 32..126) lc.toChar() else "?"}'), lastLit=$lastLit")
+        ZlibLogger.log("[DEBUG_TALLY] trTally called: dist=$dist, lc=$lc (char='${if (lc in 32..126) lc.toChar() else "?"}'), lastLit=$lastLit")
         
         pendingBuf[dBuf + lastLit * 2] = bitwiseOps.rightShift(dist.toLong(), 8).toByte()
         pendingBuf[dBuf + lastLit * 2 + 1] = dist.toByte()
@@ -277,10 +277,10 @@ class Deflate {
         lastLit++
 
         if (dist == 0) {
-            println("[DEBUG_TALLY] Recording literal: $lc (char='${if (lc in 32..126) lc.toChar() else "?"}')")
+            ZlibLogger.log("[DEBUG_TALLY] Recording literal: $lc (char='${if (lc in 32..126) lc.toChar() else "?"}')")
             dynLtree[lc * 2]++
         } else {
-            println("[DEBUG_TALLY] Recording match: dist=$dist, lc=$lc")
+            ZlibLogger.log("[DEBUG_TALLY] Recording match: dist=$dist, lc=$lc")
             matches++
             val distVal = dist - 1
             dynLtree[(TREE_LENGTH_CODE[lc].toInt() + LITERALS + 1) * 2]++
@@ -373,14 +373,14 @@ class Deflate {
     }
 
     internal fun fillWindow() {
-        println("[DEBUG_FILL] fillWindow called: lookAhead=$lookAhead, strStart=$strStart, availIn=${strm.availIn}")
+        ZlibLogger.log("[DEBUG_FILL] fillWindow called: lookAhead=$lookAhead, strStart=$strStart, availIn=${'$'}{strm.availIn}")
         var n: Int
         var m: Int
         var p: Int
         var more: Int
         do {
             more = windowSize - lookAhead - strStart
-            println("[DEBUG_FILL] more=$more, windowSize=$windowSize")
+            ZlibLogger.log("[DEBUG_FILL] more=$more, windowSize=$windowSize")
             if (more == 0 && strStart == 0 && lookAhead == 0) {
                 more = wSize
             } else if (more == -1) {
@@ -406,9 +406,9 @@ class Deflate {
             }
             if (strm.availIn == 0) return
             n = strm.readBuf(window, strStart + lookAhead, more)
-            println("[DEBUG_FILL] readBuf returned $n bytes, new lookAhead will be ${lookAhead + n}")
+            ZlibLogger.log("[DEBUG_FILL] readBuf returned $n bytes, new lookAhead will be ${lookAhead + n}")
             if (n > 0) {
-                println("[DEBUG_FILL] Read bytes: ${window.slice(strStart + lookAhead until strStart + lookAhead + n).map { "${it.toInt() and 0xff}(${if ((it.toInt() and 0xff) in 32..126) (it.toInt() and 0xff).toChar() else "?"})" }.joinToString(",")}")
+                ZlibLogger.log("[DEBUG_FILL] Read bytes: ${window.slice(strStart + lookAhead until strStart + lookAhead + n).map { val b = it.toInt() and 0xff; "$b(${if (b in 32..126) b.toChar() else "?"})" }.joinToString(",")}")
             }
             lookAhead += n
             if (lookAhead >= MIN_MATCH) {
@@ -425,12 +425,12 @@ class Deflate {
     }
 
     internal fun deflateFast(flush: Int): Int {
-        println("[DEBUG_FAST] deflateFast called: flush=$flush, lookAhead=$lookAhead, strStart=$strStart")
+        ZlibLogger.log("[DEBUG_FAST] deflateFast called: flush=$flush, lookAhead=$lookAhead, strStart=$strStart")
         var hashHead = 0
         var bflush: Boolean
         while (true) {
             if (lookAhead < MIN_LOOKAHEAD) {
-                println("[DEBUG_FAST] Need more input, calling fillWindow")
+                ZlibLogger.log("[DEBUG_FAST] Need more input, calling fillWindow")
                 fillWindow()
                 if (lookAhead < MIN_LOOKAHEAD && flush == Z_NO_FLUSH) return NEED_MORE
                 if (lookAhead == 0) break
@@ -485,7 +485,7 @@ class Deflate {
                 }
             } else {
                 val literal = window[strStart].toInt() and 0xff
-                println("[DEBUG_FAST] Processing literal from window[$strStart]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
+                ZlibLogger.log("[DEBUG_FAST] Processing literal from window[$strStart]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
                 bflush = trTally(0, literal)
                 lookAhead--
                 strStart++
@@ -562,7 +562,7 @@ class Deflate {
                 }
             } else if (matchAvailable != 0) {
                 val literal = window[strStart - 1].toInt() and 0xff
-                println("[DEBUG_SLOW] Processing literal from window[${strStart - 1}]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
+                ZlibLogger.log("[DEBUG_SLOW] Processing literal from window[${strStart - 1}]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
                 bflush = trTally(0, literal)
                 if (bflush) {
                     flushBlockOnly(false)
@@ -578,7 +578,7 @@ class Deflate {
         }
         if (matchAvailable != 0) {
             val literal = window[strStart - 1].toInt() and 0xff
-            println("[DEBUG_SLOW_END] Final literal from window[${strStart - 1}]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
+            ZlibLogger.log("[DEBUG_SLOW_END] Final literal from window[${strStart - 1}]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
             trTally(0, literal)
             matchAvailable = 0
         }
@@ -658,7 +658,7 @@ class Deflate {
                 matchStart = curMatchIn
                 bestLen = len
 
-                // Exit early if we found a match that's "nice" enough
+                // Exit early if we found a match that's '''nice''' enough
                 if (len >= localNiceMatch) break
 
                 // Update scanEnd markers for next comparisons

@@ -84,7 +84,7 @@ internal fun sendBits(d: Deflate, value: Int, length: Int) {
 internal fun sendCode(d: Deflate, c: Int, tree: ShortArray) {
     val code = tree[c * 2].toInt() and 0xffff
     val bits = tree[c * 2 + 1].toInt() and 0xffff
-    println("[DEBUG_SEND] sendCode: symbol=$c (char='${if (c in 32..126) c.toChar() else "?"}'), code=$code, bits=$bits")
+    ZlibLogger.log("[DEBUG_SEND] sendCode: symbol=$c (char='${if (c in 32..126) c.toChar() else "?"}'), code=$code, bits=$bits")
     sendBits(d, code, bits)
 }
 

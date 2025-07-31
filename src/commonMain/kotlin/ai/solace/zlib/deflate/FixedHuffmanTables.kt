@@ -1,5 +1,7 @@
 package ai.solace.zlib.deflate
 
+import ai.solace.zlib.common.ZlibLogger
+
 /**
  * Correct Fixed Huffman tables according to RFC 1951 Section 3.2.6
  * 
@@ -17,7 +19,7 @@ internal object FixedHuffmanTables {
      * Creates the correct static literal/length tree according to RFC 1951
      */
     fun createStaticLiteralTree(): ShortArray {
-        println("[DEBUG_STATIC] Creating static literal tree")
+        ZlibLogger.log("[DEBUG_STATIC] Creating static literal tree")
         val tree = ShortArray(576) // 288 symbols * 2 (code + length)
         
         // Literals 0-143: 8 bits
@@ -47,8 +49,8 @@ internal object FixedHuffmanTables {
         // Now calculate the actual codes according to RFC 1951 algorithm
         calculateCodes(tree, 288)
         
-        println("[DEBUG_STATIC] Sample calculated codes: 'A'(65): code=${tree[65*2]}, bits=${tree[65*2+1]}")
-        println("[DEBUG_STATIC] Sample calculated codes: 'F'(70): code=${tree[70*2]}, bits=${tree[70*2+1]}")
+        ZlibLogger.log("[DEBUG_STATIC] Sample calculated codes: 'A'(65): code=${tree[65*2]}, bits=${tree[65*2+1]}")
+        ZlibLogger.log("[DEBUG_STATIC] Sample calculated codes: 'F'(70): code=${tree[70*2]}, bits=${tree[70*2+1]}")
         
         return tree
     }
@@ -75,7 +77,7 @@ internal object FixedHuffmanTables {
      * Calculate Huffman codes from bit lengths according to RFC 1951 algorithm
      */
     private fun calculateCodes(tree: ShortArray, maxCode: Int) {
-        println("[DEBUG_STATIC] Calculating codes for $maxCode symbols")
+        ZlibLogger.log("[DEBUG_STATIC] Calculating codes for $maxCode symbols")
         val maxBits = 15
         val blCount = IntArray(maxBits + 1)
         val nextCode = IntArray(maxBits + 1)
@@ -86,7 +88,7 @@ internal object FixedHuffmanTables {
             if (len > 0) blCount[len]++
         }
         
-        println("[DEBUG_STATIC] Code length counts: ${blCount.mapIndexed { i, v -> "$i:$v" }.filter { !it.endsWith(":0") }}")
+        ZlibLogger.log("[DEBUG_STATIC] Code length counts: ${blCount.mapIndexed { i, v -> "$i:$v" }.filter { !it.endsWith(":0") }}")
         
         // Step 2: Find the numerical value of the smallest code for each code length
         var code = 0
@@ -96,7 +98,7 @@ internal object FixedHuffmanTables {
             nextCode[bits] = code
         }
         
-        println("[DEBUG_STATIC] Starting codes: ${nextCode.mapIndexed { i, v -> "$i:$v" }.filter { !it.endsWith(":0") }}")
+        ZlibLogger.log("[DEBUG_STATIC] Starting codes: ${nextCode.mapIndexed { i, v -> "$i:$v" }.filter { !it.endsWith(":0") }}")
         
         // Step 3: Assign numerical values to all codes
         for (n in 0 until maxCode) {
@@ -110,7 +112,7 @@ internal object FixedHuffmanTables {
         // Debug: Print codes for characters around 'A' and 'F'
         for (char in 65..75) {
             if (char < maxCode) {
-                println("[DEBUG_STATIC] Char ${char.toChar()}($char): code=${tree[char*2]}, bits=${tree[char*2+1]}")
+                ZlibLogger.log("[DEBUG_STATIC] Char ${char.toChar()}($char): code=${tree[char*2]}, bits=${tree[char*2+1]}")
             }
         }
     }

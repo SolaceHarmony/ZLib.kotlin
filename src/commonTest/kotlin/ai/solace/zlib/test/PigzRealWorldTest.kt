@@ -1,5 +1,6 @@
 package ai.solace.zlib.test
 
+import ai.solace.zlib.common.ZlibLogger
 import ai.solace.zlib.deflate.Inflate
 import ai.solace.zlib.deflate.ZStream
 import kotlin.test.Test
@@ -22,10 +23,10 @@ class PigzRealWorldTest {
 
         val expectedOutput = "Hello World Hello World Hello World Hello World Hello World Hello World Hello World Hello World Hello World Hello World"
 
-        println("[PIGZ_TEST] Starting real-world pigz decompression test")
-        println("[PIGZ_TEST] Compressed data size: ${compressedData.size} bytes")
-        println("[PIGZ_TEST] Expected output: '$expectedOutput'")
-        println("[PIGZ_TEST] Expected length: ${expectedOutput.length}")
+        ZlibLogger.log("[PIGZ_TEST] Starting real-world pigz decompression test")
+        ZlibLogger.log("[PIGZ_TEST] Compressed data size: ${compressedData.size} bytes")
+        ZlibLogger.log("[PIGZ_TEST] Expected output: '$expectedOutput'")
+        ZlibLogger.log("[PIGZ_TEST] Expected length: ${expectedOutput.length}")
 
         val z = ZStream()
         val outputBuffer = ByteArray(1024) // Large buffer for output
@@ -41,18 +42,18 @@ class PigzRealWorldTest {
         val inflate = Inflate()
         var result = inflate.inflateInit(z, 15) // 15 is default window bits
         
-        println("[PIGZ_TEST] inflateInit result: $result")
+        ZlibLogger.log("[PIGZ_TEST] inflateInit result: $result")
         assertEquals(0, result)
 
         // Perform decompression
         result = inflate.inflate(z, 4) // Z_FINISH = 4
-        println("[PIGZ_TEST] inflate result: $result")
-        println("[PIGZ_TEST] Output bytes written: ${z.nextOutIndex}")
+        ZlibLogger.log("[PIGZ_TEST] inflate result: $result")
+        ZlibLogger.log("[PIGZ_TEST] Output bytes written: ${z.nextOutIndex}")
         
         // Get the actual output
         val actualOutput = outputBuffer.sliceArray(0 until z.nextOutIndex).decodeToString()
-        println("[PIGZ_TEST] Actual output: '$actualOutput'")
-        println("[PIGZ_TEST] Actual length: ${actualOutput.length}")
+        ZlibLogger.log("[PIGZ_TEST] Actual output: '$actualOutput'")
+        ZlibLogger.log("[PIGZ_TEST] Actual length: ${actualOutput.length}")
 
         // Cleanup
         inflate.inflateEnd(z)
@@ -60,6 +61,6 @@ class PigzRealWorldTest {
         // Verify the results
         assertEquals(expectedOutput, actualOutput)
         
-        println("[PIGZ_TEST] ✅ SUCCESS: Real-world pigz decompression test passed!")
+        ZlibLogger.log("[PIGZ_TEST] ✅ SUCCESS: Real-world pigz decompression test passed!")
     }
 }

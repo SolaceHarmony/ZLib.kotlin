@@ -1,5 +1,7 @@
 package ai.solace.zlib.bitwise
 
+import ai.solace.zlib.common.ZlibLogger
+
 /**
  * ArithmeticBitwiseOps - Configurable arithmetic-only bitwise operations for cross-platform compatibility
  * 
@@ -43,12 +45,12 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
      */
     fun leftShift(value: Long, bits: Int): Long {
         if (bits < 0 || bits >= bitLength) {
-            println("[BITWISE_DEBUG] leftShift($value, $bits) -> 0 (out of range)")
+            ZlibLogger.log("[BITWISE_DEBUG] leftShift($value, $bits) -> 0 (out of range)")
             return 0L
         }
         if (bits == 0) {
             val result = normalize(value)
-            println("[BITWISE_DEBUG] leftShift($value, $bits) -> $result (no shift)")
+            ZlibLogger.log("[BITWISE_DEBUG] leftShift($value, $bits) -> $result (no shift)")
             return result
         }
         
@@ -56,7 +58,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         repeat(bits) { 
             result = normalize(result * 2)
         }
-        println("[BITWISE_DEBUG] leftShift($value, $bits) -> $result")
+        ZlibLogger.log("[BITWISE_DEBUG] leftShift($value, $bits) -> $result")
         return result
     }
     
@@ -180,7 +182,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
             powerOf2 *= 2
         }
         
-        println("[BITWISE_DEBUG] and($value1, $value2) -> $result")
+        ZlibLogger.log("[BITWISE_DEBUG] and($value1, $value2) -> $result")
         return result
     }
     

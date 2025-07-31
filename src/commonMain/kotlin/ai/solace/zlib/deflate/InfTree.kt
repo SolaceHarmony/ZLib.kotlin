@@ -119,6 +119,7 @@ internal object InfTree {
         hn: IntArray,
         v: IntArray
     ): Int {
+        ZlibLogger.log("[DEBUG_LOG] huftBuild called: bIndex=$bIndex, n=$n, s=$s, hp.size=${hp.size}, hn[0]=${hn[0]}")
         val c = IntArray(MAX_BITS + 1)
         for (i in 0 until n) {
             if (b[bIndex + i] < c.size) c[b[bIndex + i]]++
@@ -126,6 +127,7 @@ internal object InfTree {
         if (c[0] == n) {
             t[0] = IntArray(0)
             m[0] = 0
+            ZlibLogger.log("[DEBUG_LOG] huftBuild: All codes have length 0, returning Z_OK")
             return Z_OK
         }
         var j = 1
@@ -160,28 +162,81 @@ internal object InfTree {
                     k = (if (k >= hn[0]) -1 else hq[r] + (code and ((1 shl m[0]) - 1)))
                     r = k
                     while (k < (1 shl (p - m[0]))) {
-                        if (hn[0] >= IBLK_MANY) return Z_MEM_ERROR
+                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[hn[0]++] = 0. hn[0]=${hn[0]}, hp.size=${hp.size}")
+                        if (hn[0] >= hp.size) {
+                            ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - hn[0] (${hn[0]}) >= hp.size (${hp.size})")
+                            return Z_MEM_ERROR
+                        }
                         hp[hn[0]++] = 0
                         k++
                     }
                     k = (code ushr p) and ((1 shl m[0]) - 1)
                     u = hn[0] + k
-                    if (u >= IBLK_MANY) return Z_MEM_ERROR
-                    hq[r] = u
+                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[u] = p. u=$u, hn[0]=${hn[0]}, k=$k, hp.size=${hp.size}")
+                    if (u >= hp.size) {
+                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - u ($u) >= hp.size (${hp.size})")
+                        return Z_MEM_ERROR
+                    }
                     hp[u] = p
+                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[u + 1] = .... u=$u, hp.size=${hp.size}")
+                    if (u + 1 >= hp.size) {
+                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - u+1 (${u + 1}) >= hp.size (${hp.size})")
+                        return Z_MEM_ERROR
+                    }
                     hp[u + 1] = if (maxBits > p + m[0]) m[0] else maxBits - p
+                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[u + 2] = 0. u=$u, hp.size=${hp.size}")
+                    if (u + 2 >= hp.size) {
+                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - u+2 (${u + 2}) >= hp.size (${hp.size})")
+                        return Z_MEM_ERROR
+                    }
                     hp[u + 2] = 0
                 }
                 r = code and ((1 shl p) - 1)
                 val baseIndex = hq[r] + (code ushr p)
-                if (baseIndex >= hp.size) return Z_MEM_ERROR
+                ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[baseIndex] = bits. baseIndex=$baseIndex, hp.size=${hp.size}")
+                if (baseIndex >= hp.size) {
+                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - baseIndex ($baseIndex) >= hp.size (${hp.size})")
+                    return Z_MEM_ERROR
+                }
                 hp[baseIndex] = bits
                 if (v[j] < s) {
+                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[baseIndex + 2] = v[j]. baseIndex=$baseIndex, hp.size=${hp.size}")
+                    if (baseIndex + 2 >= hp.size) {
+                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - baseIndex+2 (${baseIndex + 2}) >= hp.size (${hp.size})")
+                        return Z_MEM_ERROR
+                    }
                     hp[baseIndex + 2] = v[j]
                 } else {
+                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[baseIndex] = hp[baseIndex] or 64. baseIndex=$baseIndex, hp.size=${hp.size}")
+                    if (baseIndex >= hp.size) {
+                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - baseIndex ($baseIndex) >= hp.size (${hp.size})")
+                        return Z_MEM_ERROR
+                    }
                     hp[baseIndex] = hp[baseIndex] or 64
-                    if (v[j] - s < e!!.size) hp[baseIndex + 1] = e[v[j] - s]
-                    if (v[j] - s < d!!.size) hp[baseIndex + 2] = d[v[j] - s]
+                    if (e != null) {
+                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[baseIndex + 1] = e[v[j] - s]. baseIndex=$baseIndex, hp.size=${hp.size}, v[j]-s=${v[j]-s}, e.size=${e.size}")
+                        if (baseIndex + 1 >= hp.size) {
+                            ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - baseIndex+1 (${baseIndex + 1}) >= hp.size (${hp.size})")
+                            return Z_MEM_ERROR
+                        }
+                        if (v[j] - s >= e.size || v[j] - s < 0) {
+                            ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_DATA_ERROR - v[j]-s (${v[j]-s}) out of bounds for e.size (${e.size})")
+                            return Z_DATA_ERROR
+                        }
+                        hp[baseIndex + 1] = e[v[j] - s]
+                    }
+                    if (d != null) {
+                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[baseIndex + 2] = d[v[j] - s]. baseIndex=$baseIndex, hp.size=${hp.size}, v[j]-s=${v[j]-s}, d.size=${d.size}")
+                        if (baseIndex + 2 >= hp.size) {
+                            ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - baseIndex+2 (${baseIndex + 2}) >= hp.size (${hp.size})")
+                            return Z_MEM_ERROR
+                        }
+                        if (v[j] - s >= d.size || v[j] - s < 0) {
+                            ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_DATA_ERROR - v[j]-s (${v[j]-s}) out of bounds for d.size (${d.size})")
+                            return Z_DATA_ERROR
+                        }
+                        hp[baseIndex + 2] = d[v[j] - s]
+                    }
                 }
                 j++
                 var y = 1 shl (bits - 1)
@@ -194,6 +249,7 @@ internal object InfTree {
         }
         t[0] = hp
         m[0] = p
+        ZlibLogger.log("[DEBUG_LOG] huftBuild finished. t[0].size=${t[0].size}, m[0]=${m[0]}")
         return Z_OK
     }
 
@@ -263,7 +319,9 @@ internal object InfTree {
         if (result != Z_OK || bl[0] == 0) {
             if (result == Z_DATA_ERROR) {
                 z.msg = "oversubscribed literal/length tree"
-            } else if (result != Z_MEM_ERROR) {
+            }
+            // Removed else if (result != Z_MEM_ERROR) { ... } as it was redundant
+            else if (result == Z_BUF_ERROR) {
                 z.msg = "incomplete literal/length tree"
                 result = Z_DATA_ERROR
             }
