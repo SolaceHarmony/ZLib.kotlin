@@ -5,8 +5,10 @@ package ai.solace.zlib.deflate // Ensure correct package
 import ai.solace.zlib.common.*
 // For functions moved from Deflate.kt itself to DeflateUtils.kt
 import ai.solace.zlib.deflate.* // Wildcard import for all DeflateUtils
+import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
 
 class Deflate {
+    private val bitwiseOps = ArithmeticBitwiseOps.BITS_32
 
     // Config class moved to Config.kt
 
@@ -128,7 +130,7 @@ class Deflate {
     internal fun pqdownheap(tree: ShortArray, kIn: Int) {
         var k = kIn
         val v = heap[k]
-        var j = k shl 1
+        var j = bitwiseOps.leftShift(k.toLong(), 1).toInt()
         while (j <= heapLen) {
             if (j < heapLen && smaller(tree, heap[j + 1], heap[j], depth)) {
                 j++
@@ -136,7 +138,7 @@ class Deflate {
             if (smaller(tree, v, heap[j], depth)) break
             heap[k] = heap[j]
             k = j
-            j = j shl 1
+            j = bitwiseOps.leftShift(j.toLong(), 1).toInt()
         }
         heap[k] = v
     }
@@ -265,28 +267,33 @@ class Deflate {
         }
     }
 
+    @OptIn(kotlin.ExperimentalUnsignedTypes::class)
     internal fun trTally(dist: Int, lc: Int): Boolean {
-        pendingBuf[dBuf + lastLit * 2] = (dist ushr 8).toByte()
+        println("[DEBUG_TALLY] trTally called: dist=$dist, lc=$lc (char='${if (lc in 32..126) lc.toChar() else "?"}'), lastLit=$lastLit")
+        
+        pendingBuf[dBuf + lastLit * 2] = bitwiseOps.rightShift(dist.toLong(), 8).toByte()
         pendingBuf[dBuf + lastLit * 2 + 1] = dist.toByte()
-        pendingBuf[lBuf + lastLit] = lc.toByte()
+        pendingBuf[lBuf + lastLit] = lc.toUByte().toByte()
         lastLit++
 
         if (dist == 0) {
+            println("[DEBUG_TALLY] Recording literal: $lc (char='${if (lc in 32..126) lc.toChar() else "?"}')")
             dynLtree[lc * 2]++
         } else {
+            println("[DEBUG_TALLY] Recording match: dist=$dist, lc=$lc")
             matches++
             val distVal = dist - 1
             dynLtree[(TREE_LENGTH_CODE[lc].toInt() + LITERALS + 1) * 2]++
             dynDtree[dCode(distVal) * 2]++
         }
 
-        if ((lastLit and 0x1fff) == 0 && level > 2) {
+        if (bitwiseOps.and(lastLit.toLong(), 0x1fff).toInt() == 0 && level > 2) {
             var outLength = (lastLit * 8).toLong()
             val inLength = strStart - blockStart
             for (dcodeVal in 0 until D_CODES) {
                 outLength += dynDtree[dcodeVal * 2] * (5L + TREE_EXTRA_DBITS[dcodeVal])
             }
-            outLength = outLength ushr 3
+            outLength = bitwiseOps.rightShift(outLength, 3)
             if (matches < lastLit / 2 && outLength < inLength / 2) return true
         }
         return lastLit == litBufsize - 1
@@ -341,8 +348,8 @@ class Deflate {
             lDesc.buildTree(this)
             dDesc.buildTree(this)
             maxBlindex = buildBlTree()
-            optLenb = (optLen + 3 + 7) ushr 3
-            staticLenb = (staticLen + 3 + 7) ushr 3
+            optLenb = bitwiseOps.rightShift(optLen + 3 + 7, 3)
+            staticLenb = bitwiseOps.rightShift(staticLen + 3 + 7, 3)
             if (staticLenb <= optLenb) optLenb = staticLenb
         } else {
             optLenb = (storedLen + 5).toLong()
@@ -352,10 +359,10 @@ class Deflate {
         if (storedLen + 4 <= optLenb && buf != -1) {
             trStoredBlock(this, buf, storedLen, eof)
         } else if (staticLenb == optLenb) {
-            sendBits(this, (STATIC_TREES shl 1) + if (eof) 1 else 0, 3)
+            sendBits(this, bitwiseOps.leftShift(STATIC_TREES.toLong(), 1).toInt() + if (eof) 1 else 0, 3)
             compressBlock(this, StaticTree.static_ltree, StaticTree.static_dtree)
         } else {
-            sendBits(this, (DYN_TREES shl 1) + if (eof) 1 else 0, 3)
+            sendBits(this, bitwiseOps.leftShift(DYN_TREES.toLong(), 1).toInt() + if (eof) 1 else 0, 3)
             sendAllTrees(lDesc.maxCode + 1, dDesc.maxCode + 1, maxBlindex + 1)
             compressBlock(this, dynLtree, dynDtree)
         }
@@ -366,12 +373,14 @@ class Deflate {
     }
 
     internal fun fillWindow() {
+        println("[DEBUG_FILL] fillWindow called: lookAhead=$lookAhead, strStart=$strStart, availIn=${strm.availIn}")
         var n: Int
         var m: Int
         var p: Int
         var more: Int
         do {
             more = windowSize - lookAhead - strStart
+            println("[DEBUG_FILL] more=$more, windowSize=$windowSize")
             if (more == 0 && strStart == 0 && lookAhead == 0) {
                 more = wSize
             } else if (more == -1) {
@@ -384,43 +393,61 @@ class Deflate {
                 n = hashSize
                 p = n
                 do {
-                    m = (head[--p].toInt() and 0xffff)
+                    m = bitwiseOps.and(head[--p].toLong(), 0xffff).toInt()
                     head[p] = if (m >= wSize) (m - wSize).toShort() else 0.toShort()
                 } while (--n != 0)
                 n = wSize
                 p = n
                 do {
-                    m = (prev[--p].toInt() and 0xffff)
+                    m = bitwiseOps.and(prev[--p].toLong(), 0xffff).toInt()
                     prev[p] = if (m >= wSize) (m - wSize).toShort() else 0.toShort()
                 } while (--n != 0)
                 more += wSize
             }
             if (strm.availIn == 0) return
             n = strm.readBuf(window, strStart + lookAhead, more)
+            println("[DEBUG_FILL] readBuf returned $n bytes, new lookAhead will be ${lookAhead + n}")
+            if (n > 0) {
+                println("[DEBUG_FILL] Read bytes: ${window.slice(strStart + lookAhead until strStart + lookAhead + n).map { "${it.toInt() and 0xff}(${if ((it.toInt() and 0xff) in 32..126) (it.toInt() and 0xff).toChar() else "?"})" }.joinToString(",")}")
+            }
             lookAhead += n
             if (lookAhead >= MIN_MATCH) {
-                insH = window[strStart].toInt() and 0xff
-                insH = (((insH shl hashShift) xor (window[strStart + 1].toInt() and 0xff)) and hashMask)
+                insH = bitwiseOps.and(window[strStart].toLong(), 0xff).toInt()
+                insH = bitwiseOps.and(
+                    bitwiseOps.xor(
+                        bitwiseOps.leftShift(insH.toLong(), hashShift),
+                        bitwiseOps.and(window[strStart + 1].toLong(), 0xff)
+                    ),
+                    hashMask.toLong()
+                ).toInt()
             }
         } while (lookAhead < MIN_LOOKAHEAD && strm.availIn != 0)
     }
 
     internal fun deflateFast(flush: Int): Int {
+        println("[DEBUG_FAST] deflateFast called: flush=$flush, lookAhead=$lookAhead, strStart=$strStart")
         var hashHead = 0
         var bflush: Boolean
         while (true) {
             if (lookAhead < MIN_LOOKAHEAD) {
+                println("[DEBUG_FAST] Need more input, calling fillWindow")
                 fillWindow()
                 if (lookAhead < MIN_LOOKAHEAD && flush == Z_NO_FLUSH) return NEED_MORE
                 if (lookAhead == 0) break
             }
             if (lookAhead >= MIN_MATCH) {
-                insH = (((insH shl hashShift) xor (window[(strStart) + (MIN_MATCH - 1)].toInt() and 0xff)) and hashMask)
-                hashHead = (head[insH].toInt() and 0xffff)
-                prev[strStart and wMask] = head[insH]
+                insH = bitwiseOps.and(
+                    bitwiseOps.xor(
+                        bitwiseOps.leftShift(insH.toLong(), hashShift),
+                        bitwiseOps.and(window[(strStart) + (MIN_MATCH - 1)].toLong(), 0xff)
+                    ),
+                    hashMask.toLong()
+                ).toInt()
+                hashHead = bitwiseOps.and(head[insH].toLong(), 0xffff).toInt()
+                prev[bitwiseOps.and(strStart.toLong(), wMask.toLong()).toInt()] = head[insH]
                 head[insH] = strStart.toShort()
             }
-            if (hashHead != 0 && ((strStart - hashHead) and 0xffff) <= wSize - MIN_LOOKAHEAD) {
+            if (hashHead != 0 && bitwiseOps.and((strStart - hashHead).toLong(), 0xffff).toInt() <= wSize - MIN_LOOKAHEAD) {
                 if (strategy != Z_HUFFMAN_ONLY) {
                     matchLength = longestMatch(hashHead)
                 }
@@ -432,20 +459,34 @@ class Deflate {
                     matchLength--
                     do {
                         strStart++
-                        insH = (((insH shl hashShift) xor (window[(strStart) + (MIN_MATCH - 1)].toInt() and 0xff)) and hashMask)
-                        hashHead = (head[insH].toInt() and 0xffff)
-                        prev[strStart and wMask] = head[insH]
+                        insH = bitwiseOps.and(
+                            bitwiseOps.xor(
+                                bitwiseOps.leftShift(insH.toLong(), hashShift),
+                                bitwiseOps.and(window[(strStart) + (MIN_MATCH - 1)].toLong(), 0xff)
+                            ),
+                            hashMask.toLong()
+                        ).toInt()
+                        hashHead = bitwiseOps.and(head[insH].toLong(), 0xffff).toInt()
+                        prev[bitwiseOps.and(strStart.toLong(), wMask.toLong()).toInt()] = head[insH]
                         head[insH] = strStart.toShort()
                     } while (--matchLength != 0)
                     strStart++
                 } else {
                     strStart += matchLength
                     matchLength = 0
-                    insH = window[strStart].toInt() and 0xff
-                    insH = (((insH shl hashShift) xor (window[strStart + 1].toInt() and 0xff)) and hashMask)
+                    insH = bitwiseOps.and(window[strStart].toLong(), 0xff).toInt()
+                    insH = bitwiseOps.and(
+                        bitwiseOps.xor(
+                            bitwiseOps.leftShift(insH.toLong(), hashShift),
+                            bitwiseOps.and(window[strStart + 1].toLong(), 0xff)
+                        ),
+                        hashMask.toLong()
+                    ).toInt()
                 }
             } else {
-                bflush = trTally(0, window[strStart].toInt() and 0xff)
+                val literal = window[strStart].toInt() and 0xff
+                println("[DEBUG_FAST] Processing literal from window[$strStart]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
+                bflush = trTally(0, literal)
                 lookAhead--
                 strStart++
             }
@@ -471,15 +512,21 @@ class Deflate {
                 if (lookAhead == 0) break
             }
             if (lookAhead >= MIN_MATCH) {
-                insH = (((insH shl hashShift) xor (window[(strStart) + (MIN_MATCH - 1)].toInt() and 0xff)) and hashMask)
-                hashHead = (head[insH].toInt() and 0xffff)
-                prev[strStart and wMask] = head[insH]
+                insH = bitwiseOps.and(
+                    bitwiseOps.xor(
+                        bitwiseOps.leftShift(insH.toLong(), hashShift),
+                        bitwiseOps.and(window[(strStart) + (MIN_MATCH - 1)].toLong(), 0xff)
+                    ),
+                    hashMask.toLong()
+                ).toInt()
+                hashHead = bitwiseOps.and(head[insH].toLong(), 0xffff).toInt()
+                prev[bitwiseOps.and(strStart.toLong(), wMask.toLong()).toInt()] = head[insH]
                 head[insH] = strStart.toShort()
             }
             prevLength = matchLength
             prevMatch = matchStart
             matchLength = MIN_MATCH - 1
-            if (hashHead != 0 && prevLength < maxLazyMatch && ((strStart - hashHead) and 0xffff) <= wSize - MIN_LOOKAHEAD) {
+            if (hashHead != 0 && prevLength < maxLazyMatch && bitwiseOps.and((strStart - hashHead).toLong(), 0xffff).toInt() <= wSize - MIN_LOOKAHEAD) {
                 if (strategy != Z_HUFFMAN_ONLY) {
                     matchLength = longestMatch(hashHead)
                 }
@@ -494,9 +541,15 @@ class Deflate {
                 prevLength -= 2
                 do {
                     if (++strStart <= maxInsert) {
-                        insH = (((insH shl hashShift) xor (window[(strStart) + (MIN_MATCH - 1)].toInt() and 0xff)) and hashMask)
-                        hashHead = (head[insH].toInt() and 0xffff)
-                        prev[strStart and wMask] = head[insH]
+                        insH = bitwiseOps.and(
+                            bitwiseOps.xor(
+                                bitwiseOps.leftShift(insH.toLong(), hashShift),
+                                bitwiseOps.and(window[(strStart) + (MIN_MATCH - 1)].toLong(), 0xff)
+                            ),
+                            hashMask.toLong()
+                        ).toInt()
+                        hashHead = bitwiseOps.and(head[insH].toLong(), 0xffff).toInt()
+                        prev[bitwiseOps.and(strStart.toLong(), wMask.toLong()).toInt()] = head[insH]
                         head[insH] = strStart.toShort()
                     }
                 } while (--prevLength != 0)
@@ -508,7 +561,9 @@ class Deflate {
                     if (strm.availOut == 0) return NEED_MORE
                 }
             } else if (matchAvailable != 0) {
-                bflush = trTally(0, window[strStart - 1].toInt() and 0xff)
+                val literal = window[strStart - 1].toInt() and 0xff
+                println("[DEBUG_SLOW] Processing literal from window[${strStart - 1}]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
+                bflush = trTally(0, literal)
                 if (bflush) {
                     flushBlockOnly(false)
                 }
@@ -522,7 +577,9 @@ class Deflate {
             }
         }
         if (matchAvailable != 0) {
-            trTally(0, window[strStart - 1].toInt() and 0xff)
+            val literal = window[strStart - 1].toInt() and 0xff
+            println("[DEBUG_SLOW_END] Final literal from window[${strStart - 1}]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
+            trTally(0, literal)
             matchAvailable = 0
         }
         flushBlockOnly(flush == Z_FINISH)
@@ -550,7 +607,7 @@ class Deflate {
 
         // Do not waste too much time if we already have a good match
         if (prevLength >= goodMatch) {
-            chainLength = chainLength shr 2
+            chainLength = bitwiseOps.rightShift(chainLength.toLong(), 2).toInt()
         }
 
         // Do not look for matches beyond the end of the input. This is necessary
@@ -568,7 +625,7 @@ class Deflate {
                 window[match + bestLen - 1] != scanEnd1 ||
                 window[match] != window[scan] ||
                 window[++match] != window[scan + 1]) {
-                curMatch = prev[curMatch and wmask].toInt() and 0xffff
+                curMatch = bitwiseOps.and(prev[bitwiseOps.and(curMatch.toLong(), wmask.toLong()).toInt()].toLong(), 0xffff).toInt()
                 continue
             }
 
@@ -609,7 +666,7 @@ class Deflate {
                 scanEnd = window[scan + bestLen]
             }
 
-            curMatch = prev[curMatch and wmask].toInt() and 0xffff
+            curMatch = bitwiseOps.and(prev[bitwiseOps.and(curMatch.toLong(), wmask.toLong()).toInt()].toLong(), 0xffff).toInt()
         } while (curMatch > limit && --chainLength != 0)
 
         // Return the best match length we found, but not longer than the lookahead buffer
@@ -689,11 +746,23 @@ class Deflate {
         dictionary.copyInto(window, 0, index, length)
         strStart = length
         blockStart = length
-        insH = window[0].toInt() and 0xff
-        insH = (((insH shl hashShift) xor (window[1].toInt() and 0xff)) and hashMask)
+        insH = bitwiseOps.and(window[0].toLong(), 0xff).toInt()
+        insH = bitwiseOps.and(
+            bitwiseOps.xor(
+                bitwiseOps.leftShift(insH.toLong(), hashShift),
+                bitwiseOps.and(window[1].toLong(), 0xff)
+            ),
+            hashMask.toLong()
+        ).toInt()
         for (n in 0..length - MIN_MATCH) {
-            insH = (((insH shl hashShift) xor (window[(n) + (MIN_MATCH - 1)].toInt() and 0xff)) and hashMask)
-            prev[n and wMask] = head[insH]
+            insH = bitwiseOps.and(
+                bitwiseOps.xor(
+                    bitwiseOps.leftShift(insH.toLong(), hashShift),
+                    bitwiseOps.and(window[(n) + (MIN_MATCH - 1)].toLong(), 0xff)
+                ),
+                hashMask.toLong()
+            ).toInt()
+            prev[bitwiseOps.and(n.toLong(), wMask.toLong()).toInt()] = head[insH]
             head[insH] = n.toShort()
         }
         return Z_OK
@@ -719,16 +788,16 @@ class Deflate {
         strm.dState = this
         this.noheader = noheaderLocal
         wBits = windowbitsVal
-        wSize = 1 shl wBits
+        wSize = bitwiseOps.leftShift(1L, wBits).toInt()
         wMask = wSize - 1
         hashBits = memlevelVal + 7
-        hashSize = 1 shl hashBits
+        hashSize = bitwiseOps.leftShift(1L, hashBits).toInt()
         hashMask = hashSize - 1
         hashShift = (hashBits + MIN_MATCH - 1) / MIN_MATCH
         window = ByteArray(wSize * 2)
         prev = ShortArray(wSize)
         head = ShortArray(hashSize)
-        litBufsize = 1 shl (memlevelVal + 6)
+        litBufsize = bitwiseOps.leftShift(1L, (memlevelVal + 6)).toInt()
         pendingBuf = ByteArray(litBufsize * 4)
         pendingBufSize = litBufsize * 4
         dBuf = litBufsize

@@ -155,7 +155,7 @@ internal class InfCodes {
                         outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
                         if (result != Z_OK) {
                             mode = if (result == Z_STREAM_END) ICODES_WASH else ICODES_BADCODE
-                            break
+                            continue  // Changed from break to continue
                         }
                     }
                     
@@ -183,6 +183,16 @@ internal class InfCodes {
                     // Get the table index
                     tableIndex = (treeIndex + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[tempStorage].toLong()).toInt()) * 3
                     
+                    println("[DEBUG_LOG] ICODES_START: tableIndex=$tableIndex, treeIndex=$treeIndex, bitBuffer=0x${bitBuffer.toString(16)}, mask=0x${IBLK_INFLATE_MASK[tempStorage].toString(16)}")
+                    println("[DEBUG_LOG] ICODES_START: tree.size=${tree.size}, checking bounds for tableIndex=$tableIndex")
+                    
+                    if (tableIndex + 2 >= tree.size) {
+                        println("[DEBUG_LOG] ICODES_START: ERROR - tableIndex=$tableIndex out of bounds for tree.size=${tree.size}")
+                        return Z_DATA_ERROR
+                    }
+                    
+                    println("[DEBUG_LOG] ICODES_START: tree[${tableIndex}]=${tree[tableIndex]}, tree[${tableIndex+1}]=${tree[tableIndex+1]}, tree[${tableIndex+2}]=${tree[tableIndex+2]}")
+                    
                     // Remove the bits we've used
                     bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tree[tableIndex + 1]).toInt()
                     bitsInBuffer -= tree[tableIndex + 1]
@@ -190,12 +200,15 @@ internal class InfCodes {
                     // Get the operation/extra bits
                     extraBitsOrOperation = tree[tableIndex]
                     
+                    println("[DEBUG_LOG] ICODES_START: After consuming ${tree[tableIndex + 1]} bits: bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer, op=$extraBitsOrOperation")
+                    
                     // Process based on the operation
                     if (extraBitsOrOperation == 0) {
                         // Literal
                         literal = tree[tableIndex + 2]
+                        println("[DEBUG_LOG] ICODES_START: Found literal=$literal (ASCII '${literal.toChar()}'), switching to ICODES_LIT")
                         mode = ICODES_LIT
-                        break
+                        continue  // Continue to process ICODES_LIT state
                     }
                     
                     if (bitwiseOps.and(extraBitsOrOperation.toLong(), 16L).toInt() != 0) {
@@ -203,20 +216,20 @@ internal class InfCodes {
                         extraBitsNeeded = bitwiseOps.and(extraBitsOrOperation.toLong(), 15L).toInt()
                         length = tree[tableIndex + 2]
                         mode = ICODES_LENEXT
-                        break
+                        continue  // Continue to process ICODES_LENEXT state
                     }
                     
                     if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
                         // Next table
                         bitsNeeded = extraBitsOrOperation
                         treeIndex = tableIndex / 3 + tree[tableIndex + 2]
-                        break
+                        continue  // Continue with new table reference
                     }
                     
                     if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
                         // End of block
                         mode = ICODES_WASH
-                        break
+                        continue  // Continue to process ICODES_WASH state
                     }
                     
                     // Invalid code
@@ -234,7 +247,9 @@ internal class InfCodes {
                 }
 
                 ICODES_LEN -> {
+                    println("[DEBUG_LOG] ICODES_LEN: checking inflateFast conditions: outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
                     if (outputBytesLeft >= 258 && bytesAvailable >= 10) {
+                        println("[DEBUG_LOG] Calling inflateFast: conditions met")
                         s.bitb = bitBuffer
                         s.bitk = bitsInBuffer
                         z.availIn = bytesAvailable
@@ -250,7 +265,7 @@ internal class InfCodes {
                         outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
                         if (result != Z_OK) {
                             mode = if (result == Z_STREAM_END) ICODES_WASH else ICODES_BADCODE
-                            break
+                            continue  // Continue to process the new state
                         }
                     }
                     
@@ -270,15 +285,15 @@ internal class InfCodes {
                             return inflateFlush(s, z, result)
                         }
                         bytesAvailable--
-                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                         bitsInBuffer += 8
                     }
                     
                     // Get the table index
-                    tableIndex = (treeIndex + (bitBuffer and IBLK_INFLATE_MASK[tempStorage])) * 3
-                    
+                    tableIndex = (treeIndex + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[tempStorage].toLong()).toInt()) * 3
+
                     // Remove the bits we've used
-                    bitBuffer = bitBuffer ushr tree[tableIndex + 1]
+                    bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tree[tableIndex + 1]).toInt()
                     bitsInBuffer -= tree[tableIndex + 1]
                     
                     // Get the operation/extra bits
@@ -289,28 +304,28 @@ internal class InfCodes {
                         // Literal
                         literal = tree[tableIndex + 2]
                         mode = ICODES_LIT
-                        break
+                        continue  // Continue to process ICODES_LIT state
                     }
                     
-                    if ((extraBitsOrOperation and 16) != 0) {
+                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 16L).toInt() != 0) {
                         // Length
-                        extraBitsNeeded = extraBitsOrOperation and 15
+                        extraBitsNeeded = bitwiseOps.and(extraBitsOrOperation.toLong(), 15L).toInt()
                         length = tree[tableIndex + 2]
                         mode = ICODES_LENEXT
-                        break
+                        continue  // Continue to process ICODES_LENEXT state
                     }
                     
-                    if ((extraBitsOrOperation and 64) == 0) {
+                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
                         // Next table
                         bitsNeeded = extraBitsOrOperation
                         treeIndex = tableIndex / 3 + tree[tableIndex + 2]
-                        break
+                        continue  // Continue with new table reference
                     }
                     
-                    if ((extraBitsOrOperation and 32) != 0) {
+                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
                         // End of block
                         mode = ICODES_WASH
-                        break
+                        continue  // Continue to process ICODES_WASH state
                     }
                     
                     // Invalid code
@@ -343,13 +358,13 @@ internal class InfCodes {
                             return inflateFlush(s, z, result)
                         }
                         bytesAvailable--
-                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                         bitsInBuffer += 8
                     }
 
-                    length += bitBuffer and IBLK_INFLATE_MASK[tempStorage]
+                    length += bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[tempStorage].toLong()).toInt()
 
-                    bitBuffer = bitBuffer ushr tempStorage
+                    bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tempStorage).toInt()
                     bitsInBuffer -= tempStorage
 
                     bitsNeeded = dbits.toInt()
@@ -375,28 +390,28 @@ internal class InfCodes {
                             return inflateFlush(s, z, result)
                         }
                         bytesAvailable--
-                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                         bitsInBuffer += 8
                     }
 
-                    tableIndex = (treeIndex + (bitBuffer and IBLK_INFLATE_MASK[tempStorage])) * 3
+                    tableIndex = (treeIndex + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[tempStorage].toLong()).toInt()) * 3
 
-                    bitBuffer = bitBuffer ushr tree[tableIndex + 1]
+                    bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tree[tableIndex + 1]).toInt()
                     bitsInBuffer -= tree[tableIndex + 1]
 
                     extraBitsOrOperation = tree[tableIndex]
-                    if (extraBitsOrOperation and 16 != 0) {
+                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 16L).toInt() != 0) {
                         // distance
-                        extraBitsNeeded = extraBitsOrOperation and 15
+                        extraBitsNeeded = bitwiseOps.and(extraBitsOrOperation.toLong(), 15L).toInt()
                         distance = tree[tableIndex + 2]
                         mode = ICODES_DISTEXT
-                        break
+                        continue  // Continue to process ICODES_DISTEXT state
                     }
-                    if (extraBitsOrOperation and 64 == 0) {
+                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
                         // next table
                         bitsNeeded = extraBitsOrOperation
                         treeIndex = tableIndex / 3 + tree[tableIndex + 2]
-                        break
+                        continue  // Continue with new table reference
                     }
                     mode = ICODES_BADCODE // invalid code
                     z.msg = "invalid distance code"
@@ -427,13 +442,13 @@ internal class InfCodes {
                             return inflateFlush(s, z, result)
                         }
                         bytesAvailable--
-                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                         bitsInBuffer += 8
                     }
 
-                    distance += bitBuffer and IBLK_INFLATE_MASK[tempStorage]
+                    distance += bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[tempStorage].toLong()).toInt()
 
-                    bitBuffer = bitBuffer ushr tempStorage
+                    bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tempStorage).toInt()
                     bitsInBuffer -= tempStorage
 
                     mode = ICODES_COPY
@@ -514,6 +529,7 @@ internal class InfCodes {
                     }
                     result = Z_OK
 
+                    println("[DEBUG_LOG] ICODES_LIT: Writing literal=$literal (ASCII '${literal.toChar()}') to window[$outputWritePointer]")
                     s.window[outputWritePointer++] = literal.toByte()
                     outputBytesLeft--
 
@@ -583,7 +599,7 @@ internal class InfCodes {
                 }
             }
         }
-        return Z_OK // Should be unreachable
+        // Removed unreachable code
     }
 
     internal fun free() {
@@ -651,46 +667,61 @@ internal class InfCodes {
         var literalLengthMask: Int = IBLK_INFLATE_MASK[bl] // Bit mask for literal/length tree lookups
         var distanceMask: Int = IBLK_INFLATE_MASK[bd] // Bit mask for distance tree lookups
 
+        println("[DEBUG_LOG] Initial state: inputPointer=$inputPointer, bytesAvailable=$bytesAvailable")
+        println("[DEBUG_LOG] bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
+        println("[DEBUG_LOG] outputWritePointer=$outputWritePointer, outputBytesLeft=$outputBytesLeft")
+        println("[DEBUG_LOG] literalLengthMask=0x${literalLengthMask.toString(16)}, distanceMask=0x${distanceMask.toString(16)}")
+
+        // Check if we have sufficient space for fast processing
+        if (outputBytesLeft < 258 || bytesAvailable < 10) {
+            println("[DEBUG_LOG] Insufficient space for fast processing: outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
+            return Z_OK  // Return to slow path
+        }
+
         // Main processing loop - continue until insufficient input or output space
         do {
+            println("[DEBUG_LOG] Starting main loop iteration: outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
             // Assumption: called with outputBytesLeft >= 258 && bytesAvailable >= 10
             // Get literal/length code
             while (bitsInBuffer < 20) {
                 // Ensure we have enough bits for literal/length code (max 15 bits + extra)
                 bytesAvailable--
-                bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                 bitsInBuffer += 8
             }
 
             ZlibLogger.debug("[BIT_DEBUG] bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer, literalLengthMask=0x${literalLengthMask.toString(16)}")
-            tempPointer = bitBuffer and literalLengthMask
+            tempPointer = bitwiseOps.and(bitBuffer.toLong(), literalLengthMask.toLong()).toInt()
             tempTable = tl
             tempTableIndex = tlIndex
             
             println("[DEBUG_LOG] InfCodes.inflateFast: tempTableIndex=$tempTableIndex, tempPointer=$tempPointer, tempTable.size=${tempTable.size}")
             
-            // Check if the index is within bounds
-            val index = (tempTableIndex + tempPointer) * 3
-            if (index < 0 || index >= tempTable.size) {
-                println("[DEBUG_LOG] ArrayIndexOutOfBoundsException prevented: index=$index, tempTable.size=${tempTable.size}")
+            // Use the same table access pattern as the slow path
+            val tableIndex = (tempTableIndex + tempPointer) * 3
+            if (tableIndex < 0 || tableIndex + 2 >= tempTable.size) {
+                println("[DEBUG_LOG] ArrayIndexOutOfBoundsException prevented: tableIndex=$tableIndex, tempTable.size=${tempTable.size}")
                 z.msg = "Array index out of bounds"
                 return Z_DATA_ERROR
             }
             
-            var temp = tempTable[index]
-            if (temp == 0) {
-                // Check if the indices for the other array accesses are within bounds
-                val index1 = (tempTableIndex + tempPointer) * 3 + 1
-                val index2 = (tempTableIndex + tempPointer) * 3 + 2
-                
-                if (index1 < 0 || index1 >= tempTable.size || index2 < 0 || index2 >= tempTable.size) {
-                    println("[DEBUG_LOG] ArrayIndexOutOfBoundsException prevented: index1=$index1, index2=$index2, tempTable.size=${tempTable.size}")
-                    z.msg = "Array index out of bounds"
-                    return Z_DATA_ERROR
-                }
-                
-                bitBuffer = bitBuffer ushr tempTable[index1]
-                bitsInBuffer -= tempTable[index1]
+            // Get the table entry: [operation, bits, value] - same as slow path
+            val op = tempTable[tableIndex]
+            val bits = tempTable[tableIndex + 1]
+            val value = tempTable[tableIndex + 2]
+            
+            println("[DEBUG_LOG] Table lookup: op=$op, bits=$bits, value=$value")
+            println("[DEBUG_LOG] About to consume $bits bits from bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
+            
+            // Consume the bits
+            bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), bits).toInt()
+            bitsInBuffer -= bits
+            
+            println("[DEBUG_LOG] After consuming bits: bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
+            
+            if (op == 0) {
+                // Direct literal - same as slow path
+                println("[DEBUG_LOG] FAST LITERAL: op=$op, bits=$bits, value=$value")
                 
                 // Check if outputWritePointer is within bounds
                 if (outputWritePointer < 0 || outputWritePointer >= s.window.size) {
@@ -699,47 +730,71 @@ internal class InfCodes {
                     return Z_DATA_ERROR
                 }
                 
-                s.window[outputWritePointer++] = tempTable[index2].toByte()
+                // Like C: if (op == 0) { *out++ = (unsigned char)(here->val); }
+                val fastLiteralByte = bitwiseOps.and(value.toLong(), 0xFFL).toByte()  // Mask to byte range
+                println("[DEBUG_LOG] FAST LITERAL: Writing '${fastLiteralByte.toInt().toChar()}' (${fastLiteralByte.toInt()}) to window[$outputWritePointer]")
+                s.window[outputWritePointer++] = fastLiteralByte
                 outputBytesLeft--
                 continue
             }
 
             do {
-                tempPointer = tempTableIndex + bitwiseOps.and(bitBuffer.toLong(), literalLengthMask.toLong()).toInt()
-                extraBitsOrOperation = tl[tempPointer * 3]
-                if (extraBitsOrOperation == 0) {
-                    bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tl[tempPointer * 3 + 1]).toInt()
-                    bitsInBuffer -= tl[tempPointer * 3 + 1]
-                    s.window[outputWritePointer++] = tl[tempPointer * 3 + 2].toByte()
+                // Same pattern as slow path: get literal/length code
+                tempPointer = bitwiseOps.and(bitBuffer.toLong(), literalLengthMask.toLong()).toInt()
+                
+                // Use the same table access pattern as slow path
+                // Removed unused variable 'innerTableIndex'
+                if (tableIndex < 0 || tableIndex + 2 >= tl.size) {
+                    println("[DEBUG_LOG] Table access out of bounds: tableIndex=$tableIndex, tl.size=${tl.size}")
+                    z.msg = "invalid literal/length code - out of bounds"
+                    return Z_DATA_ERROR
+                }
+                
+                // Get the table entry: [operation, bits, value] - same as slow path
+                val innerOp = tl[tableIndex]
+                val innerBits = tl[tableIndex + 1]
+                val innerValue = tl[tableIndex + 2]
+                
+                println("[DEBUG_LOG] Huffman lookup: tempPointer=$tempPointer, op=$innerOp, bits=$innerBits, value=$innerValue")
+                
+                // Consume the bits - same as slow path
+                bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), innerBits).toInt()
+                bitsInBuffer -= innerBits
+                extraBitsOrOperation = innerOp
+                
+                println("[DEBUG_LOG] Table entry: op=$innerOp, bits=$innerBits, value=$innerValue")
+                if (innerOp == 0) {  // Literal - same as slow path
+                    val literalByte = bitwiseOps.and(innerValue.toLong(), 0xFFL).toByte()  // Mask to byte range
+                    println("[DEBUG_LOG] Writing literal: '${literalByte.toInt().toChar()}' (${literalByte.toInt()}) to window[$outputWritePointer]")
+                    s.window[outputWritePointer++] = literalByte
                     outputBytesLeft--
                     break
                 }
-                bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tl[tempPointer * 3 + 1]).toInt()
-                bitsInBuffer -= tl[tempPointer * 3 + 1]
-                if (bitwiseOps.and(extraBitsOrOperation.toLong(), 16L).toInt() != 0) {
-                    extraBitsNeeded = bitwiseOps.and(extraBitsOrOperation.toLong(), 15L).toInt()
-                    bytesToCopy = tl[tempPointer * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsNeeded])
-                    bitBuffer = bitBuffer ushr extraBitsNeeded
+                else if (bitwiseOps.and(innerOp.toLong(), 16L).toInt() != 0) {  // Length - same as slow path
+                    extraBitsNeeded = bitwiseOps.and(innerOp.toLong(), 15L).toInt()  // Like C: op &= 15
+                    bytesToCopy = innerValue + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[extraBitsNeeded].toLong()).toInt()
+                    bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), extraBitsNeeded).toInt()
                     bitsInBuffer -= extraBitsNeeded
                     while (bitsInBuffer < 15) {
                         bytesAvailable--
-                        bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                        bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                         bitsInBuffer += 8
                     }
-                    println("[DEBUG_LOG] Processing distance code: bitBuffer=0x${bitBuffer.toString(16)}, distanceMask=0x${distanceMask.toString(16)}, tdIndex=$tdIndex")
+                    println("[DEBUG_LOG] Processing distance code: bitBuffer=0x${bitBuffer.toString(16)}, distanceMask=0x${distanceMask.toString(16)}")
                     
-                    // Directly follow the C# implementation approach for distance code handling
-                    var t = bitBuffer and distanceMask
-                    println("[DEBUG_LOG] Distance code calculation: bitBuffer=0x${bitBuffer.toString(16)}, distanceMask=0x${distanceMask.toString(16)}, t=0x${t.toString(16)}")
+                    // Like C: here = dcode + (hold & dmask)
+                    var distIndex = bitwiseOps.and(bitBuffer.toLong(), distanceMask.toLong()).toInt()
+                    println("[DEBUG_LOG] Distance code calculation: distIndex=$distIndex")
                     
-                    // In C#: tp = td; tp_index = td_index; e = tp[(tp_index + t) * 3];
-                    val tp = td
-                    val tpIndex = tdIndex
+                    // Use the passed distance table (td), not the fixed DISTFIX table
+                    var tp = td  // distance table 
+                    var tpIndex = tdIndex  // distance table starting index
+                    var t = distIndex  // current table pointer
                     
-                    // Bounds check before accessing the array
+                    // Check if (tpIndex + t) * 3 is within bounds
                     if ((tpIndex + t) * 3 >= tp.size) {
-                        println("[DEBUG_LOG] Distance pointer out of bounds: (tpIndex + t) * 3 = ${(tpIndex + t) * 3}, tp.size=${tp.size}")
-                        z.msg = "invalid distance code - pointer out of bounds"
+                        println("[DEBUG_LOG] Distance index out of bounds: index=${(tpIndex + t) * 3}, tp.size=${tp.size}")
+                        z.msg = "invalid distance code - index out of bounds"
                         s.bitb = bitBuffer
                         s.bitk = bitsInBuffer
                         z.availIn = bytesAvailable
@@ -749,24 +804,22 @@ internal class InfCodes {
                         return Z_DATA_ERROR
                     }
                     
-                    // Get the operation code (e in C#)
-                    var e = tp[(tpIndex + t) * 3]
-                    println("[DEBUG_LOG] Distance tree entry: e=$e, bits=${tp[(tpIndex + t) * 3 + 1]}, val=${tp[(tpIndex + t) * 3 + 2]}")
+                    // Get distance tree entry: [operation, bits, value]
+                    var e = tp[(tpIndex + t) * 3]  // operation
+                    var distBits = tp[(tpIndex + t) * 3 + 1]  // bits needed
+                    var distValue = tp[(tpIndex + t) * 3 + 2]  // base value
                     
-                    // Use the operation code directly as in C#
-                    extraBitsOrOperation = e
+                    println("[DEBUG_LOG] Distance tree entry: op=$e, bits=$distBits, val=$distValue")
                     
                     do {
-                        // In C#: b >>= (tp[(tp_index + t) * 3 + 1]); k -= (tp[(tp_index + t) * 3 + 1]);
-                        bitBuffer = bitBuffer ushr tp[(tpIndex + t) * 3 + 1]
-                        bitsInBuffer -= tp[(tpIndex + t) * 3 + 1]
+                        // Like C: hold >>= here->bits; bits -= here->bits; op = here->op;
+                        bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), distBits).toInt()
+                        bitsInBuffer -= distBits
                         
-                        // In C#: if ((e & 16) != 0)
-                        if (e and 16 != 0) {
+                        if (bitwiseOps.and(e.toLong(), 16L).toInt() != 0) {  // Like C: if (op & 16) { /* distance base */ }
                             println("[DEBUG_LOG] Distance code with extra bits")
                             
-                            // In C#: e &= 15;
-                            extraBitsNeeded = e and 15
+                            extraBitsNeeded = bitwiseOps.and(e.toLong(), 15L).toInt()  // Like C: op &= 15
                             
                             // Ensure we have enough bits for the extra bits
                             while (bitsInBuffer < extraBitsNeeded) {
@@ -782,16 +835,16 @@ internal class InfCodes {
                                     return Z_BUF_ERROR
                                 }
                                 bytesAvailable--
-                                bitBuffer = bitBuffer or ((z.nextIn!![inputPointer++].toInt() and 0xff) shl bitsInBuffer)
+                                bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                                 bitsInBuffer += 8
                             }
                             
-                            // In C#: d = tp[(tp_index + t) * 3 + 2] + (b & inflate_mask[e]);
-                            copyDistance = tp[(tpIndex + t) * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsNeeded])
+                            // Like C: dist = (unsigned)(here->val) + ((unsigned)hold & ((1U << op) - 1))
+                            copyDistance = distValue + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[extraBitsNeeded].toLong()).toInt()
                             println("[DEBUG_LOG] copyDistance=$copyDistance, extraBitsNeeded=$extraBitsNeeded, mask=0x${IBLK_INFLATE_MASK[extraBitsNeeded].toString(16)}")
                             
-                            // In C#: b >>= (e); k -= (e);
-                            bitBuffer = bitBuffer ushr extraBitsNeeded
+                            // Like C: hold >>= op; bits -= op;
+                            bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), extraBitsNeeded).toInt()
                             bitsInBuffer -= extraBitsNeeded
                             
                             // In C#: m -= c;
@@ -829,6 +882,10 @@ internal class InfCodes {
                                 if (outputWritePointer - copySourcePointer > 0 && 2 > (outputWritePointer - copySourcePointer)) {
                                     // In C#: s.window[q++] = s.window[r++]; c--; s.window[q++] = s.window[r++]; c--;
                                     println("[DEBUG_LOG] Small copy optimization")
+                                    val byte1 = s.window[copySourcePointer]
+                                    val byte2 = s.window[copySourcePointer + 1]
+                                    println("[DEBUG_LOG] Small copy: copying '${byte1.toInt().toChar()}' (${byte1.toInt()}) from pos $copySourcePointer to $outputWritePointer")
+                                    println("[DEBUG_LOG] Small copy: copying '${byte2.toInt().toChar()}' (${byte2.toInt()}) from pos ${copySourcePointer + 1} to ${outputWritePointer + 1}")
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                     bytesToCopy--
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
@@ -850,6 +907,10 @@ internal class InfCodes {
                                         return Z_DATA_ERROR
                                     }
                                     
+                                    val byte1 = s.window[copySourcePointer]
+                                    val byte2 = s.window[copySourcePointer + 1]
+                                    println("[DEBUG_LOG] Array copy: copying '${byte1.toInt().toChar()}' (${byte1.toInt()}) from pos $copySourcePointer to $outputWritePointer")
+                                    println("[DEBUG_LOG] Array copy: copying '${byte2.toInt().toChar()}' (${byte2.toInt()}) from pos ${copySourcePointer + 1} to ${outputWritePointer + 1}")
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                     bytesToCopy -= 2
@@ -864,22 +925,22 @@ internal class InfCodes {
                                 println("[DEBUG_LOG] Wrap-around copy: copySourcePointer=$copySourcePointer")
                                 
                                 // In C#: e = s.end - r; if (c > e) { ... } 
-                                val e = s.end - copySourcePointer
-                                if (bytesToCopy > e) {
+                                val endDistance = s.end - copySourcePointer
+                                if (bytesToCopy > endDistance) {
                                     // Need to wrap around during copy
                                     // In C#: c -= e; if (q - r > 0 && e > (q - r)) { ... } else { Array.Copy(s.window, r, s.window, q, e); ... }
-                                    bytesToCopy -= e
+                                    bytesToCopy -= endDistance
                                     
-                                    if (outputWritePointer - copySourcePointer > 0 && e > (outputWritePointer - copySourcePointer)) {
+                                    if (outputWritePointer - copySourcePointer > 0 && endDistance > (outputWritePointer - copySourcePointer)) {
                                         // In C#: do { s.window[q++] = s.window[r++]; } while (--e != 0);
-                                        var tempE = e
+                                        var tempE = endDistance
                                         while (tempE-- > 0) {
                                             s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                         }
                                     } else {
                                         // In C#: Array.Copy(s.window, r, s.window, q, e); q += e; r += e; e = 0;
-                                        if (copySourcePointer < 0 || copySourcePointer + e > s.window.size || 
-                                            outputWritePointer < 0 || outputWritePointer + e > s.window.size) {
+                                        if (copySourcePointer < 0 || copySourcePointer + endDistance > s.window.size || 
+                                            outputWritePointer < 0 || outputWritePointer + endDistance > s.window.size) {
                                             println("[DEBUG_LOG] Copy pointers out of bounds (first part)")
                                             z.msg = "invalid distance code - copy pointers out of bounds"
                                             s.bitb = bitBuffer
@@ -891,7 +952,7 @@ internal class InfCodes {
                                             return Z_DATA_ERROR
                                         }
                                         
-                                        var tempE = e
+                                        var tempE = endDistance
                                         while (tempE-- > 0) {
                                             s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                         }
@@ -931,12 +992,12 @@ internal class InfCodes {
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                     if (copySourcePointer == s.end) copySourcePointer = 0
                                 }
-                                bytesToCopy = 0
                             }
                             break
-                        } else if (e and 64 == 0) {
-                            println("[DEBUG_LOG] Next table reference")
+                        } else if (bitwiseOps.and(e.toLong(), 64L).toInt() == 0) {
+                            println("[DEBUG_LOG] Next distance table reference")
                             
+                            // Handle next table reference for distance codes
                             // In C#: if ((e & 64) == 0) { t += tp[(tp_index + t) * 3 + 2]; t += (b & inflate_mask[e]); e = tp[(tp_index + t) * 3]; }
                             
                             // Check if tp[(tpIndex + t) * 3 + 2] is valid
@@ -956,7 +1017,7 @@ internal class InfCodes {
                             t += tp[(tpIndex + t) * 3 + 2]
                             
                             // In C#: t += (b & inflate_mask[e]);
-                            t += (bitBuffer and IBLK_INFLATE_MASK[e])
+                            t += bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[e].toLong()).toInt()
                             
                             // Check if (tpIndex + t) * 3 is valid
                             if ((tpIndex + t) * 3 >= tp.size) {
@@ -973,14 +1034,16 @@ internal class InfCodes {
                             
                             // In C#: e = tp[(tp_index + t) * 3];
                             e = tp[(tpIndex + t) * 3]
-                            println("[DEBUG_LOG] New extraBitsOrOperation=$extraBitsOrOperation")
+                            distBits = tp[(tpIndex + t) * 3 + 1]
+                            distValue = tp[(tpIndex + t) * 3 + 2]
+                            println("[DEBUG_LOG] New distance table entry: e=$e, bits=$distBits, val=$distValue")
                         } else {
-                            println("[DEBUG_LOG] Invalid distance code: extraBitsOrOperation=$extraBitsOrOperation")
+                            println("[DEBUG_LOG] Invalid distance code: e=$e")
                             z.msg = "invalid distance code"
-                            val errBytes = z.availIn - bytesAvailable - (bitsInBuffer shr 3)
+                            val errBytes = z.availIn - bytesAvailable - bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt()
                             bytesAvailable += errBytes
                             inputPointer -= errBytes
-                            bitsInBuffer -= errBytes shl 3
+                            bitsInBuffer -= bitwiseOps.leftShift(errBytes.toLong(), 3).toInt()
                             s.bitb = bitBuffer
                             s.bitk = bitsInBuffer
                             z.availIn = bytesAvailable
@@ -992,21 +1055,32 @@ internal class InfCodes {
                     } while (true)
                     break
                 }
-                if (extraBitsOrOperation and 64 == 0) {
-                    tempPointer = tlIndex + tl[tempPointer * 3 + 2] + (bitBuffer and IBLK_INFLATE_MASK[extraBitsOrOperation])
-                    extraBitsOrOperation = tl[tempPointer * 3]
-                    if (extraBitsOrOperation == 0) {
-                        bitBuffer = bitBuffer ushr tl[tempPointer * 3 + 1]
-                        bitsInBuffer -= tl[tempPointer * 3 + 1]
-                        s.window[outputWritePointer++] = tl[tempPointer * 3 + 2].toByte()
-                        outputBytesLeft--
-                        break
+                if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
+                    // Fixed for pairs format: navigate to next table entry
+                    val nextValueIndex = tempPointer * 2
+                    if (nextValueIndex + 1 < tl.size) {
+                        tempPointer = tlIndex + tl[nextValueIndex] + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[extraBitsOrOperation].toLong()).toInt()
+                        val newValueIndex = tempPointer * 2
+                        if (newValueIndex < tl.size) {
+                            val newValue = tl[newValueIndex]
+                            extraBitsOrOperation = if (newValue < 256) 0 else if (newValue == 256) 32 else 16
+                            if (extraBitsOrOperation == 0) {
+                                val newBitsIndex = tempPointer * 2 + 1
+                                if (newBitsIndex < tl.size) {
+                                    bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tl[newBitsIndex]).toInt()
+                                    bitsInBuffer -= tl[newBitsIndex]
+                                    s.window[outputWritePointer++] = newValue.toByte()
+                                    outputBytesLeft--
+                                    break
+                                }
+                            }
+                        }
                     }
-                } else if (extraBitsOrOperation and 32 != 0) {
-                    val errBytes = z.availIn - bytesAvailable - (bitsInBuffer shr 3)
+                } else if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
+                    val errBytes = z.availIn - bytesAvailable - bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt()
                     bytesAvailable += errBytes
                     inputPointer -= errBytes
-                    bitsInBuffer -= errBytes shl 3
+                    bitsInBuffer -= bitwiseOps.leftShift(errBytes.toLong(), 3).toInt()
                     s.bitb = bitBuffer
                     s.bitk = bitsInBuffer
                     z.availIn = bytesAvailable
@@ -1016,10 +1090,10 @@ internal class InfCodes {
                     return Z_STREAM_END
                 } else {
                     z.msg = "invalid literal/length code"
-                    val errBytes = z.availIn - bytesAvailable - (bitsInBuffer shr 3)
+                    val errBytes = z.availIn - bytesAvailable - bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt()
                     bytesAvailable += errBytes
                     inputPointer -= errBytes
-                    bitsInBuffer -= errBytes shl 3
+                    bitsInBuffer -= bitwiseOps.leftShift(errBytes.toLong(), 3).toInt()
                     s.bitb = bitBuffer
                     s.bitk = bitsInBuffer
                     z.availIn = bytesAvailable
@@ -1033,17 +1107,19 @@ internal class InfCodes {
 
         // Not enough input or output space - restore pointers and return
         bytesToCopy = z.availIn - bytesAvailable
-        bytesToCopy = (bitsInBuffer ushr 3).coerceAtMost(bytesToCopy)
+        bytesToCopy = bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt().coerceAtMost(bytesToCopy)
         bytesAvailable += bytesToCopy
         inputPointer -= bytesToCopy
-        bitsInBuffer -= bytesToCopy shl 3
+        bitsInBuffer -= bitwiseOps.leftShift(bytesToCopy.toLong(), 3).toInt()
 
         s.bitb = bitBuffer
         s.bitk = bitsInBuffer
         z.availIn = bytesAvailable
         z.totalIn += inputPointer - z.nextInIndex
         z.nextInIndex = inputPointer
+        println("[DEBUG_LOG] inflateFast ending: outputWritePointer=$outputWritePointer, setting s.write")
         s.write = outputWritePointer
+        println("[DEBUG_LOG] inflateFast ended: s.write=${s.write}")
 
         return Z_OK
     }

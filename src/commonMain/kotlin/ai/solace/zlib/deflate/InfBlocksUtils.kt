@@ -10,6 +10,9 @@ internal fun inflateFlush(s: InfBlocks, z: ZStream, rIn: Int): Int {
     var n: Int
     var q: Int
 
+    println("[DEBUG_LOG] inflateFlush called: s.read=${s.read}, s.write=${s.write}, s.end=${s.end}, rIn=$rIn")
+    println("[DEBUG_LOG] z.nextOutIndex=${z.nextOutIndex}, z.availOut=${z.availOut}")
+
     // local copies of source and destination pointers
     var p: Int = z.nextOutIndex
     q = s.read
@@ -18,6 +21,14 @@ internal fun inflateFlush(s: InfBlocks, z: ZStream, rIn: Int): Int {
     n = (if (q <= s.write) s.write else s.end) - q
     if (n > z.availOut) n = z.availOut
     if (n != 0 && r == Z_BUF_ERROR) r = Z_OK
+
+    println("[DEBUG_LOG] First copy: n=$n, from window[$q] to output[$p]")
+    if (n > 0) {
+        // Log what we're about to copy
+        val preview = s.window.sliceArray(q until minOf(q + 10, q + n))
+            .map { "${it.toInt()}" }.joinToString(",")
+        println("[DEBUG_LOG] Window content preview at [$q]: [$preview]")
+    }
 
     // update counters
     z.availOut -= n
@@ -46,6 +57,14 @@ internal fun inflateFlush(s: InfBlocks, z: ZStream, rIn: Int): Int {
         if (n > z.availOut) n = z.availOut
         if (n != 0 && r == Z_BUF_ERROR) r = Z_OK
 
+        println("[DEBUG_LOG] Second copy (wrap): n=$n, from window[$q] to output[$p]")
+        if (n > 0) {
+            // Log what we're about to copy
+            val preview = s.window.sliceArray(q until minOf(q + 10, q + n))
+                .map { "${it.toInt()}" }.joinToString(",")
+            println("[DEBUG_LOG] Window content preview at [$q]: [$preview]")
+        }
+
         // update counters
         z.availOut -= n
         z.totalOut += n.toLong()
@@ -66,6 +85,8 @@ internal fun inflateFlush(s: InfBlocks, z: ZStream, rIn: Int): Int {
     // update pointers
     z.nextOutIndex = p
     s.read = q
+
+    println("[DEBUG_LOG] inflateFlush returning: $r, updated nextOutIndex=${z.nextOutIndex}, s.read=${s.read}")
 
     // done
     return r

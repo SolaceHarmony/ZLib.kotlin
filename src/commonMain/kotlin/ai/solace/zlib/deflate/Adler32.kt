@@ -32,6 +32,69 @@ class Adler32 {
      * @return Updated Adler-32 checksum
      */
     fun adler32(adler: Long, buf: ByteArray?, index: Int, len: Int): Long {
-        return Adler32Utils.adler32(adler, buf, index, len)
+        if (buf == null) {
+            return 1L
+        }
+        var s1 = adler and 0xffff
+        var s2 = (adler ushr 16) and 0xffff
+        var k: Int
+        var i = index
+        var l = len
+        while (l > 0) {
+            k = if (l < NMAX) l else NMAX
+            l -= k
+            while (k >= 16) {
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                s1 += buf[i++].toUByte().toLong()
+                s2 += s1
+                k -= 16
+            }
+            if (k != 0) {
+                do {
+                    s1 += buf[i++].toUByte().toLong()
+                    s2 += s1
+                } while (--k != 0)
+            }
+            s1 %= BASE
+            s2 %= BASE
+        }
+        return (s2 shl 16) or s1
+    }
+
+    companion object {
+        // largest prime smaller than 65536
+        private const val BASE = 65521
+
+        // NMAX is the largest n such that 255n(n+1)/2 + (n+1)(BASE-1) <= 2^32-1
+        private const val NMAX = 5552
     }
 }

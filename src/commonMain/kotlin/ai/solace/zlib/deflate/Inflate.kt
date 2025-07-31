@@ -132,6 +132,7 @@ internal class Inflate {
      */
     internal fun inflateInit(z: ZStream, w: Int): Int {
         z.msg = null
+        z.iState = this  // Initialize the inflate state
         blocks = null
 
         // handle undocumented nowrap option (no zlib header or check)
@@ -149,7 +150,7 @@ internal class Inflate {
         }
         wbits = wMut
 
-        z.iState!!.blocks = InfBlocks(z, if (z.iState!!.nowrap != 0) null else this, 1 shl wMut)
+        z.iState!!.blocks = InfBlocks(z, if (z.iState!!.nowrap != 0) null else this, bitwiseOps.leftShift(1L, wMut).toInt())
 
         // reset state
         inflateReset(z)
@@ -221,25 +222,25 @@ internal class Inflate {
                     z.availIn--
                     z.totalIn++
                     try {
-                        z.iState!!.method = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                        z.iState!!.method = bitwiseOps.and(z.nextIn!![z.nextInIndex++].toLong(), 0xffL).toInt()
                         println("[DEBUG_LOG] Read method byte: ${z.iState!!.method}")
                     } catch (e: Exception) {
                         println("[DEBUG_LOG] Exception in INF_METHOD: ${e.message}")
                         println("[DEBUG_LOG] nextIn size: ${z.nextIn?.size}, nextInIndex: ${z.nextInIndex}")
                         throw e
                     }
-                    if ((z.iState!!.method and 0xf) != Z_DEFLATED) {
+                    if (bitwiseOps.and(z.iState!!.method.toLong(), 0xfL).toInt() != Z_DEFLATED) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "unknown compression method"
                         z.iState!!.marker = 5 // can't try inflateSync
                         println("[DEBUG_LOG] Unknown compression method: ${z.iState!!.method}")
                         break
                     }
-                    if (((z.iState!!.method shr 4) + 8) > z.iState!!.wbits) {
+                    if ((bitwiseOps.rightShift(z.iState!!.method.toLong(), 4).toInt() + 8) > z.iState!!.wbits) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "invalid window size"
                         z.iState!!.marker = 5 // can't try inflateSync
-                        println("[DEBUG_LOG] Invalid window size: ${(z.iState!!.method shr 4) + 8} > ${z.iState!!.wbits}")
+                        println("[DEBUG_LOG] Invalid window size: ${(bitwiseOps.rightShift(z.iState!!.method.toLong(), 4).toInt() + 8)} > ${z.iState!!.wbits}")
                         break
                     }
                     z.iState!!.mode = INF_FLAG
@@ -485,7 +486,7 @@ internal class Inflate {
 
         z.adler = z.adlerChecksum!!.adler32(0, null, 0, 0)
 
-        val wsize = 1 shl z.iState!!.wbits
+        val wsize = bitwiseOps.leftShift(1L, z.iState!!.wbits).toInt()
         if (lengthMut >= wsize) {
             lengthMut = wsize
             index = dictLength - lengthMut
