@@ -250,8 +250,16 @@ class ZStream {
         
         // If we have no input data but are not at the end of the stream, return Z_BUF_ERROR
         if (availIn == 0 && f != Z_FINISH) {
-            println("[DEBUG_LOG] ZStream.inflate: no input data available and not at end of stream")
-            return Z_BUF_ERROR
+            // If there's no input and we're not finishing, we can't make progress.
+            // However, if the decompressor has produced output, we should return Z_OK
+            // to allow the caller to consume it.
+            val r = iState!!.inflate(this, f)
+            if (r == Z_BUF_ERROR && totalOut == 0L) {
+                println("[DEBUG_LOG] ZStream.inflate: no input and no output produced, returning Z_BUF_ERROR")
+                return Z_BUF_ERROR
+            }
+            println("[DEBUG_LOG] ZStream.inflate: no input, but returning Z_OK to flush output")
+            return Z_OK
         }
         
         try {
@@ -591,17 +599,16 @@ class ZStream {
      * @return The number of bytes actually read
      */
     internal fun readBuf(buf: ByteArray, start: Int, size: Int): Int {
-        var len = size
-        if (availIn <= 0) return 0
-        if (len > availIn) len = availIn
+        var len = availIn
+        if (len > size) len = size
+        if (len == 0) return 0
         availIn -= len
-        if (len != 0) {
-            nextIn!!.copyInto(buf, start, nextInIndex, nextInIndex + len)
-            // Update running Adler-32 checksum with newly read bytes
-            adler = adlerChecksum!!.adler32(adler, buf, start, len)
-            nextInIndex += len
-            totalIn += len.toLong()
+        if (dState?.noheader == 0) {
+            adler = adlerChecksum!!.adler32(adler, nextIn!!, nextInIndex, len)
         }
+        nextIn!!.copyInto(buf, start, nextInIndex, nextInIndex + len)
+        nextInIndex += len
+        totalIn += len
         return len
     }
 
@@ -635,8 +642,16 @@ class ZStream {
     }
 
     /**
+     * Flushes the output buffer.
+     */
+    internal fun inflateFlush(r: Int): Int {
+        if (iState == null) return Z_STREAM_ERROR
+        return iState?.blocks?.inflateFlush(this, r) ?: Z_STREAM_ERROR
+    }
+
+    /**
      * Releases all resources used by this ZStream instance.
-     * 
+     *
      * This method should be called when the stream is no longer needed to prevent memory leaks.
      */
     fun free() {
