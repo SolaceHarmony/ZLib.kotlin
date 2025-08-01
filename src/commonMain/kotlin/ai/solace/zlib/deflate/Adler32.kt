@@ -1,6 +1,7 @@
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.bitwise.checksum.Adler32Utils
+import ai.solace.zlib.common.ZlibLogger
 
 /**
  * Adler-32 checksum algorithm implementation.
@@ -33,61 +34,70 @@ class Adler32 {
      */
     fun adler32(adler: Long, buf: ByteArray?, index: Int, len: Int): Long {
         if (buf == null) {
+            ZlibLogger.logAdler32("null buffer provided, returning initial value 1", "adler32")
             return 1L
         }
+        
+        ZlibLogger.logAdler32("Starting Adler32 calculation: initial=$adler, index=$index, len=$len", "adler32")
+        
         var s1 = adler and 0xffff
         var s2 = (adler ushr 16) and 0xffff
+        ZlibLogger.logAdler32Calc(s1, s2, functionName = "adler32")
+        ZlibLogger.logAdler32("Initial s1=$s1, s2=$s2 from adler=$adler", "adler32")
+        
         var k: Int
         var i = index
         var l = len
+        var chunkCount = 0
+        
         while (l > 0) {
             k = if (l < NMAX) l else NMAX
             l -= k
+            chunkCount++
+            ZlibLogger.logAdler32("Processing chunk $chunkCount: k=$k bytes, remaining l=$l", "adler32")
+            
             while (k >= 16) {
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
-                s1 += buf[i++].toUByte().toLong()
-                s2 += s1
+                // Unrolled loop for performance - process 16 bytes at once
+                val startS1 = s1
+                val startS2 = s2
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
+                s1 += buf[i++].toUByte().toLong(); s2 += s1
                 k -= 16
+                ZlibLogger.logAdler32("16-byte block: s1 $startS1->$s1 (+${s1-startS1}), s2 $startS2->$s2 (+${s2-startS2})", "adler32")
             }
             if (k != 0) {
+                ZlibLogger.logAdler32("Processing remaining $k bytes individually", "adler32")
                 do {
-                    s1 += buf[i++].toUByte().toLong()
+                    val byte = buf[i++].toUByte().toLong()
+                    s1 += byte
                     s2 += s1
+                    ZlibLogger.logAdler32Calc(s1, s2, byte.toInt(), i-1, "adler32")
                 } while (--k != 0)
             }
+            val beforeMod1 = s1
+            val beforeMod2 = s2
             s1 %= BASE
             s2 %= BASE
+            ZlibLogger.logAdler32("Modulo operation: s1 $beforeMod1->$s1, s2 $beforeMod2->$s2 (mod $BASE)", "adler32")
         }
-        return (s2 shl 16) or s1
+        
+        val result = (s2 shl 16) or s1
+        ZlibLogger.logAdler32("Final result: s1=$s1, s2=$s2, combined=${result} (0x${result.toString(16)})", "adler32")
+        return result
     }
 
     companion object {

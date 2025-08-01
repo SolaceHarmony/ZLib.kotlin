@@ -457,7 +457,7 @@ val bestCompressionData = deflateData(inputData, Z_BEST_COMPRESSION)
 
 ### 9.2 ✅ Critical Fix: Bit Buffer Overflow Protection
 **Location**: `sendBits` function in `DeflateUtils.kt`
-**Issue**: Large bit shifts (≥31) could cause integer overflow in Kotlin/JVM
+**Issue**: Large bit shifts (≥31) could cause integer overflow in Kotlin/Native
 **Impact**: Corrupted compressed output, potential crashes
 **Status**: FIXED with explicit 30-bit masks
 

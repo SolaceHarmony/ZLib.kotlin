@@ -149,6 +149,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
      *         - Z_STREAM_ERROR if the stream state is inconsistent
      */
     fun proc(z: ZStream?, rIn: Int): Int {
+        ZlibLogger.logInflate("InfBlocks.proc: mode=$mode, write=$write, read=$read, rIn=$rIn")
         if (z == null) {
             return Z_STREAM_ERROR
         }
@@ -162,39 +163,55 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         var outputBytesLeft = if (outputPointer < read) read - outputPointer - 1 else end - outputPointer
         var returnCode = rIn
 
+        ZlibLogger.logInflate("Initial state: inputPointer=$inputPointer, bytesAvailable=$bytesAvailable, bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer")
+
         // Process input and output based on current state
         while (true) {
+            ZlibLogger.logInflate("Processing block mode=$mode, bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
             when (mode) {
                 IBLK_TYPE -> {
                     while (bitsInBuffer < 3) {
                         if (bytesAvailable == 0) {
+                            ZlibLogger.logInflate("Not enough input bytes for TYPE")
                             return Z_BUF_ERROR
                         }
                         bytesAvailable--
-                        bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xFFL), bitsInBuffer)).toInt()
+                        val nextByte = z.nextIn!![inputPointer++].toLong() and 0xFFL
+                        val shifted = bitwiseOps.leftShift(nextByte, bitsInBuffer)
+                        bitBuffer = bitwiseOps.or(bitBuffer.toLong(), shifted).toInt()
                         bitsInBuffer += 8
+                        ZlibLogger.logBitwise("Reading byte: $nextByte, shifted by $bitsInBuffer: $shifted, new bitBuffer=0x${bitBuffer.toString(16)}")
                     }
 
                     val t = bitwiseOps.extractBits(bitBuffer.toLong(), 3).toInt()
                     last = bitwiseOps.extractBits(t.toLong(), 1).toInt()
 
+                    ZlibLogger.logInflate("Block type bits: $t, is_last=$last")
+                    ZlibLogger.logBitwise("extractBits($bitBuffer, 3) -> $t")
+                    ZlibLogger.logBitwise("extractBits($t, 1) -> $last")
+
                     bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), 3).toInt(); bitsInBuffer -= 3
 
-                    when (bitwiseOps.rightShift(t.toLong(), 1).toInt()) {
+                    val blockType = bitwiseOps.rightShift(t.toLong(), 1).toInt()
+                    ZlibLogger.logInflate("Block type: $blockType (0=stored, 1=fixed, 2=dynamic)")
+                    
+                    when (blockType) {
                         0 -> { // Stored block
+                            ZlibLogger.logInflate("Processing stored block")
                             val bitsToSkip = bitwiseOps.extractBits(bitsInBuffer.toLong(), 3).toInt()
                             bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), bitsToSkip).toInt(); bitsInBuffer -= bitsToSkip
                             mode = IBLK_LENS
                         }
 
                         1 -> { // Fixed Huffman block
+                            ZlibLogger.logInflate("Processing fixed Huffman block")
                             val bl = IntArray(1)
                             val bd = IntArray(1)
                             val tl = arrayOf(IntArray(0))
                             val td = arrayOf(IntArray(0))
-                            ZlibLogger.log("[DEBUG_LOG] Calling InfTree.inflateTreesFixed with bl=${bl[0]}, bd=${bd[0]}")
+                            ZlibLogger.logHuffman("Calling InfTree.inflateTreesFixed")
                             val fixedTreeResult = InfTree.inflateTreesFixed(bl, bd, tl, td, z)
-                            ZlibLogger.log("[DEBUG_LOG] InfTree.inflateTreesFixed returned: $fixedTreeResult, bl=${bl[0]}, bd=${bd[0]}, tl.size=${tl[0].size}, td.size=${td[0].size}")
+                            ZlibLogger.logHuffman("InfTree.inflateTreesFixed returned: $fixedTreeResult, literalBits=${bl[0]}, distanceBits=${bd[0]}")
                             codes = InfCodes(bl[0], bd[0], tl[0], td[0])
                             mode = IBLK_CODES
                         }
