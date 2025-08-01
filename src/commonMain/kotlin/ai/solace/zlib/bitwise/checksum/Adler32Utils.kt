@@ -32,9 +32,9 @@ class Adler32Utils {
             if (buf == null) return 1L
 
             val MOD = ADLER_BASE
-            // Extract a and b from the input adler value correctly using the same logic as pigz
-            var a = (adler and 0xFFFF).toInt()
-            var b = ((adler shr 16) and 0xFFFF).toInt()
+            // Extract a and b from the input adler value using arithmetic-only operations
+            var a = BitwiseOps.getLow16BitsArithmetic(adler)
+            var b = BitwiseOps.getHigh16BitsArithmetic(adler)
 
             var i = index
             val end = index + len
@@ -45,8 +45,8 @@ class Adler32Utils {
                 i++
             }
 
-            // Combine a and b into the final result using the same logic as pigz
-            return ((b.toLong() and 0xFFFF) shl 16) or (a.toLong() and 0xFFFF)
+            // Combine a and b into the final result using arithmetic-only operations
+            return BitwiseOps.combine16BitArithmetic(b, a)
         }
     }
 }
