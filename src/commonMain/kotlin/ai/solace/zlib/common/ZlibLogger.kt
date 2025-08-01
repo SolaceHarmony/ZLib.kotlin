@@ -2,9 +2,6 @@
 package ai.solace.zlib.common
 
 
-import kotlinx.coroutines.GlobalScope
-import kotlinx.coroutines.launch
-
 object ZlibLogger {
     
     fun debug(message: String, className: String = "", functionName: String = "") = 
@@ -18,12 +15,10 @@ object ZlibLogger {
             "[$cls::$func] "
         } else ""
         val line = "[$timestamp] $location$message\n"
-        GlobalScope.launch {
-            try {
-                logToFile(line)
-            } catch (_: Exception) {
-                // Ignore logging errors
-            }
+        try {
+            logToFile(line)
+        } catch (_: Exception) {
+            // Ignore logging errors
         }
     }
     

@@ -42,19 +42,26 @@ class InflateTest {
     }
 
     private fun inflateDataInternal(inputDeflated: ByteArray, originalSizeHint: Int): ByteArray {
+        println("=== Starting inflateDataInternal ===")
         val stream = ZStream()
+        println("ZStream created")
 
         var err = stream.inflateInit(MAX_WBITS)
+        println("inflateInit called, result: $err")
         assertTrue(err == Z_OK, "inflateInit failed. Error: $err, Msg: ${stream.msg}")
 
         stream.nextIn = inputDeflated
         stream.availIn = inputDeflated.size
+        println("Input configured: ${inputDeflated.size} bytes")
 
         val outputBuffer = ByteArray(originalSizeHint * 4 + 200)
         stream.nextOut = outputBuffer
         stream.availOut = outputBuffer.size
+        println("Output buffer configured: ${outputBuffer.size} bytes")
 
+        println("About to call inflate with Z_FINISH")
         err = stream.inflate(Z_FINISH)
+        println("inflate called, result: $err")
         assertTrue(err == Z_STREAM_END, "Inflation failed, error: $err, Msg: ${stream.msg}")
 
         val result = outputBuffer.copyOf(stream.totalOut.toInt())
