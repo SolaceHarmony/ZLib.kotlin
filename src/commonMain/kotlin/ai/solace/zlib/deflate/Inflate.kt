@@ -174,6 +174,7 @@ internal class Inflate {
      *         or an error code (Z_STREAM_ERROR, Z_DATA_ERROR, etc.)
      */
     internal fun inflate(z: ZStream, f: Int): Int {
+        ZlibLogger.debug("=== INFLATE FUNCTION CALLED ===")
         ZlibLogger.logInflate("Starting inflate with f=$f, availIn=${z.availIn}, availOut=${z.availOut}")
         if (z.iState == null || z.nextIn == null) {
             ZlibLogger.debug("inflate: Z_STREAM_ERROR: iState or nextIn is null")
@@ -183,10 +184,17 @@ internal class Inflate {
         val fMut = Z_OK
         var r = if (f == Z_FINISH) Z_OK else Z_BUF_ERROR
 
+        var loopCount = 0
         while (true) {
+            loopCount++
+            ZlibLogger.logInflate("=== While loop iteration $loopCount ===")
             ZlibLogger.logInflate("Processing mode=${z.iState!!.mode}, availIn=${z.availIn}, availOut=${z.availOut}")
+            
+            val currentMode = z.iState!!.mode
+            ZlibLogger.logInflate("About to enter when statement for mode $currentMode")
             when (z.iState!!.mode) {
                 INF_METHOD -> {
+                    ZlibLogger.logInflate("Mode: INF_METHOD")
                     if (z.availIn == 0) {
                         ZlibLogger.logInflate("No input available, returning r=$r")
                         return r
@@ -217,6 +225,7 @@ internal class Inflate {
                 }
 
                 INF_FLAG -> {
+                    ZlibLogger.logInflate("Mode: INF_FLAG")
                     if (z.availIn == 0) {
                         ZlibLogger.logInflate("No input available for FLAG, returning r=$r")
                         return r
@@ -240,14 +249,20 @@ internal class Inflate {
                         break
                     }
                     ZlibLogger.debug("inflate: FLAG: b=$b")
+                    ZlibLogger.logInflate("Checking dictionary flag: b=$b, PRESET_DICT=$PRESET_DICT")
+                    ZlibLogger.logBitwise("and($b, $PRESET_DICT) -> ${b and PRESET_DICT}")
                     if (b and PRESET_DICT == 0) {
+                        ZlibLogger.logInflate("No dictionary needed, transitioning to INF_BLOCKS")
                         z.iState!!.mode = INF_BLOCKS
-                        break
+                        ZlibLogger.logInflate("Mode set to INF_BLOCKS, continuing to next iteration")
+                        continue // Continue to next iteration to process INF_BLOCKS
                     }
+                    ZlibLogger.logInflate("Dictionary required, transitioning to INF_DICT4")
                     z.iState!!.mode = INF_DICT4
                 }
 
                 INF_DICT4 -> {
+                    ZlibLogger.logInflate("Mode: INF_DICT4 - reading dictionary ID")
                     if (z.availIn == 0) return r
                     r = fMut
                     z.availIn--
@@ -287,6 +302,7 @@ internal class Inflate {
                 }
 
                 INF_DICT0 -> {
+                    ZlibLogger.logInflate("Mode: INF_DICT0 - need dictionary, transitioning to INF_BAD")
                     z.iState!!.mode = INF_BAD
                     z.msg = "need dictionary"
                     z.iState!!.marker = 0
@@ -295,8 +311,10 @@ internal class Inflate {
                 }
 
                 INF_BLOCKS -> {
+                    ZlibLogger.logInflate("Mode: INF_BLOCKS - processing data blocks")
                     r = z.iState!!.blocks!!.proc(z, r)
                     ZlibLogger.debug("inflate: BLOCKS: r=$r")
+                    ZlibLogger.logInflate("Blocks processing returned: $r")
                     if (r == Z_DATA_ERROR) {
                         z.iState!!.mode = INF_BAD
                         z.iState!!.marker = 0 // can't try inflateSync
@@ -307,13 +325,16 @@ internal class Inflate {
                         r = fMut
                     }
                     if (r != Z_STREAM_END) {
+                        ZlibLogger.logInflate("Blocks not complete (r=$r), returning early")
                         return r
                     }
+                    ZlibLogger.logInflate("Blocks processing complete! Transitioning to checksum verification")
                     r = fMut
                     z.iState!!.blocks!!.reset(z, z.iState!!.was)
                     if (z.iState!!.nowrap != 0) {
+                        ZlibLogger.logInflate("Raw deflate mode (nowrap=${z.iState!!.nowrap}), going to INF_DONE")
                         z.iState!!.mode = INF_DONE
-                        break
+                        continue // Continue to next iteration to process INF_DONE
                     }
                     z.iState!!.mode = INF_CHECK4
                 }
@@ -378,11 +399,22 @@ internal class Inflate {
                     ZlibLogger.logInflate("Checksum verification successful - decompression complete")
                     z.iState!!.mode = INF_DONE
                 }
-                INF_DONE -> return Z_STREAM_END
-                INF_BAD -> return Z_DATA_ERROR
-                else -> return Z_STREAM_ERROR
+                INF_DONE -> {
+                    ZlibLogger.logInflate("Mode: INF_DONE - returning Z_STREAM_END")
+                    return Z_STREAM_END
+                }
+                INF_BAD -> {
+                    ZlibLogger.logInflate("Mode: INF_BAD - returning Z_DATA_ERROR")
+                    return Z_DATA_ERROR
+                }
+                else -> {
+                    ZlibLogger.logInflate("Mode: UNKNOWN (${z.iState!!.mode}) - returning Z_STREAM_ERROR")
+                    return Z_STREAM_ERROR
+                }
             }
+            ZlibLogger.logInflate("=== Completed when statement for iteration $loopCount, continuing while loop ===")
         }
+        ZlibLogger.logInflate("=== Exiting inflate while loop, returning r=$r ===")
         return r
     }
 

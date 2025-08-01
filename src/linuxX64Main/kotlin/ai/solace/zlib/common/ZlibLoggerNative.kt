@@ -4,16 +4,6 @@ package ai.solace.zlib.common
 import kotlinx.cinterop.*
 import platform.posix.*
 
-actual fun logToFile(line: String) {
-    memScoped {
-        val file = fopen("zlib.log", "a")
-        if (file != null) {
-            fputs(line, file)
-            fclose(file)
-        }
-    }
-}
-
 actual fun currentTimestamp(): String {
     memScoped {
         val buf = allocArray<ByteVar>(24)
@@ -23,4 +13,3 @@ actual fun currentTimestamp(): String {
         return buf.toKString()
     }
 }
-
