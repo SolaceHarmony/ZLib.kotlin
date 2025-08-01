@@ -1,5 +1,7 @@
 package ai.solace.zlib.bitwise
 
+import ai.solace.zlib.common.ZlibLogger
+
 /**
  * BitwiseOps - A library for efficient bitwise operations in Kotlin Multiplatform
  * Extracted from ZLib.kotlin implementation patterns
@@ -130,10 +132,22 @@ class BitwiseOps {
          * @return The shifted value
          */
         fun leftShiftArithmetic(value: Int, bits: Int): Int {
-            if (bits < 0 || bits > 31) return 0
-            if (bits == 0) return value
+            if (bits < 0 || bits > 31) {
+                ZlibLogger.logBitwiseOp("leftShiftArithmetic", value, bits, 0, "leftShiftArithmetic")
+                ZlibLogger.logBitwise("leftShiftArithmetic: bits out of range (0-31), returning 0", "leftShiftArithmetic")
+                return 0
+            }
+            if (bits == 0) {
+                ZlibLogger.logBitwiseOp("leftShiftArithmetic", value, bits, value, "leftShiftArithmetic")
+                ZlibLogger.logBitwise("leftShiftArithmetic: no shift needed", "leftShiftArithmetic")
+                return value
+            }
             var result = value
             repeat(bits) { result *= 2 }
+            ZlibLogger.logBitwiseOp("leftShiftArithmetic", value, bits, result, "leftShiftArithmetic")
+            if (result != (value shl bits)) {
+                ZlibLogger.logBitwise("leftShiftArithmetic: overflow detected, arithmetic result differs from bitwise", "leftShiftArithmetic")
+            }
             return result
         }
         
@@ -144,10 +158,22 @@ class BitwiseOps {
          * @return The shifted value
          */
         fun rightShiftArithmetic(value: Int, bits: Int): Int {
-            if (bits < 0 || bits > 31) return 0
-            if (bits == 0) return value
+            if (bits < 0 || bits > 31) {
+                ZlibLogger.logBitwiseOp("rightShiftArithmetic", value, bits, 0, "rightShiftArithmetic")
+                ZlibLogger.logBitwise("rightShiftArithmetic: bits out of range (0-31), returning 0", "rightShiftArithmetic")
+                return 0
+            }
+            if (bits == 0) {
+                ZlibLogger.logBitwiseOp("rightShiftArithmetic", value, bits, value, "rightShiftArithmetic")
+                ZlibLogger.logBitwise("rightShiftArithmetic: no shift needed", "rightShiftArithmetic")
+                return value
+            }
             var result = value
             repeat(bits) { result /= 2 }
+            ZlibLogger.logBitwiseOp("rightShiftArithmetic", value, bits, result, "rightShiftArithmetic")
+            if (result != (value shr bits)) {
+                ZlibLogger.logBitwise("rightShiftArithmetic: arithmetic result differs from bitwise (signed vs unsigned)", "rightShiftArithmetic")
+            }
             return result
         }
         

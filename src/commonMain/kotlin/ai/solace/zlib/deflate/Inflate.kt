@@ -174,23 +174,29 @@ internal class Inflate {
      *         or an error code (Z_STREAM_ERROR, Z_DATA_ERROR, etc.)
      */
     internal fun inflate(z: ZStream, f: Int): Int {
+        ZlibLogger.logInflate("Starting inflate with f=$f, availIn=${z.availIn}, availOut=${z.availOut}")
         if (z.iState == null || z.nextIn == null) {
             ZlibLogger.debug("inflate: Z_STREAM_ERROR: iState or nextIn is null")
             return Z_STREAM_ERROR
         }
 
-        val fMut = if (f == Z_FINISH) Z_BUF_ERROR else Z_OK
-        var r = Z_BUF_ERROR
+        val fMut = Z_OK
+        var r = if (f == Z_FINISH) Z_OK else Z_BUF_ERROR
 
         while (true) {
-            ZlibLogger.debug("inflate: mode=${z.iState!!.mode}")
+            ZlibLogger.logInflate("Processing mode=${z.iState!!.mode}, availIn=${z.availIn}, availOut=${z.availOut}")
             when (z.iState!!.mode) {
                 INF_METHOD -> {
-                    if (z.availIn == 0) return r
+                    if (z.availIn == 0) {
+                        ZlibLogger.logInflate("No input available, returning r=$r")
+                        return r
+                    }
                     r = fMut
                     z.availIn--
                     z.totalIn++
                     z.iState!!.method = z.nextIn!![z.nextInIndex++].toInt()
+                    ZlibLogger.logInflate("Read method byte: ${z.iState!!.method} (compression=${z.iState!!.method and 0xf}, windowBits=${(z.iState!!.method shr 4) + 8})")
+                    ZlibLogger.logBitwise("and(${z.iState!!.method}, 15) -> ${z.iState!!.method and 0xf}")
                     if ((z.iState!!.method and 0xf) != Z_DEFLATED) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "unknown compression method"
@@ -198,6 +204,7 @@ internal class Inflate {
                         ZlibLogger.debug("inflate: unknown compression method")
                         break
                     }
+                    ZlibLogger.logBitwise("rightShift(${z.iState!!.method}, 4) -> ${z.iState!!.method shr 4}")
                     if ((z.iState!!.method shr 4) + 8 > z.iState!!.wbits) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "invalid window size"
@@ -206,15 +213,26 @@ internal class Inflate {
                         break
                     }
                     z.iState!!.mode = INF_FLAG
+                    ZlibLogger.logInflate("Method processed successfully, moving to FLAG mode")
                 }
 
                 INF_FLAG -> {
-                    if (z.availIn == 0) return r
+                    if (z.availIn == 0) {
+                        ZlibLogger.logInflate("No input available for FLAG, returning r=$r")
+                        return r
+                    }
                     r = fMut
                     z.availIn--
                     z.totalIn++
                     val b = z.nextIn!![z.nextInIndex++].toInt() and 0xff
-                    if (((z.iState!!.method shl 8) + b) % 31 != 0) {
+                    ZlibLogger.logInflate("Read flag byte: $b (0x${b.toString(16)})")
+                    ZlibLogger.logBitwise("and($b, 255) -> $b")
+                    
+                    val headerCheck = ((z.iState!!.method shl 8) + b) % 31
+                    ZlibLogger.logBitwise("leftShift(${z.iState!!.method}, 8) -> ${z.iState!!.method shl 8}")
+                    ZlibLogger.logInflate("Header check calculation: ((${z.iState!!.method} << 8) + $b) % 31 = $headerCheck")
+                    
+                    if (headerCheck != 0) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "incorrect header check"
                         z.iState!!.marker = 5 // can't try inflateSync
@@ -305,7 +323,11 @@ internal class Inflate {
                     r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need = (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 24 and -0x1000000).toLong()
+                    val b4 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    z.iState!!.need = (b4 shl 24 and -0x1000000).toLong()
+                    ZlibLogger.logInflate("CHECK4: Read byte $b4, need now = ${z.iState!!.need}")
+                    ZlibLogger.logBitwise("leftShift($b4, 24) -> ${b4 shl 24}")
+                    ZlibLogger.logBitwise("and(${b4 shl 24}, ${-0x1000000}) -> ${b4 shl 24 and -0x1000000}")
                     z.iState!!.mode = INF_CHECK3
                 }
 
@@ -314,7 +336,11 @@ internal class Inflate {
                     r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 16).toLong()
+                    val b3 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    val addValue = (b3 shl 16).toLong()
+                    z.iState!!.need += addValue
+                    ZlibLogger.logInflate("CHECK3: Read byte $b3, adding $addValue, need now = ${z.iState!!.need}")
+                    ZlibLogger.logBitwise("leftShift($b3, 16) -> ${b3 shl 16}")
                     z.iState!!.mode = INF_CHECK2
                 }
 
@@ -323,7 +349,11 @@ internal class Inflate {
                     r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 8).toLong()
+                    val b2 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    val addValue = (b2 shl 8).toLong()
+                    z.iState!!.need += addValue
+                    ZlibLogger.logInflate("CHECK2: Read byte $b2, adding $addValue, need now = ${z.iState!!.need}")
+                    ZlibLogger.logBitwise("leftShift($b2, 8) -> ${b2 shl 8}")
                     z.iState!!.mode = INF_CHECK1
                 }
 
@@ -332,15 +362,20 @@ internal class Inflate {
                     r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong()
-                    ZlibLogger.debug("inflate: CHECK: was=${z.iState!!.was[0]} need=${z.iState!!.need}")
+                    val b1 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    z.iState!!.need += b1.toLong()
+                    ZlibLogger.logInflate("CHECK1: Read final byte $b1, final need = ${z.iState!!.need}")
+                    ZlibLogger.logInflate("Checksum verification: computed=${z.iState!!.was[0]}, expected=${z.iState!!.need}")
+                    ZlibLogger.logAdler32("Final checksum comparison: was=${z.iState!!.was[0]} vs need=${z.iState!!.need}")
+                    
                     if (z.iState!!.was[0] != z.iState!!.need) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "incorrect data check"
                         z.iState!!.marker = 5 // can't try inflateSync
-                        ZlibLogger.debug("inflate: incorrect data check")
+                        ZlibLogger.logInflate("CHECKSUM MISMATCH: computed=${z.iState!!.was[0]}, expected=${z.iState!!.need}")
                         break
                     }
+                    ZlibLogger.logInflate("Checksum verification successful - decompression complete")
                     z.iState!!.mode = INF_DONE
                 }
                 INF_DONE -> return Z_STREAM_END

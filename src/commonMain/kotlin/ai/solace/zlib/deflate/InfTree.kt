@@ -119,33 +119,52 @@ internal object InfTree {
         hn: IntArray,
         v: IntArray
     ): Int {
-        ZlibLogger.log("[DEBUG_LOG] huftBuild called: bIndex=$bIndex, n=$n, s=$s, hp.size=${hp.size}, hn[0]=${hn[0]}")
+        ZlibLogger.logInfTree("Starting Huffman table construction", "huftBuild")
+        ZlibLogger.logInfTree("Parameters: bIndex=$bIndex, n=$n, s=$s, hp.size=${hp.size}, initial_hn=${hn[0]}", "huftBuild")
+        
+        // Count bit lengths
         val c = IntArray(MAX_BITS + 1)
         for (i in 0 until n) {
             if (b[bIndex + i] < c.size) c[b[bIndex + i]]++
         }
+        
+        ZlibLogger.logInfTree("Bit length counts: ${c.withIndex().filter { it.value > 0 }.joinToString { "${it.index}:${it.value}" }}", "huftBuild")
+        
         if (c[0] == n) {
             t[0] = IntArray(0)
             m[0] = 0
-            ZlibLogger.log("[DEBUG_LOG] huftBuild: All codes have length 0, returning Z_OK")
+            ZlibLogger.logInfTree("All codes have length 0, empty table created", "huftBuild")
             return Z_OK
         }
+        
+        // Find minimum and maximum non-zero bit lengths
         var j = 1
         while (j <= MAX_BITS && c[j] == 0) j++
         val minBits = j
         var maxBits = MAX_BITS
         while (maxBits >= 1 && c[maxBits] == 0) maxBits--
+        
+        ZlibLogger.logInfTree("Bit length range: minBits=$minBits, maxBits=$maxBits", "huftBuild")
+        
         if (m[0] < minBits) m[0] = minBits
         if (m[0] > maxBits) m[0] = maxBits
+        
+        // Create starting code values for each bit length (canonical Huffman)
         val x = IntArray(MAX_BITS + 1)
         var code = 0
         for (bits in minBits..maxBits) {
             x[bits] = code
             code += c[bits]
+            ZlibLogger.logInfTree("Bit length $bits: starting index=${x[bits]}, count=${c[bits]}", "huftBuild")
         }
+        
+        // Order symbols by increasing bit length
         for (i in 0 until n) {
             val len = b[bIndex + i]
-            if (len != 0) v[x[len]++] = i
+            if (len != 0) {
+                v[x[len]++] = i
+                ZlibLogger.logInfTree("Symbol $i assigned bit length $len", "huftBuild")
+            }
         }
         x[0] = 0
         j = 0

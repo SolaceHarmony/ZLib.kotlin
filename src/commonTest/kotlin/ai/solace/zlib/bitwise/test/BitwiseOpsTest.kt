@@ -147,12 +147,12 @@ class BitwiseOpsTest {
         
         // Platform-specific expected values
         val rotateRight1Result = BitwiseOps.rotateRight(0x12345678, 1)
-        // Check that the result is either 0x891A2B3C (JVM) or 0x91A2B3C (Native)
+        // Check expected result for 32-bit rotation
         assertTrue(rotateRight1Result == 0x891A2B3C.toInt() || rotateRight1Result == 0x91A2B3C,
                    "Expected 0x891A2B3C or 0x91A2B3C, but got 0x${rotateRight1Result.toString(16)}")
         
         val rotateRight4Result = BitwiseOps.rotateRight(0x12345678, 4)
-        // Check that the result is either 0x81234567 (JVM) or some other value on Native
+        // Check expected result for 32-bit rotation
         assertTrue(rotateRight4Result == 0x81234567.toInt(),
                    "Expected 0x81234567, but got 0x${rotateRight4Result.toString(16)}")
         

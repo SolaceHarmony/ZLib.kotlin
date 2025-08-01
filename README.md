@@ -3,7 +3,7 @@
 [![License: Zlib](https://img.shields.io/badge/license-Zlib-lightgrey.svg)](https://opensource.org/licenses/Zlib)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Native-blue.svg)](https://kotlinlang.org/)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
-[![Platform](https://img.shields.io/badge/platform-Kotlin%2FNative%20&%20JVM-orange.svg)]()
+[![Platform](https://img.shields.io/badge/platform-Kotlin%2FNative-orange.svg)]()
 
 ---
 
@@ -29,7 +29,7 @@
 
 ## About
 
-ZLib.kotlin is part of **The Solace Project** special libraries, designed to offer reliable, efficient compression for Kotlin Native, Kotlin/JVM, and other supported targets. It is a complete rewrite in pure Kotlin, ensuring safety, maintainability, and native performance—without JNI, C interop, or external dependencies.
+ZLib.kotlin is part of **The Solace Project** special libraries, designed to offer reliable, efficient compression for Kotlin Native targets. It is a complete rewrite in pure Kotlin, ensuring safety, maintainability, and native performance—without JNI, C interop, or external dependencies.
 
 This library was originally ported from the C#/.NET [zlib.managed](https://github.com/philippelatulippe/ZLIB.NET) project (a fork of zlib.net by ComponentAce), which itself is based on the seminal C library written by Jean-loup Gailly and Mark Adler.
 
@@ -38,7 +38,7 @@ This library was originally ported from the C#/.NET [zlib.managed](https://githu
 ## Features
 
 - **Pure Kotlin/Native implementation:** No C/C++ code or JNI required.
-- **Multiplatform support:** Kotlin Native, JVM, and other Kotlin targets.
+- **Multiplatform support:** Kotlin Native for Linux and macOS targets.
 - **API compatible:** Designed to be familiar to users of zlib, zlib.net, or zlib.managed.
 - **Fast and lightweight:** Efficient, battle-tested algorithms for compression and decompression.
 - **Zero dependencies:** No need for external libraries or system zlib installs.
@@ -116,9 +116,7 @@ Practical examples demonstrating:
 
 ## Compatibility
 
-- **Kotlin/Native:** Windows, Linux, MacOS
-- **Kotlin/JVM:** 8+
-- **Kotlin Multiplatform:** Experimental support for JS and other targets
+- **Kotlin/Native:** Linux, macOS
 
 Tested with IntelliJ IDEA and Gradle.
 
@@ -133,9 +131,8 @@ tests run:
 ./gradlew linuxX64Test
 ```
 
-Additional targets, such as the JVM, have their own `<target>Test` task
-(e.g., `./gradlew jvmTest`). macOS target tasks may be disabled when running on a
-non-macOS host.
+Native targets have their own `<target>Test` task (e.g., `./gradlew macosArm64Test`). 
+macOS target tasks may be disabled when running on a non-macOS host.
 
 ---
 

@@ -45,20 +45,21 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
      */
     fun leftShift(value: Long, bits: Int): Long {
         if (bits < 0 || bits >= bitLength) {
-            ZlibLogger.log("[BITWISE_DEBUG] leftShift($value, $bits) -> 0 (out of range)")
+            ZlibLogger.logBitwise("leftShift($value, $bits) -> 0 (out of range for ${bitLength}-bit)", "leftShift")
             return 0L
         }
         if (bits == 0) {
             val result = normalize(value)
-            ZlibLogger.log("[BITWISE_DEBUG] leftShift($value, $bits) -> $result (no shift)")
+            ZlibLogger.logBitwise("leftShift($value, $bits) -> $result (no shift, normalized)", "leftShift")
             return result
         }
         
         var result = normalize(value)
+        val originalResult = result
         repeat(bits) { 
             result = normalize(result * 2)
         }
-        ZlibLogger.log("[BITWISE_DEBUG] leftShift($value, $bits) -> $result")
+        ZlibLogger.logBitwise("leftShift($value, $bits) -> $result [${bitLength}-bit: $originalResult * 2^$bits = $result]", "leftShift")
         return result
     }
     
@@ -166,6 +167,8 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         var remaining1 = normalize(value1)
         var remaining2 = normalize(value2)
         
+        ZlibLogger.logBitwise("and($value1, $value2) starting bit-by-bit analysis [${bitLength}-bit]", "and")
+        
         for (i in 0 until bitLength) {
             if (remaining1 == 0L && remaining2 == 0L) break
             
@@ -175,6 +178,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
             // AND the bits: 0&0=0, 0&1=0, 1&0=0, 1&1=1
             if (bit1 == 1L && bit2 == 1L) {
                 result += powerOf2
+                ZlibLogger.logBitwise("and: bit position $i: 1&1=1, adding $powerOf2 to result", "and")
             }
             
             remaining1 /= 2
@@ -182,7 +186,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
             powerOf2 *= 2
         }
         
-        ZlibLogger.log("[BITWISE_DEBUG] and($value1, $value2) -> $result")
+        ZlibLogger.logBitwise("and($value1, $value2) -> $result [binary: ${value1.toString(2)} & ${value2.toString(2)} = ${result.toString(2)}]", "and")
         return result
     }
     
