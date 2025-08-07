@@ -267,7 +267,8 @@ internal class Inflate {
                     r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need = (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 24 and -0x1000000).toLong()
+                    val b4 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    z.iState!!.need = (b4.toLong() shl 24)
                     z.iState!!.mode = INF_DICT3
                 }
 
@@ -276,7 +277,8 @@ internal class Inflate {
                     r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 16).toLong()
+                    val b3 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    z.iState!!.need = z.iState!!.need or (b3.toLong() shl 16)
                     z.iState!!.mode = INF_DICT2
                 }
 
@@ -285,7 +287,8 @@ internal class Inflate {
                     r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff shl 8).toLong()
+                    val b2 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    z.iState!!.need = z.iState!!.need or (b2.toLong() shl 8)
                     z.iState!!.mode = INF_DICT1
                 }
 
@@ -294,7 +297,8 @@ internal class Inflate {
                     r = fMut
                     z.availIn--
                     z.totalIn++
-                    z.iState!!.need += (z.nextIn!![z.nextInIndex++].toInt() and 0xff).toLong()
+                    val b1 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
+                    z.iState!!.need = (z.iState!!.need or b1.toLong()) and 0xFFFFFFFFL
                     z.adler = z.iState!!.need
                     z.iState!!.mode = INF_DICT0
                     ZlibLogger.debug("inflate: DICT: adler=${z.adler}")
@@ -345,10 +349,9 @@ internal class Inflate {
                     z.availIn--
                     z.totalIn++
                     val b4 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
-                    z.iState!!.need = (b4 shl 24 and -0x1000000).toLong()
+                    // Start assembling 32-bit checksum as unsigned in a Long to avoid sign issues on Kotlin/Native
+                    z.iState!!.need = (b4.toLong() shl 24)
                     ZlibLogger.logInflate("CHECK4: Read byte $b4, need now = ${z.iState!!.need}")
-                    ZlibLogger.logBitwise("leftShift($b4, 24) -> ${b4 shl 24}")
-                    ZlibLogger.logBitwise("and(${b4 shl 24}, ${-0x1000000}) -> ${b4 shl 24 and -0x1000000}")
                     z.iState!!.mode = INF_CHECK3
                 }
 
@@ -358,10 +361,8 @@ internal class Inflate {
                     z.availIn--
                     z.totalIn++
                     val b3 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
-                    val addValue = (b3 shl 16).toLong()
-                    z.iState!!.need += addValue
-                    ZlibLogger.logInflate("CHECK3: Read byte $b3, adding $addValue, need now = ${z.iState!!.need}")
-                    ZlibLogger.logBitwise("leftShift($b3, 16) -> ${b3 shl 16}")
+                    z.iState!!.need = z.iState!!.need or (b3.toLong() shl 16)
+                    ZlibLogger.logInflate("CHECK3: Read byte $b3, need now = ${z.iState!!.need}")
                     z.iState!!.mode = INF_CHECK2
                 }
 
@@ -371,10 +372,8 @@ internal class Inflate {
                     z.availIn--
                     z.totalIn++
                     val b2 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
-                    val addValue = (b2 shl 8).toLong()
-                    z.iState!!.need += addValue
-                    ZlibLogger.logInflate("CHECK2: Read byte $b2, adding $addValue, need now = ${z.iState!!.need}")
-                    ZlibLogger.logBitwise("leftShift($b2, 8) -> ${b2 shl 8}")
+                    z.iState!!.need = z.iState!!.need or (b2.toLong() shl 8)
+                    ZlibLogger.logInflate("CHECK2: Read byte $b2, need now = ${z.iState!!.need}")
                     z.iState!!.mode = INF_CHECK1
                 }
 
@@ -384,12 +383,12 @@ internal class Inflate {
                     z.availIn--
                     z.totalIn++
                     val b1 = z.nextIn!![z.nextInIndex++].toInt() and 0xff
-                    z.iState!!.need += b1.toLong()
+                    z.iState!!.need = (z.iState!!.need or b1.toLong()) and 0xFFFFFFFFL
                     ZlibLogger.logInflate("CHECK1: Read final byte $b1, final need = ${z.iState!!.need}")
                     ZlibLogger.logInflate("Checksum verification: computed=${z.iState!!.was[0]}, expected=${z.iState!!.need}")
                     ZlibLogger.logAdler32("Final checksum comparison: was=${z.iState!!.was[0]} vs need=${z.iState!!.need}")
                     
-                    if (z.iState!!.was[0] != z.iState!!.need) {
+                    if ((z.iState!!.was[0] and 0xFFFFFFFFL) != (z.iState!!.need and 0xFFFFFFFFL)) {
                         z.iState!!.mode = INF_BAD
                         z.msg = "incorrect data check"
                         z.iState!!.marker = 5 // can't try inflateSync

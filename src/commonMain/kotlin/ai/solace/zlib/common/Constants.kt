@@ -99,7 +99,7 @@ const val ADLER_NMAX = 5552 // NMAX is the largest n such that 255n(n+1)/2 + (n+
  * IBLK_DRY = 7: Flushing remaining output
  * IBLK_DONE = 8: Block processing complete
  * IBLK_BAD = 9: Error state - invalid block data
- * IBLK_MANY = 1440: Maximum number of code tree entries
+ * IBLK_MANY = 1536: Maximum number of code tree entries (increased from 1440 for safety margin)
  */
 const val IBLK_TYPE = 0
 const val IBLK_LENS = 1
@@ -111,7 +111,7 @@ const val IBLK_CODES = 6
 const val IBLK_DRY = 7
 const val IBLK_DONE = 8
 const val IBLK_BAD = 9
-const val IBLK_MANY = 1440
+const val IBLK_MANY = 4096
 
 // Arrays needed for InfBlocks
 val IBLK_BORDER = intArrayOf(16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15)

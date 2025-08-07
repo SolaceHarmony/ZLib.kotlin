@@ -198,7 +198,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     when (blockType) {
                         0 -> { // Stored block
                             ZlibLogger.logInflate("Processing stored block")
-                            val bitsToSkip = bitwiseOps.extractBits(bitsInBuffer.toLong(), 3).toInt()
+                            val bitsToSkip = bitsInBuffer and 7
                             bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), bitsToSkip).toInt(); bitsInBuffer -= bitsToSkip
                             mode = IBLK_LENS
                         }
@@ -362,7 +362,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     
                     while (index < totalCodes) {
                         val needBits = bb[0]
-                        while (bitk < needBits) {
+                        while (bitsInBuffer < needBits) {
                             if (z.availIn == 0) {
                                 bitb = bitBuffer
                                 bitk = bitsInBuffer
@@ -489,9 +489,9 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                 }
 
                 IBLK_DRY -> {
-                    write = outputPointer
+                    write = outputPointer  // Save current position; inflateFlush may modify write
                     val result = z.inflateFlush(returnCode)
-                    outputPointer = write
+                    outputPointer = write  // Restore position (write may have been modified by inflateFlush)
                     if (read != write) {
                         return z.inflateFlush(result)
                     }
