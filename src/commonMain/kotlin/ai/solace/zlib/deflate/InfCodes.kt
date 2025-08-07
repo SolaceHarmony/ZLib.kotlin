@@ -1083,28 +1083,15 @@ internal class InfCodes {
                     break
                 }
                 if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
-                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Navigating to next literal/length table entry. extraBitsOrOperation=$extraBitsOrOperation")
-                    // Fixed for pairs format: navigate to next table entry
-                    val nextValueIndex = tempPointer * 2
-                    if (nextValueIndex + 1 < tl.size) {
-                        tempPointer = tlIndex + tl[nextValueIndex] + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[extraBitsOrOperation].toLong()).toInt()
-                        val newValueIndex = tempPointer * 2
-                        if (newValueIndex < tl.size) {
-                            val newValue = tl[newValueIndex]
-                            extraBitsOrOperation = if (newValue < 256) 0 else if (newValue == 256) 32 else 16
-                            if (extraBitsOrOperation == 0) {
-                                val newBitsIndex = tempPointer * 2 + 1
-                                if (newBitsIndex < tl.size) {
-                                    bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tl[newBitsIndex]).toInt()
-                                    bitsInBuffer -= tl[newBitsIndex]
-                                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Writing literal from next table entry: ${newValue.toByte()} to window[$outputWritePointer]")
-                                    s.window[outputWritePointer++] = newValue.toByte()
-                                    outputBytesLeft--
-                                    break
-                                }
-                            }
-                        }
-                    }
+                    // Next table reference: fall back to slow path to resolve further to avoid OOB in fast path
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Next table reference encountered; deferring to slow path")
+                    s.bitb = bitBuffer
+                    s.bitk = bitsInBuffer
+                    z.availIn = bytesAvailable
+                    z.totalIn += inputPointer - z.nextInIndex
+                    z.nextInIndex = inputPointer
+                    s.write = outputWritePointer
+                    return Z_OK
                 } else if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
                     ZlibLogger.log("[DEBUG_LOG] inflateFast - End of block in fast path. extraBitsOrOperation=$extraBitsOrOperation")
                     val errBytes = z.availIn - bytesAvailable - bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt()
