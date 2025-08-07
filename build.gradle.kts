@@ -17,11 +17,6 @@ kotlin {
                 baseName = "zlib-cli"
             }
         }
-        compilations.all {
-            this@macosArm64.compilerOptions {
-                freeCompilerArgs.add("-Xexpect-actual-classes")
-            }
-        }
     }
 
     linuxX64 {
@@ -31,11 +26,6 @@ kotlin {
                 baseName = "zlib-cli"
             }
         }
-        compilations.all {
-            this@linuxX64.compilerOptions {
-                freeCompilerArgs.add("-Xexpect-actual-classes")
-            }
-        }
     }
 
     linuxArm64 {
@@ -43,11 +33,6 @@ kotlin {
             executable {
                 entryPoint = "ai.solace.zlib.cli.main"
                 baseName = "zlib-cli"
-            }
-        }
-        compilations.all {
-            this@linuxArm64.compilerOptions {
-                freeCompilerArgs.add("-Xexpect-actual-classes")
             }
         }
     }
@@ -105,11 +90,6 @@ kotlin {
         }
     }
 
-    targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget> {
-        binaries.all {
-            freeCompilerArgs += listOf("-Xexpect-actual-classes")
-        }
-    }
 }
 
 repositories {
