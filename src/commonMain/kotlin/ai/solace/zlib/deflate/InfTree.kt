@@ -267,7 +267,7 @@ internal object InfTree {
             }
         }
         t[0] = hp
-        m[0] = p
+        // Preserve m[0] as the root table bit count determined earlier; do not override with internal accumulator 'p'.
         ZlibLogger.log("[DEBUG_LOG] huftBuild finished. t[0].size=${t[0].size}, m[0]=${m[0]}")
         return Z_OK
     }
@@ -330,25 +330,28 @@ internal object InfTree {
         z: ZStream
     ): Int {
         var result: Int
-        val hn = intArrayOf(0)
-        val v = IntArray(288)
+        // Allocate separate workspaces for literal/length and distance trees so each table is rooted at index 0
+        val hnL = intArrayOf(0)
+        val hnD = intArrayOf(0)
+        val vL = IntArray(288)
+        val vD = IntArray(288)
+        val hpL = IntArray(IBLK_MANY * 3)
+        val hpD = IntArray(IBLK_MANY * 3)
 
-        // build literal/length tree
-        result = huftBuild(c, 0, nl, L_CODES, TREE_EXTRA_LBITS, TREE_BASE_LENGTH, tl, bl, hp, hn, v)
+        // build literal/length tree into its own table (hpL)
+        result = huftBuild(c, 0, nl, L_CODES, TREE_BASE_LENGTH, TREE_EXTRA_LBITS, tl, bl, hpL, hnL, vL)
         if (result != Z_OK || bl[0] == 0) {
             if (result == Z_DATA_ERROR) {
                 z.msg = "oversubscribed literal/length tree"
-            }
-            // Removed else if (result != Z_MEM_ERROR) { ... } as it was redundant
-            else if (result == Z_BUF_ERROR) {
+            } else if (result == Z_BUF_ERROR) {
                 z.msg = "incomplete literal/length tree"
                 result = Z_DATA_ERROR
             }
             return result
         }
 
-        // build distance tree
-        result = huftBuild(c, nl, nd, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST, td, bd, hp, hn, v)
+        // build distance tree into its own table (hpD)
+        result = huftBuild(c, nl, nd, 0, TREE_BASE_DIST, TREE_EXTRA_DBITS, td, bd, hpD, hnD, vD)
         if (result != Z_OK || (bd[0] == 0 && nl > 257)) {
             if (result == Z_DATA_ERROR) {
                 z.msg = "oversubscribed distance tree"
@@ -392,18 +395,22 @@ internal object InfTree {
         val distanceLengths = IntArray(32)
         for (i in 0..31) distanceLengths[i] = 5
 
-        // build fixed tables
-        val hn = intArrayOf(0) // huft_build() scratch area
-        val v = IntArray(288) // work area for huft_build()
-        val hp = IntArray(IBLK_MANY * 3) // shared workspace for Huffman construction
+        // Build fixed tables using separate workspaces to avoid overlap
+        val hnL = intArrayOf(0)
+        val vL = IntArray(288)
+        val hpL = IntArray(IBLK_MANY * 3)
 
-        var result = huftBuild(literalLengths, 0, 288, L_CODES, TREE_EXTRA_LBITS, TREE_BASE_LENGTH, tl, bl, hp, hn, v)
+        val hnD = intArrayOf(0)
+        val vD = IntArray(288)
+        val hpD = IntArray(IBLK_MANY * 3)
+
+        var result = huftBuild(literalLengths, 0, 288, L_CODES, TREE_BASE_LENGTH, TREE_EXTRA_LBITS, tl, bl, hpL, hnL, vL)
         if (result != Z_OK) {
             z.msg = "invalid literal/length code table"
             return result
         }
 
-        result = huftBuild(distanceLengths, 0, 32, 0, TREE_EXTRA_DBITS, TREE_BASE_DIST, td, bd, hp, hn, v)
+        result = huftBuild(distanceLengths, 0, 32, 0, TREE_BASE_DIST, TREE_EXTRA_DBITS, td, bd, hpD, hnD, vD)
         if (result != Z_OK) {
             z.msg = "invalid distance code table"
             return result

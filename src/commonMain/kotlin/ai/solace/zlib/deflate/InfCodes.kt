@@ -718,9 +718,16 @@ internal class InfCodes {
             // Use the same table access pattern as the slow path
             val tableIndex = (tempTableIndex + tempPointer) * 3
             if (tableIndex < 0 || tableIndex + 2 >= tempTable.size) {
-                ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Literal/length table index out of bounds: tableIndex=$tableIndex, tempTable.size=${tempTable.size}")
+                ZlibLogger.log("[DEBUG_LOG] inflateFast - Fallback: Literal/length table index out of bounds: tableIndex=$tableIndex, tempTable.size=${tempTable.size}. Bailing to slow path.")
                 z.msg = "Array index out of bounds"
-                return Z_DATA_ERROR
+                // Save state and return to let the caller continue with the slow path
+                s.bitb = bitBuffer
+                s.bitk = bitsInBuffer
+                z.availIn = bytesAvailable
+                z.totalIn += inputPointer - z.nextInIndex
+                z.nextInIndex = inputPointer
+                s.write = outputWritePointer
+                return Z_OK
             }
             
             // Get the table entry: [operation, bits, value] - same as slow path
