@@ -16,7 +16,7 @@ kotlin {
                 baseName = "ZLib" // Replace with your framework name
             }
             executable {
-                entryPoint = "ai.solace.zlib.cli.main"
+                entryPoint = "ai.solace.zlib.cli.ZLibCliKt.main"
                 baseName = "zlib-cli"
             }
         }
@@ -25,7 +25,7 @@ kotlin {
     linuxX64 {
         binaries {
             executable {
-                entryPoint = "ai.solace.zlib.cli.main"
+                entryPoint = "ai.solace.zlib.cli.ZLibCliKt.main"
                 baseName = "zlib-cli"
             }
         }
@@ -34,7 +34,7 @@ kotlin {
     linuxArm64 {
         binaries {
             executable {
-                entryPoint = "ai.solace.zlib.cli.main"
+                entryPoint = "ai.solace.zlib.cli.ZLibCliKt.main"
                 baseName = "zlib-cli"
             }
         }
@@ -63,6 +63,14 @@ kotlin {
             dependsOn(commonTest)
         }
 
+        // Linux source sets
+        val linuxMain by creating {
+            dependsOn(nativeMain)
+        }
+        val linuxTest by creating {
+            dependsOn(nativeTest)
+        }
+
         // Configure platform-specific source sets
         @Suppress("unused")
         val macosArm64Main by getting {
@@ -77,19 +85,19 @@ kotlin {
         }
         @Suppress("unused")
         val linuxX64Main by getting {
-            dependsOn(nativeMain)
+            dependsOn(linuxMain)
         }
         @Suppress("unused")
         val linuxX64Test by getting {
-            dependsOn(nativeTest)
+            dependsOn(linuxTest)
         }
         @Suppress("unused")
         val linuxArm64Main by getting {
-            dependsOn(nativeMain)
+            dependsOn(linuxMain)
         }
         @Suppress("unused")
         val linuxArm64Test by getting {
-            dependsOn(nativeTest)
+            dependsOn(linuxTest)
         }
     }
 
