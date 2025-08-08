@@ -579,12 +579,13 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
             endIndex = winRead + avail
         )
 
+        // Update checksum using the exact window segment just flushed
+        z.adler = Adler32().adler32(z.adler, window, winRead, avail)
+        this.check = z.adler
+
         nextOut += avail
         winRead += avail
         z.totalOut += avail.toLong()
-        // Update adler with the bytes we just flushed and keep internal check in sync
-        z.adler = Adler32().adler32(z.adler, z.nextOut, z.nextOutIndex, avail)
-        this.check = z.adler
         z.availOut -= avail
 
         // Handle window wrap-around.
