@@ -325,9 +325,12 @@ internal class Inflate {
                         ZlibLogger.debug("inflate: BLOCKS: Z_DATA_ERROR")
                         break
                     }
+                    // If progress was made, continue processing within the same call
                     if (r == Z_OK) {
                         r = fMut
+                        continue
                     }
+                    // If not finished and not OK, propagate the status (e.g., Z_BUF_ERROR)
                     if (r != Z_STREAM_END) {
                         ZlibLogger.logInflate("Blocks not complete (r=$r), returning early")
                         return r
