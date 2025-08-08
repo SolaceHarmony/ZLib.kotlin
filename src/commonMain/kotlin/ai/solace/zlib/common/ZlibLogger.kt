@@ -3,11 +3,21 @@ package ai.solace.zlib.common
 
 
 object ZlibLogger {
+    // Logging flags to control verbosity, especially for Kotlin/Native performance
+    // - DEBUG_ENABLED=false will suppress messages prefixed with [DEBUG_LOG]
+    // - ENABLE_LOGGING=false will suppress all logging
+    var ENABLE_LOGGING: Boolean = true
+    var DEBUG_ENABLED: Boolean = false
     
     fun debug(message: String, className: String = "", functionName: String = "") = 
         log(message, className, functionName)
 
     fun log(message: String, className: String = "", functionName: String = "") {
+        // Global logging gate
+        if (!ENABLE_LOGGING) return
+        // Suppress verbose debug logs unless explicitly enabled
+        if (!DEBUG_ENABLED && message.startsWith("[DEBUG_LOG]")) return
+
         val timestamp = currentTimestamp()
         val location = if (className.isNotEmpty() || functionName.isNotEmpty()) {
             val cls = if (className.isNotEmpty()) className else "Unknown"
