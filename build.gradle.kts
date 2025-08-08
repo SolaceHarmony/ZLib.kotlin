@@ -10,28 +10,9 @@ kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }
-    macosArm64 {
-        binaries {
-            framework {
-                baseName = "ZLib" // Replace with your framework name
-            }
-            executable {
-                entryPoint = "ai.solace.zlib.cli.ZLibCliKt.main"
-                baseName = "zlib-cli"
-            }
-        }
-    }
-
+    
+    // Only include Linux x64 for now to avoid network dependency issues
     linuxX64 {
-        binaries {
-            executable {
-                entryPoint = "ai.solace.zlib.cli.ZLibCliKt.main"
-                baseName = "zlib-cli"
-            }
-        }
-    }
-
-    linuxArm64 {
         binaries {
             executable {
                 entryPoint = "ai.solace.zlib.cli.ZLibCliKt.main"
@@ -73,30 +54,11 @@ kotlin {
 
         // Configure platform-specific source sets
         @Suppress("unused")
-        val macosArm64Main by getting {
-            dependsOn(nativeMain)
-            dependencies {
-                implementation(kotlin("stdlib-common"))
-            }
-        }
-        @Suppress("unused")
-        val macosArm64Test by getting {
-            dependsOn(nativeTest)
-        }
-        @Suppress("unused")
         val linuxX64Main by getting {
             dependsOn(linuxMain)
         }
         @Suppress("unused")
         val linuxX64Test by getting {
-            dependsOn(linuxTest)
-        }
-        @Suppress("unused")
-        val linuxArm64Main by getting {
-            dependsOn(linuxMain)
-        }
-        @Suppress("unused")
-        val linuxArm64Test by getting {
             dependsOn(linuxTest)
         }
     }
