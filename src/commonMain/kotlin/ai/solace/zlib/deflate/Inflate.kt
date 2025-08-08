@@ -190,8 +190,6 @@ internal class Inflate {
             ZlibLogger.logInflate("=== While loop iteration $loopCount ===")
             ZlibLogger.logInflate("Processing mode=${z.iState!!.mode}, availIn=${z.availIn}, availOut=${z.availOut}")
             
-            val currentMode = z.iState!!.mode
-            ZlibLogger.logInflate("About to enter when statement for mode $currentMode")
             when (z.iState!!.mode) {
                 INF_METHOD -> {
                     ZlibLogger.logInflate("Mode: INF_METHOD")
@@ -210,7 +208,7 @@ internal class Inflate {
                         z.msg = "unknown compression method"
                         z.iState!!.marker = 5 // can't try inflateSync
                         ZlibLogger.debug("inflate: unknown compression method")
-                        break
+                        return Z_DATA_ERROR
                     }
                     ZlibLogger.logBitwise("rightShift(${z.iState!!.method}, 4) -> ${z.iState!!.method shr 4}")
                     if ((z.iState!!.method shr 4) + 8 > z.iState!!.wbits) {
@@ -218,7 +216,7 @@ internal class Inflate {
                         z.msg = "invalid window size"
                         z.iState!!.marker = 5 // can't try inflateSync
                         ZlibLogger.debug("inflate: invalid window size")
-                        break
+                        return Z_DATA_ERROR
                     }
                     z.iState!!.mode = INF_FLAG
                     ZlibLogger.logInflate("Method processed successfully, moving to FLAG mode")
@@ -246,7 +244,7 @@ internal class Inflate {
                         z.msg = "incorrect header check"
                         z.iState!!.marker = 5 // can't try inflateSync
                         ZlibLogger.debug("inflate: incorrect header check")
-                        break
+                        return Z_DATA_ERROR
                     }
                     ZlibLogger.debug("inflate: FLAG: b=$b")
                     ZlibLogger.logInflate("Checking dictionary flag: b=$b, PRESET_DICT=$PRESET_DICT")
@@ -323,7 +321,7 @@ internal class Inflate {
                         z.iState!!.mode = INF_BAD
                         z.iState!!.marker = 0 // can't try inflateSync
                         ZlibLogger.debug("inflate: BLOCKS: Z_DATA_ERROR")
-                        break
+                        return Z_DATA_ERROR
                     }
                     // If progress was made, continue processing within the same call
                     if (r == Z_OK) {
@@ -396,7 +394,7 @@ internal class Inflate {
                         z.msg = "incorrect data check"
                         z.iState!!.marker = 5 // can't try inflateSync
                         ZlibLogger.logInflate("CHECKSUM MISMATCH: computed=${z.iState!!.was[0]}, expected=${z.iState!!.need}")
-                        break
+                        return Z_DATA_ERROR
                     }
                     ZlibLogger.logInflate("Checksum verification successful - decompression complete")
                     z.iState!!.mode = INF_DONE
