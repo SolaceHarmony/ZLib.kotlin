@@ -111,7 +111,7 @@ const val IBLK_CODES = 6
 const val IBLK_DRY = 7
 const val IBLK_DONE = 8
 const val IBLK_BAD = 9
-const val IBLK_MANY = 1536
+const val IBLK_MANY = 8192
 
 // Arrays needed for InfBlocks
 val IBLK_BORDER = intArrayOf(16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15)

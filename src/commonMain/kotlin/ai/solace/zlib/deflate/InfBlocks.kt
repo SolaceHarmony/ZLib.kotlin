@@ -2,8 +2,6 @@ package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.*
 import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
-import ai.solace.zlib.bitwise.BitwiseOps
-
 /**
  * Handles the processing of compressed data blocks during decompression.
  *
@@ -374,8 +372,11 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                             bitsInBuffer += 8
                         }
                         
-                        val treeBits = hufts[(tb[0][0] + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[needBits].toLong()).toInt()) * 3 + 1]
-                        val code = hufts[(tb[0][0] + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[needBits].toLong()).toInt()) * 3 + 2]
+                        // Use the table array directly with base index 0
+                        val tableArray = tb[0]
+                        val tblIdx = bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[needBits].toLong()).toInt() * 3
+                        val treeBits = tableArray[tblIdx + 1]
+                        val code = tableArray[tblIdx + 2]
                         
                         bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), treeBits).toInt()
                         bitsInBuffer -= treeBits
@@ -491,7 +492,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                 IBLK_DRY -> {
                     write = outputPointer  // Save current position; inflateFlush may modify write
                     val result = z.inflateFlush(returnCode)
-                    outputPointer = write  // Restore position (write may have been modified by inflateFlush)
+                    // Restore position (write may have been modified by inflateFlush)
                     if (read != write) {
                         return z.inflateFlush(result)
                     }
@@ -554,7 +555,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
      * Mirrors the behaviour of zlib’s inflate_flush().
      */
     internal fun inflateFlush(z: ZStream?, r: Int): Int {
-        var result = r
+        val result = r
         if (z == null) {
             return Z_STREAM_ERROR
         }
@@ -564,7 +565,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         var winRead = read
 
         // Determine how many bytes can be copied in one go.
-        var count = if (winRead <= write) write - winRead else end - winRead
+        val count = if (winRead <= write) write - winRead else end - winRead
         if (avail > count) avail = count
         if (avail == 0) {
             return result     // Nothing to copy
