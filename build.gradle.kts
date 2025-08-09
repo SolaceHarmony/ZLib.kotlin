@@ -21,6 +21,17 @@ kotlin {
         }
     }
 
+    // Restore macOS target so tests can run locally on macOS hosts
+    macosArm64 {
+        binaries {
+            executable {
+                entryPoint = "ai.solace.zlib.cli.ZLibCliKt.main"
+                baseName = "zlib-cli"
+            }
+            // test binary is created by default
+        }
+    }
+
     sourceSets {
         val commonMain by getting {
             dependencies {
@@ -60,6 +71,16 @@ kotlin {
         @Suppress("unused")
         val linuxX64Test by getting {
             dependsOn(linuxTest)
+        }
+
+        // Configure platform-specific source sets for macOS
+        @Suppress("unused")
+        val macosArm64Main by getting {
+            dependsOn(nativeMain)
+        }
+        @Suppress("unused")
+        val macosArm64Test by getting {
+            dependsOn(nativeTest)
         }
     }
 

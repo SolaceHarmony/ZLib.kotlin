@@ -214,11 +214,17 @@ val TREE_EXTRA_BLBITS = intArrayOf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 // Order of the bit length code lengths
 val TREE_BL_ORDER = intArrayOf(16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15)
 
-// Base length for each length code
-val TREE_BASE_LENGTH = intArrayOf(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 255)
+// Base length for each length code (zlib canonical table)
+val TREE_BASE_LENGTH = intArrayOf(
+    3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
+    35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258
+)
 
-// Base distance for each distance code
-val TREE_BASE_DIST = intArrayOf(0, 1, 2, 3, 4, 6, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512, 768, 1024, 1536, 2048, 3072, 4096, 6144, 8192, 12288, 16384, 24576)
+// Base distance for each distance code (zlib canonical table)
+val TREE_BASE_DIST = intArrayOf(
+    1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193,
+    257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577
+)
 
 // Tree dist code list - matches Pascal _dist_code array exactly
 internal val TREE_DIST_CODE = ubyteArrayOf(
@@ -243,7 +249,7 @@ internal val TREE_DIST_CODE = ubyteArrayOf(
     28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
     29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
     29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
-    29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u
+    29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u
 )
 
 /**

@@ -144,9 +144,10 @@ internal class InfCodes {
                     treeIndex = ltreeIndex
                     mode = ICODES_LEN
                     ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START: Transitioning to ICODES_LEN. bitsNeeded=$bitsNeeded, treeIndex=$treeIndex")
-                    
+
+                    // Temporarily disable fast path to use slow path only
                     // Fall through to ICODES_LEN state
-                    if (outputBytesLeft >= 258 && bytesAvailable >= 10) {
+                    if (false && outputBytesLeft >= 258 && bytesAvailable >= 10) {
                         ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START: Calling inflateFast. outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
                         s.bitb = bitBuffer
                         s.bitk = bitsInBuffer
@@ -168,10 +169,10 @@ internal class InfCodes {
                             continue  // Changed from break to continue
                         }
                     }
-                    
+
                     // Get the bits needed for the literal/length code
                     tempStorage = bitsNeeded
-                    
+
                     // Ensure we have enough bits
                     while (bitsInBuffer < tempStorage) {
                         ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: Need more bits. bitsInBuffer=$bitsInBuffer, tempStorage=$tempStorage")
@@ -191,30 +192,30 @@ internal class InfCodes {
                         bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                         bitsInBuffer += 8
                     }
-                    
+
                     // Get the table index
                     tableIndex = (treeIndex + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[tempStorage].toLong()).toInt()) * 3
-                    
+
                     ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: tableIndex=$tableIndex, treeIndex=$treeIndex, bitBuffer=0x${bitBuffer.toString(16)}, mask=0x${IBLK_INFLATE_MASK[tempStorage].toString(16)}")
                     ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: tree.size=${tree.size}, checking bounds for tableIndex=$tableIndex")
-                    
+
                     if (tableIndex < 0 || tableIndex + 2 >= tree.size) {
                         ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: ERROR - tableIndex=$tableIndex out of bounds for tree.size=${tree.size}")
                         z.msg = "Array index out of bounds"
                         return Z_DATA_ERROR
                     }
-                    
+
                     ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: tree[${tableIndex}]=${tree[tableIndex]}, tree[${tableIndex+1}]=${tree[tableIndex+1]}, tree[${tableIndex+2}]=${tree[tableIndex+2]}")
-                    
+
                     // Remove the bits we've used
                     bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tree[tableIndex + 1]).toInt()
                     bitsInBuffer -= tree[tableIndex + 1]
-                    
+
                     // Get the operation/extra bits
                     extraBitsOrOperation = tree[tableIndex]
-                    
+
                     ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: After consuming ${tree[tableIndex + 1]} bits: bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer, op=$extraBitsOrOperation")
-                    
+
                     // Process based on the operation
                     if (extraBitsOrOperation == 0) {
                         // Literal
@@ -223,7 +224,7 @@ internal class InfCodes {
                         mode = ICODES_LIT
                         continue  // Continue to process ICODES_LIT state
                     }
-                    
+
                     if (bitwiseOps.and(extraBitsOrOperation.toLong(), 16L).toInt() != 0) {
                         // Length
                         extraBitsNeeded = bitwiseOps.and(extraBitsOrOperation.toLong(), 15L).toInt()
@@ -232,7 +233,14 @@ internal class InfCodes {
                         ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: Found length code. extraBitsNeeded=$extraBitsNeeded, length=$length. Transitioning to ICODES_LENEXT")
                         continue  // Continue to process ICODES_LENEXT state
                     }
-                    
+
+                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
+                        // End of block
+                        mode = ICODES_WASH
+                        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: End of block found. Transitioning to ICODES_WASH")
+                        continue  // Continue to process ICODES_WASH state
+                    }
+
                     if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
                         // Next table
                         bitsNeeded = extraBitsOrOperation
@@ -240,20 +248,13 @@ internal class InfCodes {
                         ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: Next table reference. bitsNeeded=$bitsNeeded, treeIndex=$treeIndex")
                         continue  // Continue with new table reference
                     }
-                    
-                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
-                        // End of block
-                        mode = ICODES_WASH
-                        ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: End of block found. Transitioning to ICODES_WASH")
-                        continue  // Continue to process ICODES_WASH state
-                    }
-                    
+
                     // Invalid code
                     mode = ICODES_BADCODE
                     z.msg = "invalid literal/length code"
                     result = Z_DATA_ERROR
                     ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_START/LEN: Invalid literal/length code. Error: ${z.msg}")
-                    
+
                     s.bitb = bitBuffer
                     s.bitk = bitsInBuffer
                     z.availIn = bytesAvailable
@@ -264,31 +265,13 @@ internal class InfCodes {
                 }
 
                 ICODES_LEN -> {
-                    ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_LEN: checking inflateFast conditions: outputBytesLeft=$outputBytesLeft, bytesAvailable=$bytesAvailable")
-                    if (outputBytesLeft >= 258 && bytesAvailable >= 10) {
-                        ZlibLogger.log("[DEBUG_LOG] Calling inflateFast: conditions met")
-                        s.bitb = bitBuffer
-                        s.bitk = bitsInBuffer
-                        z.availIn = bytesAvailable
-                        z.totalIn += inputPointer - z.nextInIndex
-                        z.nextInIndex = inputPointer
-                        s.write = outputWritePointer
-                        result = inflateFast(lbits.toInt(), dbits.toInt(), ltree, ltreeIndex, dtree, dtreeIndex, s, z)
-                        inputPointer = z.nextInIndex
-                        bytesAvailable = z.availIn
-                        bitBuffer = s.bitb
-                        bitsInBuffer = s.bitk
-                        outputWritePointer = s.write
-                        outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
-                        if (result != Z_OK) {
-                            mode = if (result == Z_STREAM_END) ICODES_WASH else ICODES_BADCODE
-                            continue  // Continue to process the new state
-                        }
-                    }
-                    
+                    ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - ICODES_LEN: using slow path (fast path temporarily disabled)")
+                    // Skip inflateFast call to avoid OOB while stabilizing table semantics
+                    // if (outputBytesLeft >= 258 && bytesAvailable >= 10) { ... }
+
                     // Get the bits needed for the literal/length code
                     tempStorage = bitsNeeded
-                    
+
                     // Ensure we have enough bits
                     while (bitsInBuffer < tempStorage) {
                         if (bytesAvailable != 0) result = Z_OK
@@ -305,17 +288,17 @@ internal class InfCodes {
                         bitBuffer = bitwiseOps.or(bitBuffer.toLong(), bitwiseOps.leftShift(bitwiseOps.and(z.nextIn!![inputPointer++].toLong(), 0xffL), bitsInBuffer)).toInt()
                         bitsInBuffer += 8
                     }
-                    
+
                     // Get the table index
                     tableIndex = (treeIndex + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[tempStorage].toLong()).toInt()) * 3
 
                     // Remove the bits we've used
                     bitBuffer = bitwiseOps.rightShift(bitBuffer.toLong(), tree[tableIndex + 1]).toInt()
                     bitsInBuffer -= tree[tableIndex + 1]
-                    
+
                     // Get the operation/extra bits
                     extraBitsOrOperation = tree[tableIndex]
-                    
+
                     // Process based on the operation
                     if (extraBitsOrOperation == 0) {
                         // Literal
@@ -323,7 +306,7 @@ internal class InfCodes {
                         mode = ICODES_LIT
                         continue  // Continue to process ICODES_LIT state
                     }
-                    
+
                     if (bitwiseOps.and(extraBitsOrOperation.toLong(), 16L).toInt() != 0) {
                         // Length
                         extraBitsNeeded = bitwiseOps.and(extraBitsOrOperation.toLong(), 15L).toInt()
@@ -331,25 +314,18 @@ internal class InfCodes {
                         mode = ICODES_LENEXT
                         continue  // Continue to process ICODES_LENEXT state
                     }
-                    
-                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
-                        // Next table
-                        bitsNeeded = extraBitsOrOperation
-                        treeIndex = tableIndex / 3 + tree[tableIndex + 2]
-                        continue  // Continue with new table reference
-                    }
-                    
+
                     if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
                         // End of block
                         mode = ICODES_WASH
                         continue  // Continue to process ICODES_WASH state
                     }
-                    
+
                     // Invalid code
                     mode = ICODES_BADCODE
                     z.msg = "invalid literal/length code"
                     result = Z_DATA_ERROR
-                    
+
                     s.bitb = bitBuffer
                     s.bitk = bitsInBuffer
                     z.availIn = bytesAvailable
@@ -796,8 +772,7 @@ internal class InfCodes {
                     s.window[outputWritePointer++] = literalByte
                     outputBytesLeft--
                     break
-                }
-                else if (bitwiseOps.and(innerOp.toLong(), 16L).toInt() != 0) {  // Length - same as slow path
+                } else if (bitwiseOps.and(innerOp.toLong(), 16L).toInt() != 0) {  // Length - same as slow path
                     ZlibLogger.log("[DEBUG_LOG] inflateFast - Found length code. innerOp=$innerOp")
                     extraBitsNeeded = bitwiseOps.and(innerOp.toLong(), 15L).toInt()  // Like C: op &= 15
                     bytesToCopy = innerValue + bitwiseOps.and(bitBuffer.toLong(), IBLK_INFLATE_MASK[extraBitsNeeded].toLong()).toInt()
@@ -1074,10 +1049,10 @@ internal class InfCodes {
                         } else {
                             ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Invalid distance code: e=$e")
                             z.msg = "invalid distance code"
-                            val errBytes = z.availIn - bytesAvailable - bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt()
+                            val errBytes = z.availIn - bytesAvailable - (bitsInBuffer shr 3)
                             bytesAvailable += errBytes
                             inputPointer -= errBytes
-                            bitsInBuffer -= bitwiseOps.leftShift(errBytes.toLong(), 3).toInt()
+                            bitsInBuffer -= (errBytes shl 3)
                             s.bitb = bitBuffer
                             s.bitk = bitsInBuffer
                             z.availIn = bytesAvailable
@@ -1088,23 +1063,12 @@ internal class InfCodes {
                         }
                     } while (true)
                     break
-                }
-                if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
-                    // Next table reference: fall back to slow path to resolve further to avoid OOB in fast path
-                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Next table reference encountered; deferring to slow path")
-                    s.bitb = bitBuffer
-                    s.bitk = bitsInBuffer
-                    z.availIn = bytesAvailable
-                    z.totalIn += inputPointer - z.nextInIndex
-                    z.nextInIndex = inputPointer
-                    s.write = outputWritePointer
-                    return Z_OK
-                } else if (bitwiseOps.and(extraBitsOrOperation.toLong(), 32L).toInt() != 0) {
-                    ZlibLogger.log("[DEBUG_LOG] inflateFast - End of block in fast path. extraBitsOrOperation=$extraBitsOrOperation")
-                    val errBytes = z.availIn - bytesAvailable - bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt()
+                } else if ((innerOp and 32) != 0) {
+                    // End of block in literal/length path
+                    val errBytes = z.availIn - bytesAvailable - (bitsInBuffer shr 3)
                     bytesAvailable += errBytes
                     inputPointer -= errBytes
-                    bitsInBuffer -= bitwiseOps.leftShift(errBytes.toLong(), 3).toInt()
+                    bitsInBuffer -= (errBytes shl 3)
                     s.bitb = bitBuffer
                     s.bitk = bitsInBuffer
                     z.availIn = bytesAvailable
@@ -1112,13 +1076,22 @@ internal class InfCodes {
                     z.nextInIndex = inputPointer
                     s.write = outputWritePointer
                     return Z_STREAM_END
+                } else if ((innerOp and 64) == 0) {
+                    // Next table reference: defer to slow path
+                    s.bitb = bitBuffer
+                    s.bitk = bitsInBuffer
+                    z.availIn = bytesAvailable
+                    z.totalIn += inputPointer - z.nextInIndex
+                    z.nextInIndex = inputPointer
+                    s.write = outputWritePointer
+                    return Z_OK
                 } else {
-                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Invalid literal/length code in fast path. extraBitsOrOperation=$extraBitsOrOperation")
+                    ZlibLogger.log("[DEBUG_LOG] inflateFast - Invalid literal/length code in fast path. extraBitsOrOperation=$innerOp")
                     z.msg = "invalid literal/length code"
-                    val errBytes = z.availIn - bytesAvailable - bitwiseOps.rightShift(bitsInBuffer.toLong(), 3).toInt()
+                    val errBytes = z.availIn - bytesAvailable - (bitsInBuffer shr 3)
                     bytesAvailable += errBytes
                     inputPointer -= errBytes
-                    bitsInBuffer -= bitwiseOps.leftShift(errBytes.toLong(), 3).toInt()
+                    bitsInBuffer -= (errBytes shl 3)
                     s.bitb = bitBuffer
                     s.bitk = bitsInBuffer
                     z.availIn = bytesAvailable
