@@ -1,0 +1,11 @@
+{
+      "servers": {
+          "ClaudeBridgeSSE": {
+              "type": "sse",
+              "url": "http://127.0.0.1:8767/sse",
+              "headers": {
+                  "User-Agent": "MCP-Client/1.0"
+              }
+          }
+      }
+  }

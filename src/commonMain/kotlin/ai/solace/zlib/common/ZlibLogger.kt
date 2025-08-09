@@ -6,7 +6,7 @@ object ZlibLogger {
     // Logging flags to control verbosity, especially for Kotlin/Native performance
     // - DEBUG_ENABLED=false will suppress messages prefixed with [DEBUG_LOG]
     // - ENABLE_LOGGING=false will suppress all logging
-    var ENABLE_LOGGING: Boolean = true
+    var ENABLE_LOGGING: Boolean = false
     var DEBUG_ENABLED: Boolean = false
     
     fun debug(message: String, className: String = "", functionName: String = "") = 

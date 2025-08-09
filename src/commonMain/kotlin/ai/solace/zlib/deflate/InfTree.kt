@@ -146,129 +146,122 @@ internal object InfTree {
         
         ZlibLogger.logInfTree("Bit length range: minBits=$minBits, maxBits=$maxBits", "huftBuild")
         
-        if (m[0] < minBits) m[0] = minBits
-        if (m[0] > maxBits) m[0] = maxBits
+        // Determine root table bit width from caller (m[0]) clamped to [minBits, MAX_BITS]
+        var rootBits = m[0]
+        if (rootBits < minBits) rootBits = minBits
+        if (rootBits > MAX_BITS) rootBits = MAX_BITS
+        if (rootBits <= 0) return Z_DATA_ERROR
+        m[0] = rootBits
         
-        // Create starting code values for each bit length (canonical Huffman)
+        // Prepare canonical codes
         val x = IntArray(MAX_BITS + 1)
-        var code = 0
-        for (bits in minBits..maxBits) {
-            x[bits] = code
-            code += c[bits]
-            ZlibLogger.logInfTree("Bit length $bits: starting index=${x[bits]}, count=${c[bits]}", "huftBuild")
+        var sum = 0
+        for (bitsLen in 1..MAX_BITS) {
+            x[bitsLen] = sum
+            sum += c[bitsLen]
+        }
+        val nextCode = IntArray(MAX_BITS + 1)
+        var codeVal = 0
+        var bl = 1
+        while (bl <= MAX_BITS) {
+            codeVal = (codeVal + c[bl - 1]) shl 1
+            nextCode[bl] = codeVal
+            bl++
         }
         
-        // Order symbols by increasing bit length
-        for (i in 0 until n) {
-            val len = b[bIndex + i]
-            if (len != 0) {
-                v[x[len]++] = i
-                ZlibLogger.logInfTree("Symbol $i assigned bit length $len", "huftBuild")
-            }
+        // Root table allocation (entry units)
+        val hpEntries = hp.size / 3
+        val rootSize = 1 shl rootBits
+        if (rootSize > hpEntries) return Z_MEM_ERROR
+        for (i in 0 until rootSize * 3) hp[i] = 0
+        var allocatedEntries = rootSize // next free entry index (entry units)
+        
+        fun ensureSpace(entriesNeeded: Int): Int {
+            val base = allocatedEntries
+            if (base + entriesNeeded > hpEntries) return -1
+            // zero init
+            var k = base * 3
+            val end = (base + entriesNeeded) * 3
+            while (k < end) { hp[k++] = 0 }
+            allocatedEntries += entriesNeeded
+            return base
         }
-        x[0] = 0
-        j = 0
-        var k = 0
-        var p = -m[0]
-        val hq = IntArray(MAX_BITS + 1)
-        var r = 0
-        var u: Int
-        for (bits in minBits..maxBits) {
-            var a = c[bits]
-            while (a-- > 0) {
-                while (bits > p + m[0]) {
-                    p += m[0]
-                    k = (if (k >= hn[0]) -1 else hq[r] + (code and ((1 shl m[0]) - 1)))
-                    r = k
-                    while (k < (1 shl (p - m[0]))) {
-                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[hn[0]++] = 0. hn[0]=${hn[0]}, hp.size=${hp.size}")
-                        if (hn[0] >= hp.size) {
-                            ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - hn[0] (${hn[0]}) >= hp.size (${hp.size})")
-                            return Z_MEM_ERROR
+        
+        fun writeEntry(entryIndex: Int, op: Int, bitsHere: Int, value: Int) {
+            val off = entryIndex * 3
+            hp[off] = op
+            hp[off + 1] = bitsHere
+            hp[off + 2] = value
+        }
+        
+        fun place(sym: Int, len: Int, codeLSB: Int, tableBase: Int, tableBits: Int, consumed: Int): Int {
+            if (len <= tableBits) {
+                // Replicate across remaining bits in this level
+                val rep = 1 shl (tableBits - len)
+                var idx = codeLSB
+                var count = rep
+                while (count-- > 0) {
+                    val entry = tableBase + idx
+                    // Choose op/val for this symbol
+                    if (e != null && d != null && sym >= s) {
+                        val di = sym - s
+                        // If the symbol maps beyond provided base/extra arrays (e.g., reserved codes),
+                        // create an invalid entry (op=64) rather than failing the build.
+                        if (di < 0 || di >= e.size || di >= d.size) {
+                            writeEntry(entry, 64, len, 0)
+                        } else {
+                            writeEntry(entry, 16 + e[di], len, d[di])
                         }
-                        hp[hn[0]++] = 0
-                        k++
+                    } else if (s != 0 && sym == 256) {
+                        // End of block
+                        writeEntry(entry, 32, len, 0)
+                    } else if (s == 0 || sym < s) {
+                        // Literal
+                        writeEntry(entry, 0, len, sym)
+                    } else {
+                        // Any other unexpected case -> invalid
+                        writeEntry(entry, 64, len, 0)
                     }
-                    k = (code ushr p) and ((1 shl m[0]) - 1)
-                    u = hn[0] + k
-                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[u] = p. u=$u, hn[0]=${hn[0]}, k=$k, hp.size=${hp.size}")
-                    if (u >= hp.size) {
-                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - u ($u) >= hp.size (${hp.size})")
-                        return Z_MEM_ERROR
-                    }
-                    hp[u] = p
-                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[u + 1] = .... u=$u, hp.size=${hp.size}")
-                    if (u + 1 >= hp.size) {
-                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - u+1 (${u + 1}) >= hp.size (${hp.size})")
-                        return Z_MEM_ERROR
-                    }
-                    hp[u + 1] = if (maxBits > p + m[0]) m[0] else maxBits - p
-                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[u + 2] = 0. u=$u, hp.size=${hp.size}")
-                    if (u + 2 >= hp.size) {
-                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - u+2 (${u + 2}) >= hp.size (${hp.size})")
-                        return Z_MEM_ERROR
-                    }
-                    hp[u + 2] = 0
+                    idx += 1 shl len
                 }
-                r = code and ((1 shl p) - 1)
-                val baseIndex = hq[r] + (code ushr p)
-                ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[baseIndex] = bits. baseIndex=$baseIndex, hp.size=${hp.size}")
-                if (baseIndex >= hp.size) {
-                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - baseIndex ($baseIndex) >= hp.size (${hp.size})")
-                    return Z_MEM_ERROR
-                }
-                hp[baseIndex] = bits
-                if (v[j] < s) {
-                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[baseIndex + 2] = v[j]. baseIndex=$baseIndex, hp.size=${hp.size}")
-                    if (baseIndex + 2 >= hp.size) {
-                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - baseIndex+2 (${baseIndex + 2}) >= hp.size (${hp.size})")
-                        return Z_MEM_ERROR
-                    }
-                    hp[baseIndex + 2] = v[j]
+                return Z_OK
+            } else {
+                // Need a subtable
+                val remain = len - tableBits
+                val prefixIndex = codeLSB and ((1 shl tableBits) - 1)
+                val ptrEntry = tableBase + prefixIndex
+                val opExisting = hp[ptrEntry * 3]
+                var nextBits = minOf(remain, MAX_BITS - (consumed + tableBits))
+                if (nextBits <= 0) nextBits = 1
+                var subBase: Int
+                if (opExisting == 0 && hp[ptrEntry * 3 + 1] == 0 && hp[ptrEntry * 3 + 2] == 0) {
+                    val need = 1 shl nextBits
+                    subBase = ensureSpace(need)
+                    if (subBase < 0) return Z_MEM_ERROR
+                    // Pointer: op=nextBits, bits consumed at this level, val=offset to subtable base (entry units)
+                    writeEntry(ptrEntry, nextBits, tableBits, subBase - ptrEntry)
                 } else {
-                    ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[baseIndex] = hp[baseIndex] or 64. baseIndex=$baseIndex, hp.size=${hp.size}")
-                    if (baseIndex >= hp.size) {
-                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - baseIndex ($baseIndex) >= hp.size (${hp.size})")
-                        return Z_MEM_ERROR
-                    }
-                    hp[baseIndex] = hp[baseIndex] or 64
-                    if (e != null) {
-                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[baseIndex + 1] = e[v[j] - s]. baseIndex=$baseIndex, hp.size=${hp.size}, v[j]-s=${v[j]-s}, e.size=${e.size}")
-                        if (baseIndex + 1 >= hp.size) {
-                            ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - baseIndex+1 (${baseIndex + 1}) >= hp.size (${hp.size})")
-                            return Z_MEM_ERROR
-                        }
-                        if (v[j] - s >= e.size || v[j] - s < 0) {
-                            ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_DATA_ERROR - v[j]-s (${v[j]-s}) out of bounds for e.size (${e.size})")
-                            return Z_DATA_ERROR
-                        }
-                        hp[baseIndex + 1] = e[v[j] - s]
-                    }
-                    if (d != null) {
-                        ZlibLogger.log("[DEBUG_LOG] huftBuild: Before hp[baseIndex + 2] = d[v[j] - s]. baseIndex=$baseIndex, hp.size=${hp.size}, v[j]-s=${v[j]-s}, d.size=${d.size}")
-                        if (baseIndex + 2 >= hp.size) {
-                            ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_MEM_ERROR - baseIndex+2 (${baseIndex + 2}) >= hp.size (${hp.size})")
-                            return Z_MEM_ERROR
-                        }
-                        if (v[j] - s >= d.size || v[j] - s < 0) {
-                            ZlibLogger.log("[DEBUG_LOG] huftBuild: Z_DATA_ERROR - v[j]-s (${v[j]-s}) out of bounds for d.size (${d.size})")
-                            return Z_DATA_ERROR
-                        }
-                        hp[baseIndex + 2] = d[v[j] - s]
-                    }
+                    // Already a pointer; reuse
+                    subBase = ptrEntry + hp[ptrEntry * 3 + 2]
+                    // If existing pointer has different nextBits, honor existing width
+                    nextBits = hp[ptrEntry * 3]
                 }
-                j++
-                var y = 1 shl (bits - 1)
-                while ((code and y) != 0) {
-                    code = code xor y
-                    y = y ushr 1
-                }
-                code = code xor y
+                val nextCodeLSB = codeLSB ushr tableBits
+                return place(sym, remain, nextCodeLSB, subBase, nextBits, consumed + tableBits)
             }
         }
+        
+        // Emit all symbols
+        for (sym in 0 until n) {
+            val len = b[bIndex + sym]
+            if (len == 0) continue
+            val code = nextCode[len]++
+            val codeLSB = reverseBits(code, len)
+            val st = place(sym, len, codeLSB, 0, rootBits, 0)
+            if (st != Z_OK) return st
+        }
+        
         t[0] = hp
-        // Preserve m[0] as the root table bit count determined earlier; do not override with internal accumulator 'p'.
-        ZlibLogger.log("[DEBUG_LOG] huftBuild finished. t[0].size=${t[0].size}, m[0]=${m[0]}")
         return Z_OK
     }
 
@@ -339,7 +332,7 @@ internal object InfTree {
         val hpD = IntArray(IBLK_MANY * 3)
 
         // build literal/length tree into its own table (hpL)
-        result = huftBuild(c, 0, nl, L_CODES, TREE_BASE_LENGTH, TREE_EXTRA_LBITS, tl, bl, hpL, hnL, vL)
+        result = huftBuild(c, 0, nl, LITERALS + 1, TREE_BASE_LENGTH, TREE_EXTRA_LBITS, tl, bl, hpL, hnL, vL)
         if (result != Z_OK || bl[0] == 0) {
             if (result == Z_DATA_ERROR) {
                 z.msg = "oversubscribed literal/length tree"
@@ -350,7 +343,7 @@ internal object InfTree {
             return result
         }
 
-        // build distance tree into its own table (hpD)
+        // build distance tree into its own table (hpD) with s = 0
         result = huftBuild(c, nl, nd, 0, TREE_BASE_DIST, TREE_EXTRA_DBITS, td, bd, hpD, hnD, vD)
         if (result != Z_OK || (bd[0] == 0 && nl > 257)) {
             if (result == Z_DATA_ERROR) {
@@ -404,12 +397,14 @@ internal object InfTree {
         val vD = IntArray(288)
         val hpD = IntArray(IBLK_MANY * 3)
 
-        var result = huftBuild(literalLengths, 0, 288, L_CODES, TREE_BASE_LENGTH, TREE_EXTRA_LBITS, tl, bl, hpL, hnL, vL)
+        // Use correct 's' for literal/length: LITERALS + 1 (257)
+        var result = huftBuild(literalLengths, 0, 288, LITERALS + 1, TREE_BASE_LENGTH, TREE_EXTRA_LBITS, tl, bl, hpL, hnL, vL)
         if (result != Z_OK) {
             z.msg = "invalid literal/length code table"
             return result
         }
 
+        // Distance tree with s = 0
         result = huftBuild(distanceLengths, 0, 32, 0, TREE_BASE_DIST, TREE_EXTRA_DBITS, td, bd, hpD, hnD, vD)
         if (result != Z_OK) {
             z.msg = "invalid distance code table"
