@@ -321,6 +321,13 @@ internal class InfCodes {
                         continue  // Continue to process ICODES_WASH state
                     }
 
+                    if (bitwiseOps.and(extraBitsOrOperation.toLong(), 64L).toInt() == 0) {
+                        // Next table
+                        bitsNeeded = extraBitsOrOperation
+                        treeIndex = tableIndex / 3 + tree[tableIndex + 2]
+                        continue  // Continue with new table reference
+                    }
+
                     // Invalid code
                     mode = ICODES_BADCODE
                     z.msg = "invalid literal/length code"

@@ -93,3 +93,6 @@ expect fun logToFile(line: String)
  * Platform-specific timestamp string (e.g. yyyy-MM-dd HH:mm:ss)
  */
 expect fun currentTimestamp(): String
+
+// Allow enabling logs in CI by setting ZLIB_LOGGING=1
+// platformEnable via env was removed to keep native interop simple
