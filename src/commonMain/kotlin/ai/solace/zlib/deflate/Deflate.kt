@@ -386,7 +386,14 @@ class Deflate {
             } else if (more == -1) {
                 more--
             } else if (strStart >= wSize + wSize - MIN_LOOKAHEAD) {
-                window.copyInto(window, 0, wSize, wSize)
+                // Slide the upper half of the window into the lower half.
+                // BUGFIX: previous code copied zero bytes due to identical start and end indices.
+                window.copyInto(
+                    destination = window,
+                    destinationOffset = 0,
+                    startIndex = wSize,
+                    endIndex = window.size
+                )
                 matchStart -= wSize
                 strStart -= wSize
                 blockStart -= wSize
