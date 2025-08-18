@@ -239,7 +239,7 @@ object BitShiftSandbox {
         demonstrateCrossPlatformConsistency()
         demonstrateLegacyPatterns()
         
-        ZlibLogger.log("\n" + "=" * 60)
+        ZlibLogger.log("\n" + "=".repeat(60))
         ZlibLogger.log("BitShift Sandbox Demonstrations Complete!")
     }
     
