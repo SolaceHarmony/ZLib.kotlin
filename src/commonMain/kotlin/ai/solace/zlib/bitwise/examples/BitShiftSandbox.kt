@@ -230,7 +230,7 @@ object BitShiftSandbox {
      */
     fun runAllDemonstrations() {
         ZlibLogger.log("Starting BitShift Sandbox Demonstrations...")
-        ZlibLogger.log("=" * 60)
+        ZlibLogger.log("=".repeat(60))
         
         demonstrateBasicOperations()
         demonstrateCarryAndOverflow() 
