@@ -97,6 +97,13 @@ class Deflate {
         prevLength = matchLength
         matchAvailable = 0
         insH = 0
+        
+        // DEBUG: Clear the window to ensure no leftover data
+        ZlibLogger.log("[DEBUG_INIT] Clearing window of size ${window.size}")
+        for (i in window.indices) {
+            window[i] = 0
+        }
+        ZlibLogger.log("[DEBUG_INIT] Window cleared, first 10 bytes: ${window.slice(0 until minOf(10, window.size)).map { it.toInt() and 0xff }.joinToString(",")}")
     }
 
     internal fun trInit() {
@@ -269,6 +276,12 @@ class Deflate {
 
     @OptIn(kotlin.ExperimentalUnsignedTypes::class)
     internal fun trTally(dist: Int, lc: Int): Boolean {
+        // CRITICAL DEBUG: Track every literal that gets recorded
+        println("CRITICAL_DEBUG: trTally called with dist=$dist, lc=$lc (char='${if (lc in 32..126) lc.toChar() else "?"}'), lastLit=$lastLit")
+        if (dist == 0 && lc >= 0 && lc <= 255) {
+            println("CRITICAL_DEBUG: Recording LITERAL: $lc (ASCII '${if (lc in 32..126) lc.toChar() else "?"}')")
+        }
+        
         ZlibLogger.log("[DEBUG_TALLY] trTally called: dist=$dist, lc=$lc (char='${if (lc in 32..126) lc.toChar() else "?"}'), lastLit=$lastLit")
         
         pendingBuf[dBuf + lastLit * 2] = bitwiseOps.rightShift(dist.toLong(), 8).toByte()

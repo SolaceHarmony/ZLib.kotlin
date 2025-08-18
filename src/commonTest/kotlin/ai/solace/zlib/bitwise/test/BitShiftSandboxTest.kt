@@ -159,8 +159,8 @@ class BitShiftSandboxTest {
         val value = 0x1FFFF // Value larger than 16-bit max
         val shift = 1
         
-        val result16 = originalEngine.leftShift(value, shift)
-        val result32 = widerEngine.leftShift(value, shift)
+        val result16 = originalEngine.leftShift(value.toLong(), shift)
+        val result32 = widerEngine.leftShift(value.toLong(), shift)
         
         // 16-bit should wrap the input value first
         assertTrue(result16.value < result32.value, 

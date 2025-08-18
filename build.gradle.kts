@@ -15,7 +15,7 @@ kotlin {
     linuxX64 {
         binaries {
             executable {
-                entryPoint = "ai.solace.zlib.cli.ZLibCliKt.main"
+                entryPoint = "ai.solace.zlib.cli.main"
                 baseName = "zlib-cli"
             }
         }
@@ -25,7 +25,7 @@ kotlin {
     macosArm64 {
         binaries {
             executable {
-                entryPoint = "ai.solace.zlib.cli.ZLibCliKt.main"
+                entryPoint = "ai.solace.zlib.cli.main"
                 baseName = "zlib-cli"
             }
             // test binary is created by default
