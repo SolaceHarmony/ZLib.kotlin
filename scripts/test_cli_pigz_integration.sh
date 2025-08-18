@@ -142,7 +142,7 @@ test_pigz_basic() {
         log_info "Compressed $input with pigz -z"
         
         # Verify it's zlib format (should start with 78)
-        local header=$(hexdump -C "$compressed" | head -1 | awk '{print $2}')
+        local header=$(xxd -p -l 1 "$compressed")
         if [[ $header == "78" ]]; then
             log_info "Verified zlib header (78xx)"
             
