@@ -116,7 +116,9 @@ internal class InfCodes {
         outputBytesLeft = if (outputWritePointer < s.read) s.read - outputWritePointer - 1 else s.end - outputWritePointer
 
         // Safety check: max iterations to prevent infinite loops
-        val maxIterations = 10000
+        // Use a limit proportional to window size instead of hardcoded value
+        // This allows large valid inputs to decompress while still catching corruption
+        val maxIterations = s.end * 4  // 4x window size provides safety margin
         var iterationCount = 0
 
         ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() started. Initial mode: $mode")
@@ -127,8 +129,8 @@ internal class InfCodes {
 
             // Safety check to prevent hanging
             if (iterationCount > maxIterations) {
-                z.msg = "Too many iterations in InfCodes.proc, possible corrupt data"
-                ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - Too many iterations: $iterationCount")
+                z.msg = "Too many iterations in InfCodes.proc (${iterationCount} > ${maxIterations}), possible corrupt data"
+                ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - Too many iterations: $iterationCount (limit: $maxIterations, window: ${s.end})")
                 return Z_DATA_ERROR
             }
 
