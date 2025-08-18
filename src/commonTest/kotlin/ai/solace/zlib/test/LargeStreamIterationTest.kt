@@ -1,6 +1,7 @@
 package ai.solace.zlib.test
 
 import ai.solace.zlib.common.ZlibLogger
+import ai.solace.zlib.common.Z_DATA_ERROR
 import ai.solace.zlib.deflate.Deflate
 import ai.solace.zlib.deflate.Inflate
 import ai.solace.zlib.deflate.ZStream
@@ -112,7 +113,7 @@ class LargeStreamIterationTest {
         result = deflate.deflate(z, 4) // Z_FINISH
         assertTrue(result == 0 || result == 1, "deflate should succeed (result: $result)")
         
-        deflate.deflateEnd(z)
+        deflate.deflateEnd()
         
         return outputBuffer.copyOfRange(0, z.nextOutIndex)
     }
