@@ -46,7 +46,7 @@ class ImprovedBitShiftTest {
             Triple(0x12345678, 4, 0x01234567),
             Triple(0x12345678, 8, 0x00123456),
             Triple(0x12345678, 16, 0x00001234),
-            Triple(0xFFFFFFFF.toInt(), 1, 0x7FFFFFFF), // -1 shifted should give max positive
+            Triple(-1, 1, 0x7FFFFFFF), // -1 shifted should give max positive
             Triple(0x80000000.toInt(), 1, 0x40000000), // Min int shifted  
             Triple(-256, 8, 0x00FFFFFF), // Negative number
         )
