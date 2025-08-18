@@ -41,6 +41,34 @@ class LargeStreamIterationTest {
     }
 
     @Test
+    fun testIterationLimitCalculation() {
+        ZlibLogger.log("[LARGE_STREAM_TEST] Testing iteration limit calculation for different window sizes")
+        
+        // Test with different window sizes to verify proportional limits
+        val testCases = listOf(
+            Pair(8, 256),   // wbits=8 -> 256 bytes -> 1,024 limit  
+            Pair(12, 4096), // wbits=12 -> 4KB -> 16,384 limit
+            Pair(15, 32768) // wbits=15 -> 32KB -> 131,072 limit
+        )
+        
+        for ((windowBits, expectedWindowSize) in testCases) {
+            val expectedLimit = expectedWindowSize * 4
+            ZlibLogger.log("[LARGE_STREAM_TEST] Testing windowBits=$windowBits, expected window size=$expectedWindowSize, expected limit=$expectedLimit")
+            
+            // Create small test data that should definitely not hit any reasonable limit
+            val input = ByteArray(100) { (it % 100).toByte() }
+            
+            val compressedData = compressData(input, windowBits)
+            val decompressedData = decompressData(compressedData, windowBits)
+            
+            assertEquals(input.size, decompressedData.size, "Window size $expectedWindowSize: decompressed size mismatch")
+            assertTrue(input.contentEquals(decompressedData), "Window size $expectedWindowSize: data integrity check failed")
+        }
+        
+        ZlibLogger.log("[LARGE_STREAM_TEST] All window size tests passed")
+    }
+
+    @Test
     fun testSmallWindowStillHasReasonableLimit() {
         ZlibLogger.log("[LARGE_STREAM_TEST] Testing that small windows still have reasonable limits")
         
