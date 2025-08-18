@@ -328,7 +328,13 @@ test_compression_levels() {
         
         if "$CLI_EXECUTABLE" compress "$input" "$compressed" "$level" 2>/dev/null; then
             local compressed_size=$(stat -c%s "$compressed")
-            local ratio=$(awk "BEGIN {printf \"%.2f\", $compressed_size * 100 / $original_size}")
+            local ratio
+            if [ "$original_size" -gt 0 ]; then
+                ratio=$(awk "BEGIN {printf \"%.2f\", $compressed_size * 100 / $original_size}")
+            else
+                log_warning "Original file size is zero; cannot compute compression ratio"
+                ratio="N/A"
+            fi
             
             # Verify by decompressing
             if $PIGZ_EXECUTABLE -d -c "$compressed" > "$decompressed" 2>/dev/null; then
