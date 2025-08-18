@@ -74,7 +74,7 @@ class LargeStreamIterationTest {
         
         // Use minimum window size (8 bits = 256 bytes)
         val windowBits = 8
-        val expectedWindowSize = 1 shl windowBits  // 2^8 = 256 bytes
+        val expectedWindowSize = 1 shl (windowBits and 0xFF)  // Match production code window size calculation
         val expectedIterationLimit = expectedWindowSize * 4  // 1024 iterations
         
         // Create data that should decompress normally
