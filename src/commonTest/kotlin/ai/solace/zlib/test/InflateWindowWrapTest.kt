@@ -73,6 +73,53 @@ class InflateWindowWrapTest {
             "Decompressed data should handle boundary copy distances correctly")
     }
 
+    /**
+     * Test case for array bounds checking with wrap-around scenarios.
+     * This specifically tests the fixed bounds checking logic that was causing Z_DATA_ERROR.
+     */
+    @Test
+    fun testArrayBoundsWithWrapAround() {
+        // Create a pattern that will cause wrap-around during copy operations
+        val basePattern = "0123456789ABCDEF"
+        val repeatCount = 500
+        val data = basePattern.repeat(repeatCount)
+        val input = data.encodeToByteArray()
+
+        // Compress with different compression levels to create various scenarios
+        for (level in listOf(Z_BEST_SPEED, Z_DEFAULT_COMPRESSION, Z_BEST_COMPRESSION)) {
+            val compressedData = compressDataWithLevel(input, level)
+            assertTrue(compressedData.isNotEmpty(), "Compression at level $level should produce output")
+
+            // Decompress and verify
+            val decompressed = decompressData(compressedData)
+            assertEquals(input.decodeToString(), decompressed.decodeToString(),
+                "Decompressed data should match original at compression level $level")
+        }
+    }
+
+    private fun compressDataWithLevel(input: ByteArray, level: Int): ByteArray {
+        val stream = ZStream()
+        val err = stream.deflateInit(level)
+        assertTrue(err == Z_OK, "deflateInit should succeed at level $level, got: $err")
+
+        stream.nextIn = input
+        stream.availIn = input.size
+
+        val outputBuffer = ByteArray(input.size * 2 + 20)
+        stream.nextOut = outputBuffer
+        stream.availOut = outputBuffer.size
+
+        val deflateErr = stream.deflate(Z_FINISH)
+        assertTrue(deflateErr == Z_STREAM_END, "deflate should complete successfully at level $level, got: $deflateErr")
+
+        val compressed = outputBuffer.copyOf(stream.totalOut.toInt())
+
+        val endErr = stream.deflateEnd()
+        assertTrue(endErr == Z_OK, "deflateEnd should succeed at level $level, got: $endErr")
+
+        return compressed
+    }
+
     private fun compressData(input: ByteArray): ByteArray {
         val stream = ZStream()
         val err = stream.deflateInit(Z_DEFAULT_COMPRESSION)
