@@ -571,6 +571,7 @@ class Deflate {
                 val literal = window[strStart - 1].toInt() and 0xff
                 ZlibLogger.log("[DEBUG_SLOW] Processing literal from window[${strStart - 1}]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
                 bflush = trTally(0, literal)
+                matchAvailable = 0  // Clear matchAvailable to prevent duplicate processing in final cleanup
                 if (bflush) {
                     flushBlockOnly(false)
                 }
