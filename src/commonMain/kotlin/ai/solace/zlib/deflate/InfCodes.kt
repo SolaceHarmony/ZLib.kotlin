@@ -492,6 +492,7 @@ internal class InfCodes {
                         }
 
                         s.window[outputWritePointer++] = s.window[outputPointer++]
+                        if (outputWritePointer == s.end) outputWritePointer = 0
                         outputBytesLeft--
 
                         if (outputPointer == s.end) outputPointer = 0
@@ -530,6 +531,7 @@ internal class InfCodes {
                     result = Z_OK
 
                     s.window[outputWritePointer++] = literal.toByte()
+                    if (outputWritePointer == s.end) outputWritePointer = 0
                     outputBytesLeft--
 
                     mode = ICODES_START
@@ -742,6 +744,7 @@ internal class InfCodes {
                 val fastLiteralByte = bitwiseOps.and(value.toLong(), 0xFFL).toByte()  // Mask to byte range
                 ZlibLogger.log("[DEBUG_LOG] inflateFast - Writing literal: '${fastLiteralByte.toInt().toChar()}' (${fastLiteralByte.toInt()}) to window[$outputWritePointer]")
                 s.window[outputWritePointer++] = fastLiteralByte
+                if (outputWritePointer == s.end) outputWritePointer = 0
                 outputBytesLeft--
                 continue
             }
@@ -777,6 +780,7 @@ internal class InfCodes {
                     val literalByte = bitwiseOps.and(innerValue.toLong(), 0xFFL).toByte()  // Mask to byte range
                     ZlibLogger.log("[DEBUG_LOG] inflateFast - Writing literal: '${literalByte.toInt().toChar()}' (${literalByte.toInt()}) to window[$outputWritePointer]")
                     s.window[outputWritePointer++] = literalByte
+                    if (outputWritePointer == s.end) outputWritePointer = 0
                     outputBytesLeft--
                     break
                 } else if (bitwiseOps.and(innerOp.toLong(), 16L).toInt() != 0) {  // Length - same as slow path
@@ -904,15 +908,19 @@ internal class InfCodes {
                                     ZlibLogger.log("[DEBUG_LOG] inflateFast - Small copy: copying '${byte1.toInt().toChar()}' (${byte1.toInt()}) from pos $copySourcePointer to $outputWritePointer")
                                     ZlibLogger.log("[DEBUG_LOG] inflateFast - Small copy: copying '${byte2.toInt().toChar()}' (${byte2.toInt()}) from pos ${copySourcePointer + 1} to ${outputWritePointer + 1}")
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                    if (outputWritePointer == s.end) outputWritePointer = 0
+                                    if (copySourcePointer == s.end) copySourcePointer = 0
                                     bytesToCopy--
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                    if (outputWritePointer == s.end) outputWritePointer = 0
+                                    if (copySourcePointer == s.end) copySourcePointer = 0
                                     bytesToCopy--
                                 } else {
                                     // In C#: Array.Copy(s.window, r, s.window, q, e); q += e; r += e; c -= e;
                                     ZlibLogger.log("[DEBUG_LOG] inflateFast - Array copy")
-                                    // Simulate Array.Copy with bounds checking
-                                    if (copySourcePointer < 0 || copySourcePointer + bytesToCopy > s.window.size || 
-                                        outputWritePointer < 0 || outputWritePointer + bytesToCopy > s.window.size) {
+                                    // Bounds check only for basic validity, copy loop handles wrap-around
+                                    if (copySourcePointer < 0 || copySourcePointer >= s.window.size || 
+                                        outputWritePointer < 0 || outputWritePointer >= s.window.size) {
                                         ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Copy pointers out of bounds")
                                         z.msg = "invalid distance code - copy pointers out of bounds"
                                         s.bitb = bitBuffer
@@ -928,6 +936,7 @@ internal class InfCodes {
                                     while (count-- > 0) {
                                         s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                         if (copySourcePointer == s.end) copySourcePointer = 0
+                                        if (outputWritePointer == s.end) outputWritePointer = 0
                                     }
                                     bytesToCopy = 0 // All bytes copied
                                 }
@@ -952,11 +961,14 @@ internal class InfCodes {
                                         var tempE = endDistance
                                         while (tempE-- > 0) {
                                             s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                            if (outputWritePointer == s.end) outputWritePointer = 0
                                         }
                                     } else {
                                         // In C#: Array.Copy(s.window, r, s.window, q, e); q += e; r += e; e = 0;
-                                        if (copySourcePointer < 0 || copySourcePointer + endDistance > s.window.size || 
-                                            outputWritePointer < 0 || outputWritePointer + endDistance > s.window.size) {
+                                        // Basic bounds check - endDistance should not exceed remaining window space from copySourcePointer
+                                        if (copySourcePointer < 0 || copySourcePointer >= s.window.size || 
+                                            outputWritePointer < 0 || outputWritePointer >= s.window.size ||
+                                            endDistance > s.window.size - copySourcePointer) {
                                             ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Copy pointers out of bounds (first part)")
                                             z.msg = "invalid distance code - copy pointers out of bounds"
                                             s.bitb = bitBuffer
@@ -971,6 +983,7 @@ internal class InfCodes {
                                         var count = endDistance
                                         while (count-- > 0) {
                                             s.window[outputWritePointer++] = s.window[copySourcePointer++]
+                                            if (outputWritePointer == s.end) outputWritePointer = 0
                                         }
                                     }
                                     
@@ -987,11 +1000,13 @@ internal class InfCodes {
                                 while (count-- > 0) {
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                     if (copySourcePointer == s.end) copySourcePointer = 0
+                                    if (outputWritePointer == s.end) outputWritePointer = 0
                                 }
                             } else {
                                 // In C#: Array.Copy(s.window, r, s.window, q, c); q += c; r += c; c = 0;
-                                if (copySourcePointer < 0 || copySourcePointer + bytesToCopy > s.window.size || 
-                                    outputWritePointer < 0 || outputWritePointer + bytesToCopy > s.window.size) {
+                                // Basic bounds check only, copy loop handles wrap-around
+                                if (copySourcePointer < 0 || copySourcePointer >= s.window.size || 
+                                    outputWritePointer < 0 || outputWritePointer >= s.window.size) {
                                     ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Copy pointers out of bounds (final part)")
                                     z.msg = "invalid distance code - copy pointers out of bounds"
                                     s.bitb = bitBuffer
@@ -1007,6 +1022,7 @@ internal class InfCodes {
                                 while (count-- > 0) {
                                     s.window[outputWritePointer++] = s.window[copySourcePointer++]
                                     if (copySourcePointer == s.end) copySourcePointer = 0
+                                    if (outputWritePointer == s.end) outputWritePointer = 0
                                 }
                             }
                             break
