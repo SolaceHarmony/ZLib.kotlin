@@ -1,0 +1,44 @@
+
+========================================
+ZLib.kotlin CLI and pigz Integration Tests
+========================================
+
+[0;34m[INFO][0m Setting up test environment...
+[0;34m[INFO][0m Checking prerequisites...
+[0;32m[SUCCESS][0m pigz found: /usr/bin/pigz
+[0;34m[INFO][0m pigz version: pigz 2.8
+[1;33m[WARNING][0m CLI executable not found at ./build/bin/linux/debugExecutable/zlib-cli.kexe
+[1;33m[WARNING][0m You need to build it first with: ./gradlew linkDebugExecutableLinuxX64
+[1;33m[WARNING][0m Continuing with pigz-only tests...
+[0;34m[INFO][0m Creating test files...
+[0;34m[INFO][0m Test files created:
+-rw-r--r-- 1 runner docker  1024 Aug 18 21:28 /tmp/zlib_cli_pigz_tests/binary.bin
+-rw-r--r-- 1 runner docker 68978 Aug 18 21:28 /tmp/zlib_cli_pigz_tests/large_mixed.txt
+-rw-r--r-- 1 runner docker  2501 Aug 18 21:28 /tmp/zlib_cli_pigz_tests/medium_diverse.txt
+-rw-r--r-- 1 runner docker  7992 Aug 18 21:28 /tmp/zlib_cli_pigz_tests/medium_repetitive.txt
+-rw-r--r-- 1 runner docker    61 Aug 18 21:28 /tmp/zlib_cli_pigz_tests/small.txt
+
+Running Tests...
+----------------
+[0;34m[TEST 1][0m Basic pigz -z compression
+[0;34m[INFO][0m Compressed /tmp/zlib_cli_pigz_tests/small.txt with pigz -z
+[0;34m[INFO][0m Verified zlib header (78xx)
+[0;32m[SUCCESS][0m pigz -z compression/decompression cycle successful
+[0;34m[TEST 2][0m CLI decompression of pigz -z compressed files
+[1;33m[WARNING][0m Skipping CLI test - executable not available
+[0;34m[TEST 3][0m CLI compression verified with pigz -d
+[1;33m[WARNING][0m Skipping CLI test - executable not available
+[0;34m[TEST 4][0m Cross-compatibility matrix (all combinations)
+[1;33m[WARNING][0m Skipping full compatibility test - CLI executable not available
+[0;34m[TEST 5][0m Testing different compression levels
+[1;33m[WARNING][0m Skipping compression level test - CLI executable not available
+[0;34m[TEST 6][0m Binary data compression/decompression
+[0;32m[SUCCESS][0m Binary data: pigz round-trip successful
+
+========================================
+Test Summary
+========================================
+Total Tests: 6
+Passed:     3
+Failed:     0
+[0;32m[SUCCESS][0m All tests passed!
