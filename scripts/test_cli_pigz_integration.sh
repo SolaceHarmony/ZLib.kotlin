@@ -84,7 +84,7 @@ create_test_files() {
             if [ $((i % 3)) -eq 0 ]; then
                 echo "Repetitive content line $i: AAAAAABBBBBBCCCCCCDDDDDD"
             elif [ $((i % 3)) -eq 1 ]; then
-                echo "Mixed content line $i: $(openssl rand -hex 32)"
+                echo "Mixed content line $i: $(head -c 32 /dev/urandom | xxd -p | tr -d '\n')"
             else
                 echo "Standard line $i: The quick brown fox jumps over the lazy dog."
             fi
