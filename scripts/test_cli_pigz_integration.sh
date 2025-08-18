@@ -93,6 +93,11 @@ create_test_files() {
     
     # Binary-like content (less compressible)
     head -c 1024 /dev/urandom > "$TEST_DIR/binary.bin"
+    if [ $? -ne 0 ] || [ ! -s "$TEST_DIR/binary.bin" ]; then
+        log_error "Failed to create binary file with /dev/urandom. Skipping binary.bin test file."
+        # Optionally, remove the empty file if it exists
+        [ -f "$TEST_DIR/binary.bin" ] && rm -f "$TEST_DIR/binary.bin"
+    fi
     
     log_info "Test files created:"
     ls -la "$TEST_DIR"/*.txt "$TEST_DIR"/*.bin
