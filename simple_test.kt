@@ -68,6 +68,13 @@ private fun inflateData(input: ByteArray, originalSize: Int): ByteArray {
     
     val result = stream.inflate(Z_NO_FLUSH)
     if (result != Z_STREAM_END) error("inflate failed: $result")
+    var result: Int
+    do {
+        result = stream.inflate(Z_NO_FLUSH)
+        if (result < 0 && result != Z_BUF_ERROR) error("inflate failed: $result")
+    } while (result != Z_STREAM_END && stream.availIn > 0 && stream.availOut > 0)
+    
+    if (result != Z_STREAM_END) error("inflate did not reach stream end: $result")
     
     val decompressed = outputBuffer.copyOf(stream.totalOut.toInt())
     stream.inflateEnd()
