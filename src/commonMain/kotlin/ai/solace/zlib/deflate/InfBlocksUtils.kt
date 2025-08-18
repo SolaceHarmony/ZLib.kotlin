@@ -39,6 +39,9 @@ internal fun inflateFlush(s: InfBlocks, z: ZStream, rIn: Int): Int {
     if (s.checkfn != null) {
         s.check = z.adlerChecksum!!.adler32(s.check, s.window, q, n)
         z.adler = s.check
+        ZlibLogger.log("[DEBUG_ADLER] Updated decompression Adler32: ${s.check} (processed $n bytes)")
+    } else {
+        ZlibLogger.log("[DEBUG_ADLER] Skipping decompression Adler32 update: checkfn is null")
     }
 
 
@@ -74,6 +77,9 @@ internal fun inflateFlush(s: InfBlocks, z: ZStream, rIn: Int): Int {
         if (s.checkfn != null) {
             s.check = z.adlerChecksum!!.adler32(s.check, s.window, q, n)
             z.adler = s.check
+            ZlibLogger.log("[DEBUG_ADLER] Updated decompression Adler32: ${s.check} (processed $n bytes)")
+        } else {
+            ZlibLogger.log("[DEBUG_ADLER] Skipping decompression Adler32 update: checkfn is null")
         }
 
 

@@ -154,7 +154,7 @@ internal class Inflate {
         wbits = wMut
 
         z.iState!!.blocks = InfBlocks(z, if (z.iState!!.nowrap != 0) null else this, bitwiseOps.leftShift(1L, wMut).toInt())
-        ZlibLogger.debug("inflateInit: wbits=$wbits nowrap=$nowrap")
+        ZlibLogger.debug("inflateInit: wbits=$wbits nowrap=$nowrap checkfn=${if (nowrap != 0) "null" else "this"}")
 
         // reset state
         inflateReset(z)
