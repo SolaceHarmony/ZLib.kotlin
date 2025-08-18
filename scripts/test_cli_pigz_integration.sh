@@ -15,7 +15,7 @@ NC='\033[0m' # No Color
 
 # Test configuration
 TEST_DIR="/tmp/zlib_cli_pigz_tests"
-CLI_EXECUTABLE="./build/bin/linux/debugExecutable/zlib-cli.kexe"
+CLI_EXECUTABLE="./build/bin/linuxX64/debugExecutable/zlib-cli.kexe"
 PIGZ_EXECUTABLE="pigz"
 
 # Test counters
