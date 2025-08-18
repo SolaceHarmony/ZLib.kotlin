@@ -965,10 +965,9 @@ internal class InfCodes {
                                         }
                                     } else {
                                         // In C#: Array.Copy(s.window, r, s.window, q, e); q += e; r += e; e = 0;
-                                        // Basic bounds check - endDistance should not exceed remaining window space from copySourcePointer
+                                        // Basic bounds check for array access
                                         if (copySourcePointer < 0 || copySourcePointer >= s.window.size || 
-                                            outputWritePointer < 0 || outputWritePointer >= s.window.size ||
-                                            endDistance > s.window.size - copySourcePointer) {
+                                            outputWritePointer < 0 || outputWritePointer >= s.window.size) {
                                             ZlibLogger.log("[DEBUG_LOG] inflateFast - ERROR: Copy pointers out of bounds (first part)")
                                             z.msg = "invalid distance code - copy pointers out of bounds"
                                             s.bitb = bitBuffer
