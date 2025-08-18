@@ -276,11 +276,11 @@ class Deflate {
 
     @OptIn(kotlin.ExperimentalUnsignedTypes::class)
     internal fun trTally(dist: Int, lc: Int): Boolean {
-        // CRITICAL DEBUG: Track every literal that gets recorded
-        println("CRITICAL_DEBUG: trTally called with dist=$dist, lc=$lc (char='${if (lc in 32..126) lc.toChar() else "?"}'), lastLit=$lastLit")
-        if (dist == 0 && lc >= 0 && lc <= 255) {
-            println("CRITICAL_DEBUG: Recording LITERAL: $lc (ASCII '${if (lc in 32..126) lc.toChar() else "?"}')")
-        }
+        // Debug logging (disabled for performance)
+        // println("CRITICAL_DEBUG: trTally called with dist=$dist, lc=$lc (char='${if (lc in 32..126) lc.toChar() else "?"}'), lastLit=$lastLit")
+        // if (dist == 0 && lc >= 0 && lc <= 255) {
+        //     println("CRITICAL_DEBUG: Recording LITERAL: $lc (ASCII '${if (lc in 32..126) lc.toChar() else "?"}')")
+        // }
         
         ZlibLogger.log("[DEBUG_TALLY] trTally called: dist=$dist, lc=$lc (char='${if (lc in 32..126) lc.toChar() else "?"}'), lastLit=$lastLit")
         
