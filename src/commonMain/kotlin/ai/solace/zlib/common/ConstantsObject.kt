@@ -97,9 +97,7 @@ object ConstantsObject {
     const val BUSY_STATE = 113
     const val FINISH_STATE = 666
 
-    // Adler32 constants
-    const val ADLER_BASE = 65521 // largest prime smaller than 65536
-    const val ADLER_NMAX = 5552 // NMAX is the largest n such that 255n(n+1)/2 + (n+1)(BASE-1) <= 2^32-1
+
 
     /**
      * Constants for InfBlocks state machine

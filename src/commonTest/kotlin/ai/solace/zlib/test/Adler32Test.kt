@@ -197,6 +197,44 @@ class Adler32Test {
         val expectedDoubleNmaxResult = calculateExpectedAdler32(doubleNmaxBuffer)
         assertEquals(expectedDoubleNmaxResult, doubleNmaxResult, "Checksum for 2*NMAX length string should match expected value")
     }
+    
+    @Test
+    fun testAdlerNmaxRegression() {
+        val adler32 = Adler32()
+
+        // Regression test for ADLER_NMAX boundary conditions as per issue #24
+        // Test with inputs around ADLER_NMAX length (n = ADLER_NMAX, n = ADLER_NMAX + 1)
+        
+        // Test with exactly n = ADLER_NMAX
+        val nmaxBuffer = ByteArray(ADLER_NMAX) { i -> (i % 256).toByte() }
+        val nmaxResult = adler32.adler32(1L, nmaxBuffer, 0, nmaxBuffer.size)
+        
+        // Test with n = ADLER_NMAX + 1
+        val nmaxPlus1Buffer = ByteArray(ADLER_NMAX + 1) { i -> (i % 256).toByte() }
+        val nmaxPlus1Result = adler32.adler32(1L, nmaxPlus1Buffer, 0, nmaxPlus1Buffer.size)
+        
+        // Results should be different (this verifies chunking behavior)
+        assertTrue(nmaxResult != nmaxPlus1Result, "Checksums should be different for n=ADLER_NMAX and n=ADLER_NMAX+1")
+        
+        // Test with n = ADLER_NMAX - 1
+        val nmaxMinus1Buffer = ByteArray(ADLER_NMAX - 1) { i -> (i % 256).toByte() }
+        val nmaxMinus1Result = adler32.adler32(1L, nmaxMinus1Buffer, 0, nmaxMinus1Buffer.size)
+        
+        // All three results should be different
+        assertTrue(nmaxResult != nmaxMinus1Result, "Checksums should be different for n=ADLER_NMAX and n=ADLER_NMAX-1")
+        assertTrue(nmaxPlus1Result != nmaxMinus1Result, "Checksums should be different for n=ADLER_NMAX+1 and n=ADLER_NMAX-1")
+        
+        // Verify that our implementation matches the expected algorithm for these boundary cases
+        assertEquals(calculateExpectedAdler32(nmaxBuffer), nmaxResult, "n=ADLER_NMAX result should match expected")
+        assertEquals(calculateExpectedAdler32(nmaxPlus1Buffer), nmaxPlus1Result, "n=ADLER_NMAX+1 result should match expected")
+        assertEquals(calculateExpectedAdler32(nmaxMinus1Buffer), nmaxMinus1Result, "n=ADLER_NMAX-1 result should match expected")
+        
+        // Test that large inputs produce consistent results with chunking
+        val largeBuffer = ByteArray(11000) { i -> (i % 256).toByte() } // ~2 chunks
+        val largeResult = adler32.adler32(1L, largeBuffer, 0, largeBuffer.size)
+        val expectedLargeResult = calculateExpectedAdler32(largeBuffer)
+        assertEquals(expectedLargeResult, largeResult, "Large buffer result should match expected with proper chunking")
+    }
 
     @OptIn(ExperimentalTime::class)
     @Test
@@ -236,16 +274,24 @@ class Adler32Test {
         assertEquals(expectedResult, result, "Our implementation should match the reference implementation")
     }
 
-    // Helper function to calculate expected Adler32 value using the same algorithm
+    // Helper function to calculate expected Adler32 value using the same chunked algorithm
     private fun calculateExpectedAdler32(buffer: ByteArray): Long {
         var s1 = 1L
         var s2 = 0L
+        var i = 0
 
-        for (byte in buffer) {
-            s1 += (byte.toInt() and 0xff)
-            s2 += s1
-
-            // Apply modulo after each byte to prevent overflow
+        // Process data in chunks of ADLER_NMAX to prevent overflow
+        while (i < buffer.size) {
+            val chunkEnd = minOf(i + ADLER_NMAX, buffer.size)
+            
+            // Process bytes in current chunk without modulo
+            while (i < chunkEnd) {
+                s1 += (buffer[i].toInt() and 0xff)
+                s2 += s1
+                i++
+            }
+            
+            // Apply modulo only after processing the chunk
             s1 %= ADLER_BASE
             s2 %= ADLER_BASE
         }
