@@ -1,0 +1,3 @@
+This is a demonstration of ZLib.kotlin CLI working with pigz -z.
+The CLI should be able to decompress files created by pigz -z.
+And pigz should be able to decompress files created by the CLI.
