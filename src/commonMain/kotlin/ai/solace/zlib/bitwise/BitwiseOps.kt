@@ -412,6 +412,28 @@ class BitwiseOps {
         fun withNativeEngine(bitWidth: Int = 32): BitShiftEngine {
             return BitShiftEngine(BitShiftMode.NATIVE, bitWidth)
         }
+        
+        /**
+         * Improved unsigned right shift using BitShiftEngine for consistency
+         * @param number The number to shift
+         * @param bits The number of bits to shift  
+         * @param engine The engine to use (defaults to native 32-bit)
+         * @return The result of the unsigned right shift operation
+         */
+        fun urShiftImproved(number: Int, bits: Int, engine: BitShiftEngine = defaultEngine32): Int {
+            return engine.unsignedRightShift(number.toLong(), bits).value.toInt()
+        }
+        
+        /**
+         * Improved unsigned right shift using BitShiftEngine for consistency
+         * @param number The number to shift
+         * @param bits The number of bits to shift
+         * @param engine The engine to use (defaults to native 32-bit)
+         * @return The result of the unsigned right shift operation
+         */
+        fun urShiftImproved(number: Long, bits: Int, engine: BitShiftEngine = defaultEngine32): Long {
+            return engine.unsignedRightShift(number, bits).value
+        }
     }
 }
         
