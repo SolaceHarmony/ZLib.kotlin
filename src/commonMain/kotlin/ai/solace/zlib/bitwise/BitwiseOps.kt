@@ -465,6 +465,8 @@ class BitwiseOps {
             return (high.toLong() * 65536) + low.toLong()
         }
         
+
+        
         /**
          * Performs left shift using arithmetic operations (multiplication by powers of 2)
          * @param value The value to shift
