@@ -327,6 +327,9 @@ class ZStream {
         availIn -= len
         if (dState?.noheader == 0) {
             adler = adlerChecksum!!.adler32(adler, nextIn!!, nextInIndex, len)
+            ZlibLogger.log("[DEBUG_ADLER] Updated Adler32: $adler (processed $len bytes)")
+        } else {
+            ZlibLogger.log("[DEBUG_ADLER] Skipping Adler32 update: noheader=${dState?.noheader}")
         }
         nextIn!!.copyInto(buf, start, nextInIndex, nextInIndex + len)
         nextInIndex += len
