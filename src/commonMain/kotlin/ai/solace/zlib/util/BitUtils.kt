@@ -1,29 +1,25 @@
 package ai.solace.zlib.util
 
 import ai.solace.zlib.bitwise.BitwiseOps
+import ai.solace.zlib.bitwise.BitShiftEngine
+import ai.solace.zlib.bitwise.BitShiftMode
 
 /**
  * Utility functions for bit manipulation operations.
  * 
- * This class now delegates to BitwiseOps for the actual implementation.
+ * This class now delegates to BitwiseOps and BitShiftEngine for the actual implementation,
+ * providing both legacy compatibility and improved functionality.
  */
 object BitUtils {
+    
+    // Default engine for BitUtils operations - using native for performance
+    private val defaultEngine = BitShiftEngine(BitShiftMode.NATIVE, 32)
+    
     /**
      * Performs an unsigned right shift operation that matches the behavior of C#'s URShift.
      *
-     * This implementation correctly handles negative numbers by adding a correction term
-     * when the number is negative. This is necessary because Kotlin's native ushr operator
-     * behaves differently than C#'s URShift for negative numbers.
-     *
-     * Based on the C# implementation:
-     * ```csharp
-     * public static int URShift(int number, int bits) {
-     *     if (number >= 0)
-     *         return number >> bits;
-     *     else
-     *         return (number >> bits) + (2 << ~bits);
-     * }
-     * ```
+     * This is the legacy method maintained for compatibility. For new code, consider
+     * using urShiftImproved() which provides better consistency.
      *
      * @param number The number to shift
      * @param bits The number of bits to shift
@@ -36,19 +32,8 @@ object BitUtils {
     /**
      * Performs an unsigned right shift operation that matches the behavior of C#'s URShift.
      *
-     * This implementation correctly handles negative numbers by adding a correction term
-     * when the number is negative. This is necessary because Kotlin's native ushr operator
-     * behaves differently than C#'s URShift for negative numbers.
-     *
-     * Based on the C# implementation:
-     * ```csharp
-     * public static long URShift(long number, int bits) {
-     *     if (number >= 0)
-     *         return number >> bits;
-     *     else
-     *         return (number >> bits) + (2L << ~bits);
-     * }
-     * ```
+     * This is the legacy method maintained for compatibility. For new code, consider
+     * using urShiftImproved() which provides better consistency.
      *
      * @param number The number to shift
      * @param bits The number of bits to shift
@@ -56,5 +41,51 @@ object BitUtils {
      */
     fun urShift(number: Long, bits: Int): Long {
         return BitwiseOps.urShift(number, bits)
+    }
+    
+    /**
+     * Improved unsigned right shift operation using BitShiftEngine.
+     * 
+     * This provides more consistent behavior across platforms and better handling
+     * of edge cases compared to the legacy urShift methods.
+     *
+     * @param number The number to shift
+     * @param bits The number of bits to shift
+     * @param engine The BitShiftEngine to use (defaults to native mode for performance)
+     * @return The result of the unsigned right shift operation
+     */
+    fun urShiftImproved(number: Int, bits: Int, engine: BitShiftEngine = defaultEngine): Int {
+        return BitwiseOps.urShiftImproved(number, bits, engine)
+    }
+    
+    /**
+     * Improved unsigned right shift operation using BitShiftEngine.
+     * 
+     * This provides more consistent behavior across platforms and better handling
+     * of edge cases compared to the legacy urShift methods.
+     *
+     * @param number The number to shift
+     * @param bits The number of bits to shift
+     * @param engine The BitShiftEngine to use (defaults to native mode for performance)
+     * @return The result of the unsigned right shift operation
+     */
+    fun urShiftImproved(number: Long, bits: Int, engine: BitShiftEngine = defaultEngine): Long {
+        return BitwiseOps.urShiftImproved(number, bits, engine)
+    }
+    
+    /**
+     * Creates a BitUtils instance configured for arithmetic operations
+     * @return A function that performs urShift using arithmetic operations
+     */
+    fun withArithmeticMode(): BitShiftEngine {
+        return BitShiftEngine(BitShiftMode.ARITHMETIC, 32)
+    }
+    
+    /**
+     * Creates a BitUtils instance configured for native operations
+     * @return A function that performs urShift using native operations
+     */
+    fun withNativeMode(): BitShiftEngine {
+        return BitShiftEngine(BitShiftMode.NATIVE, 32)
     }
 }
