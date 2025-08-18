@@ -16,9 +16,11 @@ import ai.solace.zlib.common.ADLER_NMAX
  * The choice is made through the BitShiftEngine configuration.
  * 
  * Algorithm:
- * - a = 1 + byte1 + byte2 + ... + byteN (mod 65521)
- * - b = a1 + a2 + ... + aN (mod 65521) 
+ * - Data is processed in chunks of ADLER_NMAX bytes to prevent integer overflow
+ * - For each chunk: a = sum of bytes (mod 65521), b = sum of running sums (mod 65521)
  * - Final checksum: b * 65536 + a
+ * 
+ * This implementation follows the standard Adler-32 algorithm specification.
  */
 class Adler32Utils {
     companion object {
@@ -59,11 +61,22 @@ class Adler32Utils {
 
             var i = index
             val end = index + len
+            
+            // Process data in chunks of ADLER_NMAX to prevent overflow
             while (i < end) {
-                val unsigned = BitwiseOps.byteToUnsignedInt(buf[i])
-                a = (a + unsigned) % MOD
-                b = (b + a) % MOD
-                i++
+                val chunkEnd = minOf(i + ADLER_NMAX, end)
+                
+                // Process bytes in current chunk without modulo
+                while (i < chunkEnd) {
+                    val unsigned = BitwiseOps.byteToUnsignedInt(buf[i])
+                    a += unsigned
+                    b += a
+                    i++
+                }
+                
+                // Apply modulo only after processing the chunk
+                a %= MOD
+                b %= MOD
             }
 
             // Combine a and b into the final result using the engine
