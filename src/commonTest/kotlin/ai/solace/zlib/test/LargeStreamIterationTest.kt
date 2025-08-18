@@ -138,7 +138,7 @@ class LargeStreamIterationTest {
         assertTrue(result == 0 || result == 1, "inflate should succeed (result: $result)")
         
         // Check that we didn't get a data error (which would indicate iteration limit hit)
-        assertNotEquals(-3, result, "Should not get Z_DATA_ERROR from iteration limit")
+        assertNotEquals(Z_DATA_ERROR, result, "Should not get Z_DATA_ERROR from iteration limit")
         
         inflate.inflateEnd(z)
         
