@@ -330,3 +330,9 @@ const val ICODES_LIT = 6
 const val ICODES_WASH = 7
 const val ICODES_END = 8
 const val ICODES_BADCODE = 9
+
+/**
+ * SMALL_INPUT_THRESHOLD = 10: Small input size threshold for algorithm selection.
+ * Inputs of this size or smaller use FAST algorithm instead of SLOW to avoid lazy matching issues.
+ */
+const val SMALL_INPUT_THRESHOLD = 10
