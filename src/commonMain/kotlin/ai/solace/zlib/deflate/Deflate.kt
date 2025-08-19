@@ -872,7 +872,6 @@ class Deflate {
             val algorithmFunc = config_table[level].func
             
             // Use FAST algorithm for small inputs to avoid lazy matching issues
-            // The SLOW algorithm has problems with inputs ≤ 10 bytes where lookAhead < MIN_LOOKAHEAD
             // The SLOW algorithm has problems with inputs ≤ SMALL_INPUT_THRESHOLD bytes where lookAhead < MIN_LOOKAHEAD
             val useAlgorithm = if (algorithmFunc == SLOW && strm.totalIn <= SMALL_INPUT_THRESHOLD) {
                 if (DEBUG) {
