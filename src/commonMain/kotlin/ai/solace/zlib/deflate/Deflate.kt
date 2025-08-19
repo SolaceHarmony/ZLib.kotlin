@@ -873,7 +873,8 @@ class Deflate {
             
             // Use FAST algorithm for small inputs to avoid lazy matching issues
             // The SLOW algorithm has problems with inputs ≤ 10 bytes where lookAhead < MIN_LOOKAHEAD
-            val useAlgorithm = if (algorithmFunc == SLOW && strm.totalIn <= 10) {
+            // The SLOW algorithm has problems with inputs ≤ SMALL_INPUT_THRESHOLD bytes where lookAhead < MIN_LOOKAHEAD
+            val useAlgorithm = if (algorithmFunc == SLOW && strm.totalIn <= SMALL_INPUT_THRESHOLD) {
                 if (DEBUG) {
                     ZlibLogger.log("[DEBUG_ALGORITHM] Using FAST instead of SLOW for small input (${strm.totalIn} bytes)")
                 }
