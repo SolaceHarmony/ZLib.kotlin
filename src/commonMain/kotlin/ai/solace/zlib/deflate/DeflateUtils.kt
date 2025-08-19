@@ -81,9 +81,28 @@ internal fun sendBits(d: Deflate, value: Int, length: Int) {
     }
 }
 
+/**
+ * Reverses the bits in a value for the specified number of bits.
+ * This is required for Huffman codes because the canonical Huffman algorithm 
+ * generates codes in MSB-first order, but deflate streams pack bits in LSB-first order.
+ */
+private fun reverseBits(value: Int, numBits: Int): Int {
+    var result = 0
+    var v = value
+    for (i in 0 until numBits) {
+        result = (result shl 1) or (v and 1)
+        v = v ushr 1
+    }
+    return result
+}
+
 internal fun sendCode(d: Deflate, c: Int, tree: ShortArray) {
-    val code = tree[c * 2].toInt() and 0xffff
+    val originalCode = tree[c * 2].toInt() and 0xffff
     val bits = tree[c * 2 + 1].toInt() and 0xffff
+    
+    // Bit-reverse the Huffman code to match deflate's LSB-first bit packing
+    val code = reverseBits(originalCode, bits)
+    
     ZlibLogger.log("[DEBUG_SEND] sendCode: symbol=$c (char='${if (c in 32..126) c.toChar() else "?"}'), code=$code, bits=$bits")
     sendBits(d, code, bits)
 }
