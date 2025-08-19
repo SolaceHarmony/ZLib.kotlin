@@ -386,14 +386,13 @@ class Deflate {
     }
 
     internal fun fillWindow() {
-        ZlibLogger.log("[DEBUG_FILL] fillWindow called: lookAhead=$lookAhead, strStart=$strStart, availIn=${'$'}{strm.availIn}")
         var n: Int
         var m: Int
         var p: Int
         var more: Int
         do {
             more = windowSize - lookAhead - strStart
-            ZlibLogger.log("[DEBUG_FILL] more=$more, windowSize=$windowSize")
+
             if (more == 0 && strStart == 0 && lookAhead == 0) {
                 more = wSize
             } else if (more == -1) {
@@ -426,10 +425,7 @@ class Deflate {
             }
             if (strm.availIn == 0) return
             n = strm.readBuf(window, strStart + lookAhead, more)
-            ZlibLogger.log("[DEBUG_FILL] readBuf returned $n bytes, new lookAhead will be ${lookAhead + n}")
-            if (n > 0) {
-                ZlibLogger.log("[DEBUG_FILL] Read bytes: ${window.slice(strStart + lookAhead until strStart + lookAhead + n).map { val b = it.toInt() and 0xff; "$b(${if (b in 32..126) b.toChar() else "?"})" }.joinToString(",")}")
-            }
+
             lookAhead += n
             if (lookAhead >= MIN_MATCH) {
                 insH = bitwiseOps.and(window[strStart].toLong(), 0xff).toInt()
@@ -445,12 +441,10 @@ class Deflate {
     }
 
     internal fun deflateFast(flush: Int): Int {
-        ZlibLogger.log("[DEBUG_FAST] deflateFast called: flush=$flush, lookAhead=$lookAhead, strStart=$strStart")
         var hashHead = 0
         var bflush: Boolean
         while (true) {
             if (lookAhead < MIN_LOOKAHEAD) {
-                ZlibLogger.log("[DEBUG_FAST] Need more input, calling fillWindow")
                 fillWindow()
                 if (lookAhead < MIN_LOOKAHEAD && flush == Z_NO_FLUSH) return NEED_MORE
                 if (lookAhead == 0) break
@@ -505,7 +499,6 @@ class Deflate {
                 }
             } else {
                 val literal = window[strStart].toInt() and 0xff
-                ZlibLogger.log("[DEBUG_FAST] Processing literal from window[$strStart]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
                 bflush = trTally(0, literal)
                 lookAhead--
                 strStart++
@@ -582,7 +575,6 @@ class Deflate {
                 }
             } else if (matchAvailable != 0) {
                 val literal = window[strStart - 1].toInt() and 0xff
-                ZlibLogger.log("[DEBUG_SLOW] Processing literal from window[${strStart - 1}]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
                 bflush = trTally(0, literal)
                 matchAvailable = 0
                 if (bflush) {
@@ -600,41 +592,11 @@ class Deflate {
         
         if (matchAvailable != 0) {
             val literal = window[strStart - 1].toInt() and 0xff
-            ZlibLogger.log("[DEBUG_SLOW_END] Final literal from window[${strStart - 1}]: $literal (char='${if (literal in 32..126) literal.toChar() else "?"}')")
             trTally(0, literal)
             matchAvailable = 0
         }
         
-        // Handle edge case for small inputs: ensure all input bytes are processed
-        // The lazy matching algorithm can skip bytes at the end for small inputs
-        val totalInputBytes = strm.totalIn.toInt()
-        // Only convert totalIn to Int if we are in the small input range
-        if (strm.totalIn >= 2 && strm.totalIn <= 10) {
-            val totalInputBytes = strm.totalIn.toInt()
-            ZlibLogger.log("[DEBUG_DEFLATE_END] Small input ($totalInputBytes bytes): checking for missed bytes, strStart=$strStart")
-            
-            // For small inputs, the lazy matching algorithm may skip processing some bytes
-            // We need to process any bytes that are in the window but weren't processed yet
-            if (totalInputBytes == 2 && strStart == 2) {
-                // Special case for 2-byte input like "AB"
-                val secondByte = window[1].toInt() and 0xff
-                ZlibLogger.log("[DEBUG_DEFLATE_END] Processing missed second byte: $secondByte (${if (secondByte in 32..126) secondByte.toChar() else "?"})")
-                trTally(0, secondByte)
-            } else if (totalInputBytes > 2) {
-                // For longer small inputs, we need a more general approach
-                // The issue is that strStart may be ahead of what was actually processed
-                // For now, add a heuristic fix for common small input sizes
-                ZlibLogger.log("[DEBUG_DEFLATE_END] TODO: Handle $totalInputBytes byte input - this may fail")
-                // For longer small inputs, process any missed bytes in the window
-                // The issue is that strStart may be ahead of what was actually processed
-                for (i in strStart until totalInputBytes) {
-                    val missedByte = window[i].toInt() and 0xff
-                    ZlibLogger.log("[DEBUG_DEFLATE_END] Processing missed byte at window[$i]: $missedByte (${if (missedByte in 32..126) missedByte.toChar() else "?"})")
-                    trTally(0, missedByte)
-                }
-            }
-        }
-        
+
         flushBlockOnly(flush == Z_FINISH)
         if (strm.availOut == 0) {
             return if (flush == Z_FINISH) FINISH_STARTED else NEED_MORE
@@ -907,7 +869,20 @@ class Deflate {
         }
         if (strm.availIn != 0 || lookAhead != 0 || (flush != Z_NO_FLUSH && status != FINISH_STATE)) {
             var bstate = -1
-            when (config_table[level].func) {
+            val algorithmFunc = config_table[level].func
+            
+            // Use FAST algorithm for small inputs to avoid lazy matching issues
+            // The SLOW algorithm has problems with inputs ≤ SMALL_INPUT_THRESHOLD bytes where lookAhead < MIN_LOOKAHEAD
+            val useAlgorithm = if (algorithmFunc == SLOW && strm.totalIn <= SMALL_INPUT_THRESHOLD) {
+                if (DEBUG) {
+                    ZlibLogger.log("[DEBUG_ALGORITHM] Using FAST instead of SLOW for small input (${strm.totalIn} bytes)")
+                }
+                FAST
+            } else {
+                algorithmFunc
+            }
+            
+            when (useAlgorithm) {
                 STORED -> bstate = deflateStored(flush)
                 FAST -> bstate = deflateFast(flush)
                 SLOW -> bstate = deflateSlow(flush)
