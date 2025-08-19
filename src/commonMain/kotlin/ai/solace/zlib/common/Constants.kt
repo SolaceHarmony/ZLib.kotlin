@@ -336,3 +336,9 @@ const val ICODES_BADCODE = 9
  * Inputs of this size or smaller use FAST algorithm instead of SLOW to avoid lazy matching issues.
  */
 const val SMALL_INPUT_THRESHOLD = 10
+
+/**
+ * DEBUG = false: Debug flag for enabling verbose logging during deflate operations.
+ * When enabled, additional debugging information is logged to help with troubleshooting.
+ */
+const val DEBUG = false
