@@ -625,7 +625,13 @@ class Deflate {
                 // The issue is that strStart may be ahead of what was actually processed
                 // For now, add a heuristic fix for common small input sizes
                 ZlibLogger.log("[DEBUG_DEFLATE_END] TODO: Handle $totalInputBytes byte input - this may fail")
-                // TODO: This needs a proper fix for longer strings
+                // For longer small inputs, process any missed bytes in the window
+                // The issue is that strStart may be ahead of what was actually processed
+                for (i in strStart until totalInputBytes) {
+                    val missedByte = window[i].toInt() and 0xff
+                    ZlibLogger.log("[DEBUG_DEFLATE_END] Processing missed byte at window[$i]: $missedByte (${if (missedByte in 32..126) missedByte.toChar() else "?"})")
+                    trTally(0, missedByte)
+                }
             }
         }
         
