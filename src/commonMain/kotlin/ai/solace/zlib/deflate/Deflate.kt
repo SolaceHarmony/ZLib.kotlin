@@ -608,7 +608,9 @@ class Deflate {
         // Handle edge case for small inputs: ensure all input bytes are processed
         // The lazy matching algorithm can skip bytes at the end for small inputs
         val totalInputBytes = strm.totalIn.toInt()
-        if (totalInputBytes >= 2 && totalInputBytes <= 10) {
+        // Only convert totalIn to Int if we are in the small input range
+        if (strm.totalIn >= 2 && strm.totalIn <= 10) {
+            val totalInputBytes = strm.totalIn.toInt()
             ZlibLogger.log("[DEBUG_DEFLATE_END] Small input ($totalInputBytes bytes): checking for missed bytes, strStart=$strStart")
             
             // For small inputs, the lazy matching algorithm may skip processing some bytes
