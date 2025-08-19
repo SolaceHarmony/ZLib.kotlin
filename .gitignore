@@ -10,4 +10,15 @@ Repository cleaned of bot references
 .DS_Store
 .idea/
 .continue/mcpServers/new-mcp-server.yaml
+
+# Log files
 zlib.log
+
+# Test files and debug files
+test*.txt
+test*.zz  
+test*.zlib
+demo_*.txt
+demo_*.zz
+debug_*.kt
+simple_test.kt
