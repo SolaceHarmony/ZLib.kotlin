@@ -13,6 +13,7 @@ class MulticharacterFixTest {
     fun testVariousSmallInputs() {
         println("=== Testing Various Small Inputs ===")
         
+        
         // Test strings of different lengths to verify fix coverage
         val testStrings = listOf(
             "A",
