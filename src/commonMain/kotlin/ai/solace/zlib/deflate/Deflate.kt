@@ -840,8 +840,12 @@ class Deflate {
         lastFlush = flush
         if (status == INIT_STATE) {
             var header: Int = (Z_DEFLATED + ((wBits - 8) shl 4)) shl 8
-            var levelFlagsLocal: Int = ((this.level - 1) and 0xff) shr 1
-            if (levelFlagsLocal > 3) levelFlagsLocal = 3
+            val levelFlagsLocal = when {
+                this.level <= 0 -> 0
+                this.level in 1..3 -> 1
+                this.level in 4..6 -> 2
+                else -> 3
+            }
             header = header or (levelFlagsLocal shl 6)
             if (strStart != 0) header = header or PRESET_DICT
             header += 31 - (header % 31)
