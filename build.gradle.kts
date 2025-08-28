@@ -10,7 +10,12 @@ kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }
-    
+
+    // Add JVM target so tests can run without downloading native toolchains
+    jvm {
+        withJava()
+    }
+
     // Only include Linux x64 for now to avoid network dependency issues
     linuxX64 {
         binaries {
@@ -52,6 +57,14 @@ kotlin {
             dependsOn(commonMain)
         }
         val nativeTest by creating {
+            dependsOn(commonTest)
+        }
+
+        // JVM source sets
+        val jvmMain by getting {
+            dependsOn(commonMain)
+        }
+        val jvmTest by getting {
             dependsOn(commonTest)
         }
 
