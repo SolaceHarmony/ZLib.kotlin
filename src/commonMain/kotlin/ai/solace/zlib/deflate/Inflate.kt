@@ -335,7 +335,10 @@ internal class Inflate {
                     }
                     ZlibLogger.logInflate("Blocks processing complete! Transitioning to checksum verification")
                     r = fMut
-                    z.iState!!.blocks!!.reset(z, z.iState!!.was)
+                    // Capture computed checksum before resetting blocks, as reset() clears z.adler
+                    val computedCheck = z.adler
+                    z.iState!!.blocks!!.reset(z, null)
+                    z.iState!!.was[0] = computedCheck
                     if (z.iState!!.nowrap != 0) {
                         ZlibLogger.logInflate("Raw deflate mode (nowrap=${z.iState!!.nowrap}), going to INF_DONE")
                         z.iState!!.mode = INF_DONE
