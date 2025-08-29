@@ -50,7 +50,7 @@ class Adler32Utils {
                 b %= ADLER_BASE
             }
 
-            return (b shl 16) or (a and 0xFFFF)
+            return ((b and 0xFFFF) shl 16) or (a and 0xFFFF)
         }
     }
 }
