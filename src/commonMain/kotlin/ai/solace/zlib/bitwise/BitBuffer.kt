@@ -52,13 +52,17 @@ class BitBuffer {
         
         // Get the lowest N bits
         val result = buffer and BitwiseOps.createMask(bits)
-        
-        // Shift the buffer right by N bits, effectively removing the consumed bits
-        buffer = buffer ushr bits
-        
+
+        // Shift the buffer or clear it if consuming all bits
+        if (bits >= 32 || bitCount - bits == 0) {
+            buffer = 0
+        } else {
+            buffer = buffer ushr bits
+        }
+
         // Update the bit count
         bitCount -= bits
-        
+
         return result
     }
     
