@@ -89,6 +89,21 @@ class BitBufferTest {
         buffer.addByte(0x5A.toByte())
         assertFailsWith<IllegalArgumentException> { buffer.consumeBits(9) }
     }
+
+    @Test
+    fun testConsume32BitsClearsBuffer() {
+        val buffer = BitBuffer()
+
+        // Fill the buffer with 32 bits
+        repeat(4) { buffer.addByte(0xFF.toByte()) }
+        assertEquals(32, buffer.getBitCount())
+
+        // Consume all 32 bits and verify the buffer is cleared
+        val result = buffer.consumeBits(32)
+        assertEquals(-1, result)
+        assertEquals(0, buffer.getBitCount())
+        assertEquals(0, buffer.getBuffer())
+    }
     
     @Test
     fun testHasEnoughBits() {
