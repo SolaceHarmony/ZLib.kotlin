@@ -114,6 +114,9 @@ class ZLibCompression {
 
                     // Add what we've already decompressed
                     val firstChunkSize = output.size - stream.availOut
+                    if (firstChunkSize == 0 && stream.availIn == 0) {
+                        throw ZStreamException("Truncated input: no progress during inflate")
+                    }
                     if (firstChunkSize > 0) {
                         chunks.add(output.copyOf(firstChunkSize))
                         totalSize += firstChunkSize
@@ -135,6 +138,9 @@ class ZLibCompression {
 
                         // Add this chunk to our list if it has any data
                         val chunkSize = nextBuffer.size - stream.availOut
+                        if (chunkSize == 0 && stream.availIn == 0) {
+                            throw ZStreamException("Truncated input: no progress during inflate")
+                        }
                         if (chunkSize > 0) {
                             chunks.add(nextBuffer.copyOf(chunkSize))
                             totalSize += chunkSize
