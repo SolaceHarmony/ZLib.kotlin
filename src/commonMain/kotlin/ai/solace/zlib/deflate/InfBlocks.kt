@@ -361,10 +361,11 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     while (index < totalCodes) {
                         val needBits = bb[0]
                         while (bitsInBuffer < needBits) {
-                            if (z.availIn == 0) {
+                            if (bytesAvailable == 0) {
                                 bitb = bitBuffer
                                 bitk = bitsInBuffer
                                 z.availIn = bytesAvailable
+                                z.nextInIndex = inputPointer
                                 return Z_BUF_ERROR
                             }
                             bytesAvailable--
