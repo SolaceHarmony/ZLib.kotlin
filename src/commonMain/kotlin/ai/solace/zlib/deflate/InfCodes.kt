@@ -45,6 +45,7 @@ package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.* // Import all constants
 import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
+import ai.solace.zlib.deflate.Adler32
 
 internal class InfCodes {
     private val bitwiseOps = ArithmeticBitwiseOps.BITS_32
@@ -493,7 +494,9 @@ internal class InfCodes {
                             }
                         }
 
-                        s.window[outputWritePointer++] = s.window[outputPointer++]
+                        val copiedByte = s.window[outputPointer++]
+                        s.window[outputWritePointer++] = copiedByte
+                        updateChecksum(s, z, copiedByte)  // Update checksum for copied byte
                         if (outputWritePointer == s.end) outputWritePointer = 0
                         outputBytesLeft--
 
@@ -532,7 +535,10 @@ internal class InfCodes {
                     }
                     result = Z_OK
 
-                    s.window[outputWritePointer++] = literal.toByte()
+                    val literalByte = literal.toByte()
+                    ZlibLogger.log("[DEBUG_LITERAL] Writing literal byte: ${literalByte.toInt()} (${literalByte.toInt().toChar()})")
+                    s.window[outputWritePointer++] = literalByte
+                    updateChecksum(s, z, literalByte)  // Update checksum for literal byte
                     if (outputWritePointer == s.end) outputWritePointer = 0
                     outputBytesLeft--
 
@@ -746,6 +752,7 @@ internal class InfCodes {
                 val fastLiteralByte = bitwiseOps.and(value.toLong(), 0xFFL).toByte()  // Mask to byte range
                 ZlibLogger.log("[DEBUG_LOG] inflateFast - Writing literal: '${fastLiteralByte.toInt().toChar()}' (${fastLiteralByte.toInt()}) to window[$outputWritePointer]")
                 s.window[outputWritePointer++] = fastLiteralByte
+                updateChecksum(s, z, fastLiteralByte)  // Update checksum for fast literal
                 if (outputWritePointer == s.end) outputWritePointer = 0
                 outputBytesLeft--
                 continue
@@ -782,6 +789,7 @@ internal class InfCodes {
                     val literalByte = bitwiseOps.and(innerValue.toLong(), 0xFFL).toByte()  // Mask to byte range
                     ZlibLogger.log("[DEBUG_LOG] inflateFast - Writing literal: '${literalByte.toInt().toChar()}' (${literalByte.toInt()}) to window[$outputWritePointer]")
                     s.window[outputWritePointer++] = literalByte
+                    updateChecksum(s, z, literalByte)  // Update checksum for inner literal
                     if (outputWritePointer == s.end) outputWritePointer = 0
                     outputBytesLeft--
                     break
@@ -1144,6 +1152,32 @@ internal class InfCodes {
         ZlibLogger.log("[DEBUG_LOG] inflateFast ended: s.write=${s.write}")
 
         return Z_OK
+    }
+
+    /**
+     * Updates the Adler32 checksum with a single byte of decompressed data.
+     * This should be called whenever data is written to the sliding window during decompression.
+     */
+    private fun updateChecksum(s: InfBlocks, z: ZStream, byte: Byte) {
+        if (s.checkfn != null) {
+            // Create a single-byte array for the checksum calculation
+            val byteArray = byteArrayOf(byte)
+            val oldAdler = z.adler
+            z.adler = Adler32().adler32(z.adler, byteArray, 0, 1)
+            ZlibLogger.log("[DEBUG_CHECKSUM_UPDATE] Updated adler from $oldAdler to ${z.adler} for byte: ${byte.toInt()}")
+        } else {
+            ZlibLogger.log("[DEBUG_CHECKSUM_UPDATE] Skipped checksum update (checkfn is null) for byte: ${byte.toInt()}")
+        }
+    }
+
+    /**
+     * Updates the Adler32 checksum with multiple bytes from a buffer.
+     * More efficient than updating byte-by-byte.
+     */
+    private fun updateChecksumRange(s: InfBlocks, z: ZStream, buffer: ByteArray, start: Int, length: Int) {
+        if (s.checkfn != null && length > 0) {
+            z.adler = Adler32().adler32(z.adler, buffer, start, length)
+        }
     }
 
     companion object {
