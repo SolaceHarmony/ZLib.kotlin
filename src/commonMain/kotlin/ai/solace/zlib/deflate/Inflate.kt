@@ -337,6 +337,7 @@ internal class Inflate {
                     r = fMut
                     // Capture computed checksum before resetting blocks, as reset() clears z.adler
                     val computedCheck = z.adler
+                    ZlibLogger.log("[DEBUG_CHECKSUM] About to capture checksum: z.adler=$computedCheck, totalOut=${z.totalOut}")
                     z.iState!!.blocks!!.reset(z, null)
                     z.iState!!.was[0] = computedCheck
                     if (z.iState!!.nowrap != 0) {
