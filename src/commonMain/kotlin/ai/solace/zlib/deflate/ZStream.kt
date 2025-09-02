@@ -169,11 +169,14 @@ class ZStream {
      * @return Z_OK, Z_STREAM_END, or error code
      */
     fun inflate(f: Int): Int {
+        println("=== ZStream.inflate CALLED with f=$f ===")
         ZlibLogger.debug("=== ZStream.inflate CALLED with f=$f ===")
         if (iState == null) {
+            println("ZStream.inflate: iState is null, returning Z_STREAM_ERROR")
             ZlibLogger.debug("ZStream.inflate: iState is null, returning Z_STREAM_ERROR")
             return Z_STREAM_ERROR
         }
+        println("ZStream.inflate: Delegating to iState.inflate")
         ZlibLogger.debug("ZStream.inflate: Delegating to iState.inflate")
         return iState!!.inflate(this, f)
     }
