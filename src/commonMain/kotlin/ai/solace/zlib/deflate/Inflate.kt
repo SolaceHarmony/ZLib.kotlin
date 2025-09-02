@@ -46,6 +46,7 @@ package ai.solace.zlib.deflate
 
 import ai.solace.zlib.common.*
 import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
+import ai.solace.zlib.deflate.Adler32
 
 /**
  * Internal implementation of the decompression algorithm.
@@ -336,9 +337,23 @@ internal class Inflate {
                     ZlibLogger.logInflate("Blocks processing complete! Transitioning to checksum verification")
                     r = fMut
                     // Capture computed checksum before resetting blocks, as reset() clears z.adler
-                    val computedCheck = z.adler
+                    var computedCheck = z.adler
+                    ZlibLogger.log("[DEBUG_CHECKSUM] About to capture checksum: z.adler=$computedCheck, totalOut=${z.totalOut}")
+                    
+                    // If checksum wasn't updated during decompression (still at initial value 1),
+                    // calculate it from the actual decompressed output data
+                    if (computedCheck == 1L && z.totalOut > 0 && z.nextOut != null) {
+                        val startIndex = z.nextOutIndex - z.totalOut.toInt()
+                        val adler32 = Adler32()
+                        computedCheck = adler32.adler32(1L, z.nextOut!!, startIndex, z.totalOut.toInt())
+                        z.adler = computedCheck
+                        ZlibLogger.log("[DEBUG_CHECKSUM_MANUAL] Manually calculated checksum from output: $computedCheck")
+                    }
+                    
                     z.iState!!.blocks!!.reset(z, null)
                     z.iState!!.was[0] = computedCheck
+                    // Restore the checksum to z.adler since reset() may have cleared it
+                    z.adler = computedCheck
                     if (z.iState!!.nowrap != 0) {
                         ZlibLogger.logInflate("Raw deflate mode (nowrap=${z.iState!!.nowrap}), going to INF_DONE")
                         z.iState!!.mode = INF_DONE

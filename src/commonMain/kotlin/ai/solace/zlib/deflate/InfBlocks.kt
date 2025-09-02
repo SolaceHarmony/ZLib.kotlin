@@ -123,9 +123,13 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         ZlibLogger.debug("[RESET_DEBUG] InfBlocks reset: read=$read, write=$write, window size=${window.size}")
 
         // Reset checksum if we have a checksum function
-        if (checkfn != null && z != null) {
+        // BUT only if c is null (indicating we're not in the middle of checksum verification)
+        if (checkfn != null && z != null && c == null) {
             z.adler = Adler32().adler32(0L, null, 0, 0)
             check = z.adler
+            ZlibLogger.debug("[RESET_DEBUG] Reset checksum to initial value: ${z.adler}")
+        } else if (checkfn != null && z != null) {
+            ZlibLogger.debug("[RESET_DEBUG] Preserving checksum during verification: ${z.adler}")
         }
     }
 
@@ -361,10 +365,11 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
                     while (index < totalCodes) {
                         val needBits = bb[0]
                         while (bitsInBuffer < needBits) {
-                            if (z.availIn == 0) {
+                            if (bytesAvailable == 0) {
                                 bitb = bitBuffer
                                 bitk = bitsInBuffer
                                 z.availIn = bytesAvailable
+                                z.nextInIndex = inputPointer
                                 return Z_BUF_ERROR
                             }
                             bytesAvailable--
@@ -491,11 +496,15 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
                 IBLK_DRY -> {
                     write = outputPointer  // Save current position; inflateFlush may modify write
+                    ZlibLogger.log("[DEBUG_ADLER_DRY] IBLK_DRY: Before flush - read=$read, write=$write, outputPointer=$outputPointer")
                     val result = z.inflateFlush(returnCode)
+                    ZlibLogger.log("[DEBUG_ADLER_DRY] IBLK_DRY: After first flush - read=$read, write=$write, result=$result")
                     // Restore position (write may have been modified by inflateFlush)
                     if (read != write) {
+                        ZlibLogger.log("[DEBUG_ADLER_DRY] IBLK_DRY: Calling second flush because read($read) != write($write)")
                         return z.inflateFlush(result)
                     }
+                    ZlibLogger.log("[DEBUG_ADLER_DRY] IBLK_DRY: Skipping second flush, returning Z_STREAM_END")
                     mode = IBLK_DONE
                     return Z_STREAM_END
                 }
@@ -580,8 +589,10 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         )
 
         // Update checksum using the exact window segment just flushed
+        val oldAdler = z.adler
         z.adler = Adler32().adler32(z.adler, window, winRead, avail)
         this.check = z.adler
+        ZlibLogger.log("[DEBUG_ADLER_FLUSH] inflateFlush: updated adler from $oldAdler to ${z.adler} (flushed $avail bytes from window[$winRead..$avail])")
 
         nextOut += avail
         winRead += avail
