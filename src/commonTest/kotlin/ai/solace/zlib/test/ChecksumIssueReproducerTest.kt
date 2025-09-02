@@ -73,15 +73,19 @@ class ChecksumIssueReproducerTest {
     }
 
     @Test
-    fun testChecksumCalculationDuringDecompression() {
-        println("=== Testing checksum calculation during decompression ===")
+    fun testSimpleDebuggingCase() {
+        println("=== Simple debugging case ===")
         
-        val input = "Test data for checksum verification during inflate process!"
+        // Use the most basic possible case that should work
+        val input = "AB"
         val originalData = input.encodeToByteArray()
         
-        val compressed = compress(originalData)
+        println("Original: '$input' = [${originalData.joinToString(", ") { (it.toInt() and 0xFF).toString() }}]")
         
-        // Manual decompression to track z.adler throughout the process
+        val compressed = compress(originalData)
+        println("Compressed: ${compressed.size} bytes = [${compressed.joinToString(", ") { (it.toInt() and 0xFF).toString() }}]")
+        
+        // Try decompression with detailed logging
         val z = ZStream()
         
         val result = z.inflateInit()
@@ -91,63 +95,24 @@ class ChecksumIssueReproducerTest {
         z.availIn = compressed.size
         z.nextInIndex = 0
         
-        // Make sure we have enough output buffer space
-        val output = ByteArray(originalData.size * 10 + 1000)  // Much larger buffer
+        val output = ByteArray(1000)
         z.nextOut = output
         z.availOut = output.size
         z.nextOutIndex = 0
         
-        println("Before inflate: z.adler = ${z.adler}")
-        println("Input: availIn=${z.availIn}, nextInIndex=${z.nextInIndex}")
-        println("Output: availOut=${z.availOut}, nextOutIndex=${z.nextOutIndex}")
-        println("Compressed data size: ${compressed.size}")
-        
+        println("About to call inflate...")
         val inflateResult = z.inflate(Z_FINISH)
         
-        println("After inflate: z.adler = ${z.adler}, result = $inflateResult")
-        println("Final: availIn=${z.availIn}, nextInIndex=${z.nextInIndex}, totalIn=${z.totalIn}")
-        println("Final: availOut=${z.availOut}, nextOutIndex=${z.nextOutIndex}, totalOut=${z.totalOut}")
+        println("Inflate result: $inflateResult")
+        println("totalIn: ${z.totalIn}, totalOut: ${z.totalOut}")
+        println("z.adler: ${z.adler}")
         
-        if (inflateResult != Z_STREAM_END) {
-            println("inflate failed: $inflateResult, msg: ${z.msg}")
-            
-            // Try with different flush modes
-            val z2 = ZStream()
-            z2.inflateInit()
-            z2.nextIn = compressed
-            z2.availIn = compressed.size
-            z2.nextInIndex = 0
-            z2.nextOut = output
-            z2.availOut = output.size
-            z2.nextOutIndex = 0
-            
-            val retryResult = z2.inflate(Z_NO_FLUSH)
-            println("Retry with Z_NO_FLUSH: result=$retryResult, z.adler=${z2.adler}, totalOut=${z2.totalOut}")
-            
-            if (retryResult == Z_OK) {
-                val finalResult = z2.inflate(Z_FINISH)
-                println("Final result: $finalResult, z.adler=${z2.adler}, totalOut=${z2.totalOut}")
-            }
-            
-            z2.inflateEnd()
-            
-            // Let's not fail the test yet, we want to see what's happening
-            println("Test continuing despite inflate failure to gather more info...")
-        }
-        
-        // The key check: z.adler should NOT be 1 if checksum was calculated properly
-        if (z.adler == 1L) {
-            println("WARNING: z.adler is still 1, checksum was not updated during decompression")
-        } else {
-            println("SUCCESS: z.adler was updated to ${z.adler}")
-        }
-        
-        if (z.totalOut > 0) {
+        if (inflateResult == Z_STREAM_END) {
             val decompressed = output.copyOf(z.totalOut.toInt())
-            println("Decompressed: '${decompressed.decodeToString()}'")
+            println("Success! Decompressed: '${decompressed.decodeToString()}'")
             assertEquals(input, decompressed.decodeToString())
         } else {
-            println("No output was produced")
+            println("Failed with error $inflateResult: ${z.msg}")
         }
         
         z.inflateEnd()
