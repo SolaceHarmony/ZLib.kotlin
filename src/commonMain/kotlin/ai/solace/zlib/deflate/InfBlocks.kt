@@ -123,9 +123,13 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
         ZlibLogger.debug("[RESET_DEBUG] InfBlocks reset: read=$read, write=$write, window size=${window.size}")
 
         // Reset checksum if we have a checksum function
-        if (checkfn != null && z != null) {
+        // BUT only if c is null (indicating we're not in the middle of checksum verification)
+        if (checkfn != null && z != null && c == null) {
             z.adler = Adler32().adler32(0L, null, 0, 0)
             check = z.adler
+            ZlibLogger.debug("[RESET_DEBUG] Reset checksum to initial value: ${z.adler}")
+        } else if (checkfn != null && z != null) {
+            ZlibLogger.debug("[RESET_DEBUG] Preserving checksum during verification: ${z.adler}")
         }
     }
 

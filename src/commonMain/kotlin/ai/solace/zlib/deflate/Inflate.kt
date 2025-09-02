@@ -352,6 +352,8 @@ internal class Inflate {
                     
                     z.iState!!.blocks!!.reset(z, null)
                     z.iState!!.was[0] = computedCheck
+                    // Restore the checksum to z.adler since reset() may have cleared it
+                    z.adler = computedCheck
                     if (z.iState!!.nowrap != 0) {
                         ZlibLogger.logInflate("Raw deflate mode (nowrap=${z.iState!!.nowrap}), going to INF_DONE")
                         z.iState!!.mode = INF_DONE
