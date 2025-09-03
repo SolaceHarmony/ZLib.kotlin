@@ -824,6 +824,7 @@ class Deflate {
     }
 
     internal fun deflate(strm: ZStream, flush: Int): Int {
+        error("BROKEN: The deflate compression function is known to be broken due to arithmetic bitwise operations. Use external compression tools like pigz instead.")
         if (flush > Z_FINISH || flush < 0) {
             return Z_STREAM_ERROR
         }
