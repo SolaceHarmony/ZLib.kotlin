@@ -36,7 +36,7 @@ class BitShiftEngine(
             16 -> 0xFFFFL
             32 -> 0xFFFFFFFFL
             64 -> 0x7FFFFFFFFFFFFFFFL // Use max signed long to avoid overflow
-            else -> throw IllegalArgumentException("Unsupported bit width: $bitWidth") // TODO(detekt: UseRequire): replace with require
+            else -> error("Unsupported bit width: $bitWidth")
         }
 
     private val arithmeticOps = if (bitWidth in 1..32) ArithmeticBitwiseOps(bitWidth) else null
@@ -61,7 +61,7 @@ class BitShiftEngine(
                         16 -> (originalValue.toInt() shl bits).toLong()
                         32 -> (originalValue.toInt() shl bits).toLong()
                         64 -> originalValue shl bits
-                        else -> throw IllegalStateException("Unexpected bitWidth in native leftShift: $bitWidth") // TODO(detekt: UseCheckOrError)
+                        else -> error("Unexpected bitWidth in native leftShift: $bitWidth")
                     }
 
                 val result = normalize(shiftedValue)
@@ -116,7 +116,7 @@ class BitShiftEngine(
                         16 -> ((originalValue.toInt() and 0xFFFF) ushr bits).toLong()
                         32 -> (originalValue.toInt() ushr bits).toLong()
                         64 -> originalValue ushr bits
-                        else -> throw IllegalStateException("Unexpected bitWidth in native rightShift: $bitWidth") // TODO(detekt: UseCheckOrError)
+                        else -> error("Unexpected bitWidth in native rightShift: $bitWidth")
                     }
 
                 ShiftResult(normalize(result), 0L, false)
@@ -153,7 +153,7 @@ class BitShiftEngine(
                         16 -> (originalValue.toInt() and 0xFFFF) ushr bits
                         32 -> (originalValue.toInt() ushr bits).toLong()
                         64 -> originalValue ushr bits
-                        else -> throw IllegalStateException("Unexpected bitWidth in native unsignedRightShift: $bitWidth") // TODO(detekt: UseCheckOrError)
+                        else -> error("Unexpected bitWidth in native unsignedRightShift: $bitWidth")
                     }
 
                 ShiftResult(normalize(result.toLong()), 0L, false)
@@ -179,7 +179,7 @@ class BitShiftEngine(
             16 -> value and 0xFFFFL
             32 -> value and 0xFFFFFFFFL
             64 -> value
-            else -> throw IllegalStateException("Unexpected bitWidth in normalize: $bitWidth") // TODO(detekt: UseCheckOrError)
+            else -> error("Unexpected bitWidth in normalize: $bitWidth")
         }
     }
 
