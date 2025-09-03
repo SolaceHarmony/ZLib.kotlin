@@ -1,5 +1,6 @@
 package ai.solace.zlib.clean
 
+import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
 import ai.solace.zlib.common.*
 
 /**
@@ -9,6 +10,9 @@ import ai.solace.zlib.common.*
  * - Zlib wrapper parsing (CMF/FLG) included.
  */
 object CleanDeflate {
+    private val ops = ArithmeticBitwiseOps.BITS_32
+    private val ops8 = ArithmeticBitwiseOps.BITS_8
+    
     private fun buildFixedLiteralTable(): CanonicalHuffman.FullTable {
         // RFC1951: fixed lit/len lengths
         val lens = IntArray(288)
@@ -32,11 +36,13 @@ object CleanDeflate {
         val b1 = readByte(br)
         val cmf = b0
         val flg = b1
-        val cm = cmf and 0x0F
-        val cinfo = (cmf ushr 4) and 0x0F
+        // Use arithmetic operations instead of native bitwise
+        val cm = ops.and(cmf.toLong(), 0x0FL).toInt()
+        val cinfo = ops.and(ops.rightShift(cmf.toLong(), 4), 0x0FL).toInt()
         if (cm != Z_DEFLATED || cinfo > 7) return false
-        if (((cmf shl 8) + flg) % 31 != 0) return false
-        val presetDict = (flg and PRESET_DICT) != 0
+        // Use arithmetic operations instead of native bitwise
+        if ((ops.or(ops.leftShift(cmf.toLong(), 8), flg.toLong()).toInt() % 31) != 0) return false
+        val presetDict = ops.and(flg.toLong(), PRESET_DICT.toLong()) != 0L
         if (presetDict) {
             // skip 4-byte DICTID
             repeat(4) { readByte(br) }
