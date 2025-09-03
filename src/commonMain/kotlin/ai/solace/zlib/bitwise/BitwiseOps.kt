@@ -15,9 +15,7 @@ package ai.solace.zlib.bitwise
  *
  * This class now integrates with BitShiftEngine for configurable operation modes.
  */
-// TODO(detekt: UtilityClassWithPublicConstructor): convert to object or hide constructor
-class BitwiseOps {
-    companion object {
+object BitwiseOps {
         // Default engines for common operations
         private val defaultEngine32 = BitShiftEngine(BitShiftMode.NATIVE, 32)
         @Suppress("UnusedPrivateProperty") // TODO(detekt): remove if truly unused
@@ -510,5 +508,4 @@ class BitwiseOps {
         ): Long {
             return engine.unsignedRightShift(number, bits).value
         }
-    }
 }

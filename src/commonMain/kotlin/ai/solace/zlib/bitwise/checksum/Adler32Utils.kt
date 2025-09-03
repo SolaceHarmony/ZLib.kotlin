@@ -18,8 +18,7 @@ import ai.solace.zlib.common.ADLER_NMAX
  * This simplified version avoids the previous bit-shift engine abstraction
  * which produced incorrect results on some platforms.
  */
-class Adler32Utils {
-    companion object {
+object Adler32Utils {
         /**
          * Calculates or updates an Adler-32 checksum.
          *
@@ -56,5 +55,4 @@ class Adler32Utils {
 
             return ((b and 0xFFFF) shl 16) or (a and 0xFFFF)
         }
-    }
 }
