@@ -282,7 +282,7 @@ class Deflate {
         //     println("CRITICAL_DEBUG: Recording LITERAL: $lc (ASCII '${if (lc in 32..126) lc.toChar() else "?"}')")
         // }
         
-        ZlibLogger.log("[DEBUG_TALLY] trTally called: dist=$dist, lc=$lc (char='${if (lc in 32..126) lc.toChar() else "?"}'), lastLit=$lastLit")
+        ZlibLogger.log("[DEBUG_LOG] [DEBUG_TALLY] trTally called: dist=$dist, lc=$lc (char='${if (lc in 32..126) lc.toChar() else "?"}'), lastLit=$lastLit")
         
         pendingBuf[dBuf + lastLit * 2] = bitwiseOps.rightShift(dist.toLong(), 8).toByte()
         pendingBuf[dBuf + lastLit * 2 + 1] = dist.toByte()
@@ -290,10 +290,10 @@ class Deflate {
         lastLit++
 
         if (dist == 0) {
-            ZlibLogger.log("[DEBUG_TALLY] Recording literal: $lc (char='${if (lc in 32..126) lc.toChar() else "?"}')")
+            ZlibLogger.log("[DEBUG_LOG] [DEBUG_TALLY] Recording literal: $lc (char='${if (lc in 32..126) lc.toChar() else "?"}')")
             dynLtree[lc * 2]++
         } else {
-            ZlibLogger.log("[DEBUG_TALLY] Recording match: dist=$dist, lc=$lc")
+            ZlibLogger.log("[DEBUG_LOG] [DEBUG_TALLY] Recording match: dist=$dist, lc=$lc")
             matches++
             val distVal = dist - 1
             dynLtree[(TREE_LENGTH_CODE[lc].toInt() + LITERALS + 1) * 2]++

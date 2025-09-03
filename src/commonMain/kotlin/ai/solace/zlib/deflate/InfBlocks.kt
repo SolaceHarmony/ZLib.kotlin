@@ -167,8 +167,39 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
 
         ZlibLogger.logInflate("Initial state: inputPointer=$inputPointer, bytesAvailable=$bytesAvailable, bitBuffer=$bitBuffer, bitsInBuffer=$bitsInBuffer")
 
+        // Safety: prevent infinite loops by capping iterations proportionally to window size
+        val maxIterations = end * 8 // tighter cap
+        var iterationCount = 0
+        // Progress guard: detect no movement in input/output state
+        var stagnantCount = 0
+        var prevInIdx = z.nextInIndex
+        var prevInAvail = z.availIn
+        var prevOutIdx = z.nextOutIndex
+        var prevOutAvail = z.availOut
+
         // Process input and output based on current state
         while (true) {
+            iterationCount++
+            if (iterationCount > maxIterations) {
+                z.msg = "InfBlocks.proc: too many iterations (${iterationCount} > ${maxIterations}); possible infinite loop or corrupt data"
+                ZlibLogger.log("[DEBUG_LOG] InfBlocks.proc - exceeded iteration cap: iter=$iterationCount, max=$maxIterations, windowSize=$end, mode=$mode, availIn=$bytesAvailable, availOut=${z.availOut}")
+                return Z_DATA_ERROR
+            }
+            // Detect lack of progress
+            if (z.nextInIndex == prevInIdx && z.availIn == prevInAvail && z.nextOutIndex == prevOutIdx && z.availOut == prevOutAvail) {
+                stagnantCount++
+                if (stagnantCount > end) {
+                    z.msg = "InfBlocks.proc: no progress for $stagnantCount iterations; mode=$mode"
+                    ZlibLogger.logInfBlocks("[DEBUG_LOG] No progress: mode=$mode, availIn=${z.availIn}, availOut=${z.availOut}, bitk=$bitk, bitb=$bitb")
+                    return Z_DATA_ERROR
+                }
+            } else {
+                stagnantCount = 0
+                prevInIdx = z.nextInIndex
+                prevInAvail = z.availIn
+                prevOutIdx = z.nextOutIndex
+                prevOutAvail = z.availOut
+            }
             ZlibLogger.logInflate("Processing block mode=$mode, bitBuffer=0x${bitBuffer.toString(16)}, bitsInBuffer=$bitsInBuffer")
             when (mode) {
                 IBLK_TYPE -> {
@@ -564,56 +595,7 @@ class InfBlocks(z: ZStream, internal val checkfn: Any?, w: Int) {
      * Mirrors the behaviour of zlib’s inflate_flush().
      */
     internal fun inflateFlush(z: ZStream?, r: Int): Int {
-        val result = r
-        if (z == null) {
-            return Z_STREAM_ERROR
-        }
-
-        var avail = z.availOut
-        var nextOut = z.nextOutIndex
-        var winRead = read
-
-        // Determine how many bytes can be copied in one go.
-        val count = if (winRead <= write) write - winRead else end - winRead
-        if (avail > count) avail = count
-        if (avail == 0) {
-            return result     // Nothing to copy
-        }
-
-        // First copy (may wrap later)
-        window.copyInto(
-            destination = z.nextOut!!,
-            destinationOffset = nextOut,
-            startIndex = winRead,
-            endIndex = winRead + avail
-        )
-
-        // Update checksum using the exact window segment just flushed
-        val oldAdler = z.adler
-        z.adler = Adler32().adler32(z.adler, window, winRead, avail)
-        this.check = z.adler
-        ZlibLogger.log("[DEBUG_ADLER_FLUSH] inflateFlush: updated adler from $oldAdler to ${z.adler} (flushed $avail bytes from window[$winRead..$avail])")
-
-        nextOut += avail
-        winRead += avail
-        z.totalOut += avail.toLong()
-        z.availOut -= avail
-
-        // Handle window wrap-around.
-        if (winRead == end) {
-            winRead = 0
-            if (write == end) write = 0
-        }
-
-        read = winRead
-        z.nextOutIndex = nextOut
-
-        // If window emptied completely, keep pointers in sync.
-        if (read == write) {
-            read = 0
-            write = 0
-        }
-
-        return result
+        // Delegate to the canonical implementation to avoid divergence between two copies
+        return if (z == null) Z_STREAM_ERROR else inflateFlush(this, z, r)
     }
 }

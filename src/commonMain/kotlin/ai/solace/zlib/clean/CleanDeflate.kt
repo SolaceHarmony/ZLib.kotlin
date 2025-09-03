@@ -1,0 +1,264 @@
+package ai.solace.zlib.clean
+
+import ai.solace.zlib.common.*
+
+/**
+ * Minimal, readable DEFLATE decoder for provenance and debugging.
+ * - Supports stored blocks and fixed Huffman blocks.
+ * - Dynamic blocks return Z_DATA_ERROR (not implemented here) – useful for isolating issues.
+ * - Zlib wrapper parsing (CMF/FLG) included.
+ */
+object CleanDeflate {
+    private fun buildFixedLiteralTable(): CanonicalHuffman.FullTable {
+        // RFC1951: fixed lit/len lengths
+        val lens = IntArray(288)
+        for (i in 0..143) lens[i] = 8
+        for (i in 144..255) lens[i] = 9
+        for (i in 256..279) lens[i] = 7
+        for (i in 280..287) lens[i] = 8
+        return CanonicalHuffman.buildFull(lens)
+    }
+
+    private fun buildFixedDistTable(): CanonicalHuffman.FullTable {
+        val lens = IntArray(32) { 5 }
+        return CanonicalHuffman.buildFull(lens)
+    }
+
+    private fun readZlibHeader(br: BitReader): Boolean {
+        // Align to byte and then read two bytes CMF/FLG
+        br.alignToByte()
+        if (br.bytesConsumed() + 2 > Int.MAX_VALUE) return false
+        val b0 = readByte(br)
+        val b1 = readByte(br)
+        val cmf = b0
+        val flg = b1
+        val cm = cmf and 0x0F
+        val cinfo = (cmf ushr 4) and 0x0F
+        if (cm != Z_DEFLATED || cinfo > 7) return false
+        if (((cmf shl 8) + flg) % 31 != 0) return false
+        val presetDict = (flg and PRESET_DICT) != 0
+        if (presetDict) {
+            // skip 4-byte DICTID
+            repeat(4) { readByte(br) }
+        }
+        return true
+    }
+
+    private fun readByte(br: BitReader): Int {
+        br.alignToByte()
+        return br.take(8)
+    }
+
+    private fun copyStored(br: BitReader, out: MutableList<Byte>): Int {
+        // Move to next byte, then read LEN and NLEN
+        br.alignToByte()
+        val len = readByte(br) or (readByte(br) shl 8)
+        val nlen = readByte(br) or (readByte(br) shl 8)
+        if (len.inv() and 0xFFFF != nlen) return Z_DATA_ERROR
+        repeat(len) {
+            out.add(readByte(br).toByte())
+        }
+        return Z_OK
+    }
+
+    // Tables from zlib’s canonical arrays
+    private val LENGTH_BASE = TREE_BASE_LENGTH
+    private val LENGTH_EXTRA = TREE_EXTRA_LBITS
+    private val DIST_BASE = TREE_BASE_DIST
+    private val DIST_EXTRA = TREE_EXTRA_DBITS
+
+    private fun decodeFixed(br: BitReader, out: MutableList<Byte>): Int {
+        val litTable = buildFixedLiteralTable()
+        val distTable = buildFixedDistTable()
+        println("[CLEAN] fixed tables: lit.max=${litTable.maxLen} dist.max=${distTable.maxLen}")
+
+        loop@ while (true) {
+            val sym = try { CanonicalHuffman.decodeOne(br, litTable) } catch (e: Throwable) {
+                println("[CLEAN] decodeOne(lit) failed: ${e.message}")
+                return Z_DATA_ERROR
+            }
+            println("[CLEAN] lit sym=$sym")
+            when {
+                sym < 256 -> out.add(sym.toByte())
+                sym == 256 -> break@loop // end of block
+                else -> {
+                    val lenCode = sym - 257
+                    if (lenCode !in 0..28) return Z_DATA_ERROR
+                    val baseLen = LENGTH_BASE[lenCode]
+                    val extra = LENGTH_EXTRA[lenCode]
+                    val extraVal = if (extra > 0) br.take(extra) else 0
+                    val length = baseLen + extraVal
+
+                    val distSym = try { CanonicalHuffman.decodeOne(br, distTable) } catch (e: Throwable) {
+                        println("[CLEAN] decodeOne(dist) failed: ${e.message}")
+                        return Z_DATA_ERROR
+                    }
+                    println("[CLEAN] dist sym=$distSym len=$length")
+                    if (distSym !in 0..29) return Z_DATA_ERROR
+                    val baseDist = DIST_BASE[distSym]
+                    val extraD = DIST_EXTRA[distSym]
+                    val extraDVal = if (extraD > 0) br.take(extraD) else 0
+                    val dist = baseDist + extraDVal
+
+                    if (dist <= 0 || dist > out.size) return Z_DATA_ERROR
+                    // copy with overlap allowed
+                    var i = 0
+                    while (i < length) {
+                        val b = out[out.size - dist]
+                        out.add(b)
+                        i++
+                    }
+                }
+            }
+        }
+        return Z_OK
+    }
+
+    private fun decodeDynamic(br: BitReader, out: MutableList<Byte>): Int {
+        // Read HLIT, HDIST, HCLEN
+        val hlit = br.take(5) + 257
+        val hdist = br.take(5) + 1
+        val hclen = br.take(4) + 4
+
+        // Read code length code lengths in specified order
+        val order = TREE_BL_ORDER
+        val clen = IntArray(19)
+        for (i in 0 until hclen) {
+            clen[order[i]] = br.take(3)
+        }
+        // Others remain 0
+        val clTableFull = CanonicalHuffman.buildFull(clen)
+
+        // Read literal/length + distance code lengths using RLE symbols
+        val litLenLens = IntArray(hlit)
+        val distLens = IntArray(hdist)
+        var i = 0
+        while (i < hlit) {
+            val sym = CanonicalHuffman.decodeOne(br, clTableFull)
+            when (sym) {
+                in 0..15 -> { litLenLens[i++] = sym }
+                16 -> {
+                    if (i == 0) return Z_DATA_ERROR
+                    val repeat = 3 + br.take(2)
+                    val prev = litLenLens[i - 1]
+                    repeat(repeat) { if (i < hlit) litLenLens[i++] = prev else return Z_DATA_ERROR }
+                }
+                17 -> {
+                    val repeat = 3 + br.take(3)
+                    repeat(repeat) { if (i < hlit) litLenLens[i++] = 0 else return Z_DATA_ERROR }
+                }
+                18 -> {
+                    val repeat = 11 + br.take(7)
+                    repeat(repeat) { if (i < hlit) litLenLens[i++] = 0 else return Z_DATA_ERROR }
+                }
+                else -> return Z_DATA_ERROR
+            }
+        }
+        i = 0
+        while (i < hdist) {
+            val sym = CanonicalHuffman.decodeOne(br, clTableFull)
+            when (sym) {
+                in 0..15 -> { distLens[i++] = sym }
+                16 -> {
+                    if (i == 0) return Z_DATA_ERROR
+                    val repeat = 3 + br.take(2)
+                    val prev = distLens[i - 1]
+                    repeat(repeat) { if (i < hdist) distLens[i++] = prev else return Z_DATA_ERROR }
+                }
+                17 -> {
+                    val repeat = 3 + br.take(3)
+                    repeat(repeat) { if (i < hdist) distLens[i++] = 0 else return Z_DATA_ERROR }
+                }
+                18 -> {
+                    val repeat = 11 + br.take(7)
+                    repeat(repeat) { if (i < hdist) distLens[i++] = 0 else return Z_DATA_ERROR }
+                }
+                else -> return Z_DATA_ERROR
+            }
+        }
+
+        val litTable = CanonicalHuffman.buildFull(litLenLens)
+        val distTable = CanonicalHuffman.buildFull(distLens)
+
+        // Decode stream symbols
+        loop@ while (true) {
+            val sym = CanonicalHuffman.decodeOne(br, litTable)
+            when {
+                sym < 256 -> out.add(sym.toByte())
+                sym == 256 -> break@loop
+                else -> {
+                    val lenCode = sym - 257
+                    if (lenCode !in 0..28) return Z_DATA_ERROR
+                    val baseLen = LENGTH_BASE[lenCode]
+                    val extra = LENGTH_EXTRA[lenCode]
+                    val extraVal = if (extra > 0) br.take(extra) else 0
+                    val length = baseLen + extraVal
+
+                    val distSym = CanonicalHuffman.decodeOne(br, distTable)
+                    if (distSym !in 0..29) return Z_DATA_ERROR
+                    val baseDist = DIST_BASE[distSym]
+                    val extraD = DIST_EXTRA[distSym]
+                    val extraDVal = if (extraD > 0) br.take(extraD) else 0
+                    val dist = baseDist + extraDVal
+
+                    if (dist <= 0 || dist > out.size) return Z_DATA_ERROR
+                    var j = 0
+                    while (j < length) {
+                        val b = out[out.size - dist]
+                        out.add(b)
+                        j++
+                    }
+                }
+            }
+        }
+        return Z_OK
+    }
+
+    /**
+     * Inflate a zlib-wrapped stream supporting stored and fixed blocks.
+     * Dynamic blocks return Z_DATA_ERROR to indicate unsupported in this clean path.
+     */
+    fun inflateZlib(input: ByteArray): Pair<Int, ByteArray> {
+        val br = BitReader(input)
+        println("[CLEAN] begin inflateZlib; input=${input.size}")
+        if (!readZlibHeader(br)) {
+            println("[CLEAN] bad zlib header")
+            return Z_DATA_ERROR to byteArrayOf()
+        }
+        println("[CLEAN] header ok")
+
+        val out = mutableListOf<Byte>()
+        var last: Int
+        do {
+            println("[CLEAN] new block: bitsIn=${br.bitsInBuffer()} bytesConsumed=${br.bytesConsumed()}")
+            last = br.take(1)
+            val btype = br.take(2)
+            println("[CLEAN] last=$last btype=$btype")
+            when (btype) {
+                0 -> { // stored
+                    val r = copyStored(br, out)
+                    if (r != Z_OK) return r to byteArrayOf()
+                }
+                1 -> { // fixed
+                    println("[CLEAN] decode fixed")
+                    val r = decodeFixed(br, out)
+                    if (r != Z_OK) return r to byteArrayOf()
+                }
+                2 -> {
+                    println("[CLEAN] decode dynamic")
+                    val r = decodeDynamic(br, out)
+                    if (r != Z_OK) return r to byteArrayOf()
+                }
+                else -> return Z_DATA_ERROR to byteArrayOf()
+            }
+        } while (last == 0)
+
+        // Optionally verify Adler32 (zlib trailer)
+        // Our reader may be mid-byte; align and try reading trailer if present
+        br.alignToByte()
+        // Not strictly required here; primary goal is structural decoding
+
+        println("[CLEAN] done; out=${out.size}")
+        return Z_OK to out.toByteArray()
+    }
+}

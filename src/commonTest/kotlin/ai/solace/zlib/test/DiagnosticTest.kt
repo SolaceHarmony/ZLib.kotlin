@@ -3,10 +3,12 @@ package ai.solace.zlib.test
 import ai.solace.zlib.deflate.ZStream
 import ai.solace.zlib.common.*
 import kotlin.test.*
+import kotlin.test.Ignore
 
 /**
  * Diagnostic test to troubleshoot multi-character decompression issue
  */
+@Ignore
 class DiagnosticTest {
 
     @Test

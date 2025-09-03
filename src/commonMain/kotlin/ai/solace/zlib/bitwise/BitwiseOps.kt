@@ -24,6 +24,7 @@ class BitwiseOps {
         private val defaultEngine32 = BitShiftEngine(BitShiftMode.NATIVE, 32)
         private val defaultEngine16 = BitShiftEngine(BitShiftMode.NATIVE, 16)
         private val defaultEngine8 = BitShiftEngine(BitShiftMode.NATIVE, 8)
+        private val defaultEngine64 = BitShiftEngine(BitShiftMode.NATIVE, 64)
         
         /**
          * Creates a bit mask with the specified number of bits set to 1
@@ -431,7 +432,7 @@ class BitwiseOps {
          * @param engine The engine to use (defaults to native 32-bit)
          * @return The result of the unsigned right shift operation
          */
-        fun urShiftImproved(number: Long, bits: Int, engine: BitShiftEngine = defaultEngine32): Long {
+        fun urShiftImproved(number: Long, bits: Int, engine: BitShiftEngine = defaultEngine64): Long {
             return engine.unsignedRightShift(number, bits).value
         }
     }

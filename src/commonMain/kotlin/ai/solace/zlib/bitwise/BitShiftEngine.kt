@@ -39,12 +39,7 @@ class BitShiftEngine(
         else -> throw IllegalArgumentException("Unsupported bit width")
     }
     
-    private val arithmeticOps = when (bitWidth) {
-        8 -> ArithmeticBitwiseOps.BITS_8
-        16 -> ArithmeticBitwiseOps.BITS_16
-        32 -> ArithmeticBitwiseOps.BITS_32
-        else -> null // 64-bit uses native operations
-    }
+    private val arithmeticOps = if (bitWidth in 1..32) ArithmeticBitwiseOps(bitWidth) else null
     
     /**
      * Performs left shift with carry detection

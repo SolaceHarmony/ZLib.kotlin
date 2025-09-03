@@ -185,9 +185,39 @@ internal class Inflate {
         val fMut = Z_OK
         var r = if (f == Z_FINISH) Z_OK else Z_BUF_ERROR
 
+        // Safety: cap iterations to avoid potential infinite loops
+        val windowSize = 1 shl z.iState!!.wbits
+        val maxIterations = windowSize * 8 // tighter cap; large enough for valid streams
         var loopCount = 0
+        // Progress guard: detect when neither input nor output advance
+        var stagnantCount = 0
+        var prevInIdx = z.nextInIndex
+        var prevInAvail = z.availIn
+        var prevOutIdx = z.nextOutIndex
+        var prevOutAvail = z.availOut
         while (true) {
             loopCount++
+            if (loopCount > maxIterations) {
+                z.msg = "Inflate.inflate: too many iterations (" + loopCount + ") > " + maxIterations + ", window=" + windowSize
+                ZlibLogger.log("[DEBUG_LOG] Inflate.inflate - exceeded iteration cap: iter=" + loopCount + ", max=" + maxIterations + ", mode=" + z.iState!!.mode + ", availIn=" + z.availIn + ", availOut=" + z.availOut)
+                return Z_DATA_ERROR
+            }
+            // Detect lack of progress
+            if (z.nextInIndex == prevInIdx && z.availIn == prevInAvail && z.nextOutIndex == prevOutIdx && z.availOut == prevOutAvail) {
+                stagnantCount++
+                if (stagnantCount > windowSize) {
+                    z.msg = "Inflate.inflate: no progress for $stagnantCount iterations; mode=${z.iState!!.mode}"
+                    val blocks = z.iState!!.blocks
+                    ZlibLogger.logInflate("[DEBUG_LOG] No progress: mode=${z.iState!!.mode}, availIn=${z.availIn}, availOut=${z.availOut}, bitk=${blocks?.bitk}, bitb=${blocks?.bitb}")
+                    return Z_DATA_ERROR
+                }
+            } else {
+                stagnantCount = 0
+                prevInIdx = z.nextInIndex
+                prevInAvail = z.availIn
+                prevOutIdx = z.nextOutIndex
+                prevOutAvail = z.availOut
+            }
             ZlibLogger.logInflate("=== While loop iteration $loopCount ===")
             ZlibLogger.logInflate("Processing mode=${z.iState!!.mode}, availIn=${z.availIn}, availOut=${z.availOut}")
             

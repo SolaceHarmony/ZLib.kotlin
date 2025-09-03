@@ -121,6 +121,11 @@ internal class InfCodes {
         // This allows large valid inputs to decompress while still catching corruption
         val maxIterations = s.end * 4  // 4x window size provides safety margin
         var iterationCount = 0
+        // Progress guard
+        var stagnantCount = 0
+        var prevInIdxLocal = z.nextInIndex
+        var prevInAvailLocal = z.availIn
+        var prevWrite = s.write
 
         ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() started. Initial mode: $mode")
 
@@ -133,6 +138,20 @@ internal class InfCodes {
                 z.msg = "Too many iterations in InfCodes.proc (${iterationCount} > ${maxIterations}), possible corrupt data"
                 ZlibLogger.log("[DEBUG_LOG] InfCodes.proc() - Too many iterations: $iterationCount (limit: $maxIterations, window: ${s.end})")
                 return Z_DATA_ERROR
+            }
+            // Detect lack of progress
+            if (z.nextInIndex == prevInIdxLocal && z.availIn == prevInAvailLocal && s.write == prevWrite) {
+                stagnantCount++
+                if (stagnantCount > s.end) {
+                    z.msg = "InfCodes.proc: no progress for $stagnantCount iterations; mode=$mode"
+                    ZlibLogger.logInfCodes("[DEBUG_LOG] No progress: mode=$mode, availIn=${z.availIn}, bitk=${s.bitk}, bitb=${s.bitb}, write=${s.write}, read=${s.read}")
+                    return Z_DATA_ERROR
+                }
+            } else {
+                stagnantCount = 0
+                prevInIdxLocal = z.nextInIndex
+                prevInAvailLocal = z.availIn
+                prevWrite = s.write
             }
 
             val currentMode = mode // Store current mode for logging

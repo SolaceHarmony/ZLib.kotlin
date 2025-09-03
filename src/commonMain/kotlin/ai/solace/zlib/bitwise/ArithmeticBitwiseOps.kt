@@ -18,14 +18,20 @@ import ai.solace.zlib.common.ZlibLogger
 class ArithmeticBitwiseOps(private val bitLength: Int) {
     
     init {
-        require(bitLength in listOf(8, 16, 32)) {
-            "Bit length must be 8, 16, or 32"
-        }
+        require(bitLength in 1..32) { "Bit length must be between 1 and 32" }
     }
-    
-    // Computed boundary values based on bit length
-    private val maxValue: Long = (1L shl bitLength) - 1
-    private val signBit: Long = 1L shl (bitLength - 1)
+
+    // Arithmetic-only power-of-two (no bit shifts)
+    private fun pow2(n: Int): Long {
+        if (n <= 0) return 1L
+        var r = 1L
+        repeat(n) { r *= 2L }
+        return r
+    }
+
+    // Computed boundary values based on bit length (arithmetic-only)
+    private val maxValue: Long = pow2(bitLength) - 1L
+    private val signBit: Long = if (bitLength == 0) 0L else pow2(bitLength - 1)
     private val mask: Long = maxValue
     
     /**
@@ -54,12 +60,11 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
             return result
         }
         
-        var result = normalize(value)
-        val originalResult = result
-        repeat(bits) { 
-            result = normalize(result * 2)
-        }
-        ZlibLogger.logBitwise("leftShift($value, $bits) -> $result [${bitLength}-bit: $originalResult * 2^$bits = $result]", "leftShift")
+        val original = normalize(value)
+        val scale = pow2(bits)
+        val mod = maxValue + 1L
+        val result = (original * scale) % mod
+        ZlibLogger.logBitwise("leftShift($value, $bits) -> $result [${bitLength}-bit arithmetic]", "leftShift")
         return result
     }
     
@@ -73,11 +78,8 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         if (bits < 0 || bits >= bitLength) return 0L
         if (bits == 0) return normalize(value)
         
-        var result = normalize(value)
-        repeat(bits) { 
-            result /= 2
-        }
-        return result
+        val divisor = if (bits <= 0) 1L else pow2(bits)
+        return normalize(value) / divisor
     }
     
     /**
@@ -90,10 +92,25 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         if (bits >= bitLength) return mask
         if (bits == 0) return 0L
         
-        // Calculate 2^bits - 1 using repeated multiplication
-        var result = 1L
-        repeat(bits) { result *= 2 }
-        return result - 1
+        return pow2(bits) - 1L
+    }
+    
+    /**
+     * Check if a number is a power of 2 using only arithmetic operations
+     * @param n The number to check
+     * @return true if n is a power of 2
+     */
+    private fun isPowerOfTwo(n: Long): Boolean {
+        if (n <= 0) return false
+        if (n == 1L) return true
+        
+        // Repeatedly divide by 2 and check if we get exactly 1
+        var temp = n
+        while (temp > 1) {
+            if (temp % 2 != 0L) return false
+            temp /= 2
+        }
+        return temp == 1L
     }
     
     /**
@@ -106,8 +123,8 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         if (bits <= 0) return 0L
         if (bits >= bitLength) return normalize(value)
         
-        val maskValue = createMask(bits)
-        return normalize(value) % (maskValue + 1)
+        val mod = pow2(bits)
+        return normalize(value) % mod
     }
     
     /**
@@ -131,12 +148,26 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
      * @return The result of value1 OR value2
      */
     fun or(value1: Long, value2: Long): Long {
+        val norm1 = normalize(value1)
+        val norm2 = normalize(value2)
+        
+        // Quick optimization for zero operands
+        if (norm1 == 0L) return norm2
+        if (norm2 == 0L) return norm1
+        
+        // Determine how many bits we actually need to check
+        val maxVal = if (norm1 > norm2) norm1 else norm2
+        val maxBits = if (maxVal < 256) 8
+                     else if (maxVal < 65536) 16
+                     else if (maxVal < 16777216) 24
+                     else bitLength
+        
         var result = 0L
         var powerOf2 = 1L
-        var remaining1 = normalize(value1)
-        var remaining2 = normalize(value2)
+        var remaining1 = norm1
+        var remaining2 = norm2
         
-        for (i in 0 until bitLength) {
+        for (i in 0 until maxBits) {
             if (remaining1 == 0L && remaining2 == 0L) break
             
             val bit1 = remaining1 % 2
@@ -162,15 +193,41 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
      * @return The result of value1 AND value2
      */
     fun and(value1: Long, value2: Long): Long {
+        // Optimize for zero operands
+        if (value1 == 0L || value2 == 0L) return 0L
+        
+        val norm1 = normalize(value1)
+        val norm2 = normalize(value2)
+        
+        // Check if value2 is (2^n - 1) - these become simple modulo operations
+        // A number is (2^n - 1) if adding 1 gives a power of 2
+        val plusOne = norm2 + 1
+        if (plusOne > 0 && isPowerOfTwo(plusOne)) {
+            // norm2 is 2^n - 1, so AND is equivalent to modulo 2^n
+            return norm1 % plusOne
+        }
+        
+        // Check if value1 is (2^n - 1) and swap for optimization
+        val plusOne1 = norm1 + 1
+        if (plusOne1 > 0 && isPowerOfTwo(plusOne1)) {
+            return norm2 % plusOne1
+        }
+        
+        // For small second operand, we can terminate early
+        val maxBits = if (norm2 < 256) 8
+                     else if (norm2 < 65536) 16
+                     else if (norm2 < 16777216) 24
+                     else bitLength
+        
         var result = 0L
         var powerOf2 = 1L
-        var remaining1 = normalize(value1)
-        var remaining2 = normalize(value2)
+        var remaining1 = norm1
+        var remaining2 = norm2
         
-        ZlibLogger.logBitwise("and($value1, $value2) starting bit-by-bit analysis [${bitLength}-bit]", "and")
+        ZlibLogger.logBitwise("and($value1, $value2) starting bit-by-bit analysis [max $maxBits bits]", "and")
         
-        for (i in 0 until bitLength) {
-            if (remaining1 == 0L && remaining2 == 0L) break
+        for (i in 0 until maxBits) {
+            if (remaining1 == 0L || remaining2 == 0L) break
             
             val bit1 = remaining1 % 2
             val bit2 = remaining2 % 2
@@ -227,7 +284,10 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
      * @return The result of NOT value (all bits flipped within bit length)
      */
     fun not(value: Long): Long {
-        return mask xor normalize(value)
+        // NOT is equivalent to XOR with all 1s (mask)
+        // Which is also equivalent to (mask - value) for normalized values
+        val norm = normalize(value)
+        return mask - norm
     }
     
     /**
@@ -242,10 +302,10 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         
         if (normalizedPositions == 0) return normalizedValue
         
-        val leftPart = leftShift(normalizedValue, normalizedPositions)
-        val rightPart = rightShift(normalizedValue, bitLength - normalizedPositions)
-        
-        return or(leftPart, rightPart)
+        val mod = maxValue + 1L
+        val left = (normalizedValue * pow2(normalizedPositions)) % mod
+        val right = normalizedValue / pow2(bitLength - normalizedPositions)
+        return (left + right) % mod
     }
     
     /**
@@ -260,10 +320,10 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         
         if (normalizedPositions == 0) return normalizedValue
         
-        val rightPart = rightShift(normalizedValue, normalizedPositions)
-        val leftPart = leftShift(normalizedValue, bitLength - normalizedPositions)
-        
-        return or(leftPart, rightPart)
+        val mod = maxValue + 1L
+        val right = normalizedValue / pow2(normalizedPositions)
+        val left = (normalizedValue * pow2(bitLength - normalizedPositions)) % mod
+        return (left + right) % mod
     }
     
     /**

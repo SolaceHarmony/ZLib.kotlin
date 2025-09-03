@@ -3,16 +3,28 @@ package ai.solace.zlib.common
 
 
 object ZlibLogger {
-    // Logging flags to control verbosity, especially for Kotlin/Native performance
-    // - DEBUG_ENABLED=false will suppress messages prefixed with [DEBUG_LOG]
-    // - ENABLE_LOGGING=false will suppress all logging
-    var ENABLE_LOGGING: Boolean = true  // TEMPORARILY ENABLED FOR DEBUGGING
-    var DEBUG_ENABLED: Boolean = true   // TEMPORARILY ENABLED FOR DEBUGGING
+    // Logging flags (configurable via CLI/env)
+    var ENABLE_LOGGING: Boolean = false
+    var DEBUG_ENABLED: Boolean = false
+    var BITWISE_VERBOSE: Boolean = false
+
+    private var initialized = false
+    private fun initFromEnv() {
+        if (initialized) return
+        initialized = true
+        try {
+            getEnv("ZLIB_LOG_ENABLE")?.let { ENABLE_LOGGING = it == "1" || it.equals("true", true) }
+            getEnv("ZLIB_LOG_DEBUG")?.let { DEBUG_ENABLED = it == "1" || it.equals("true", true) }
+            getEnv("ZLIB_LOG_BITWISE")?.let { BITWISE_VERBOSE = it == "1" || it.equals("true", true) }
+            getEnv("ZLIB_LOG_PATH")?.let { LOG_FILE_PATH = it }
+        } catch (_: Throwable) {}
+    }
     
     fun debug(message: String, className: String = "", functionName: String = "") = 
         log(message, className, functionName)
 
     fun log(message: String, className: String = "", functionName: String = "") {
+        initFromEnv()
         // Global logging gate
         if (!ENABLE_LOGGING) return
         // Suppress verbose debug logs unless explicitly enabled
@@ -52,8 +64,11 @@ object ZlibLogger {
         log(message, "InfTree", functionName)
         
     // Mathematical algorithm specific loggers
-    fun logBitwise(message: String, functionName: String = "") = 
+    fun logBitwise(message: String, functionName: String = "") {
+        // Check both ENABLE_LOGGING and BITWISE_VERBOSE
+        if (!ENABLE_LOGGING || !BITWISE_VERBOSE) return
         log(message, "BitwiseOps", functionName)
+    }
         
     fun logAdler32(message: String, functionName: String = "") = 
         log(message, "Adler32", functionName)
@@ -82,12 +97,20 @@ object ZlibLogger {
     fun logHuffmanCode(symbol: Int, code: Int, bits: Int, functionName: String = "") {
         logHuffman("symbol=$symbol -> code=$code (${bits} bits) [0x${code.toString(16)}]", functionName)
     }
+
+    // Runtime configuration helpers (to be called from CLI)
+    fun setEnabled(enabled: Boolean) { ENABLE_LOGGING = enabled }
+    fun setDebug(enabled: Boolean) { DEBUG_ENABLED = enabled }
+    fun setBitwiseVerbose(enabled: Boolean) { BITWISE_VERBOSE = enabled }
+    fun setLogFilePath(path: String?) { LOG_FILE_PATH = path }
 }
 
 /**
  * Platform-specific file append implementation
  */
 expect fun logToFile(line: String)
+expect fun getEnv(name: String): String?
+expect var LOG_FILE_PATH: String?
 
 /**
  * Platform-specific timestamp string (e.g. yyyy-MM-dd HH:mm:ss)

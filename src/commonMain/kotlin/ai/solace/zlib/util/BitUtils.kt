@@ -12,8 +12,9 @@ import ai.solace.zlib.bitwise.BitShiftMode
  */
 object BitUtils {
     
-    // Default engine for BitUtils operations - using native for performance
-    private val defaultEngine = BitShiftEngine(BitShiftMode.NATIVE, 32)
+    // Default engines for BitUtils operations - using native for performance
+    private val defaultEngineInt = BitShiftEngine(BitShiftMode.NATIVE, 32)
+    private val defaultEngineLong = BitShiftEngine(BitShiftMode.NATIVE, 64)
     
     /**
      * Performs an unsigned right shift operation that matches the behavior of C#'s URShift.
@@ -54,7 +55,7 @@ object BitUtils {
      * @param engine The BitShiftEngine to use (defaults to native mode for performance)
      * @return The result of the unsigned right shift operation
      */
-    fun urShiftImproved(number: Int, bits: Int, engine: BitShiftEngine = defaultEngine): Int {
+    fun urShiftImproved(number: Int, bits: Int, engine: BitShiftEngine = defaultEngineInt): Int {
         return BitwiseOps.urShiftImproved(number, bits, engine)
     }
     
@@ -69,7 +70,7 @@ object BitUtils {
      * @param engine The BitShiftEngine to use (defaults to native mode for performance)
      * @return The result of the unsigned right shift operation
      */
-    fun urShiftImproved(number: Long, bits: Int, engine: BitShiftEngine = defaultEngine): Long {
+    fun urShiftImproved(number: Long, bits: Int, engine: BitShiftEngine = defaultEngineLong): Long {
         return BitwiseOps.urShiftImproved(number, bits, engine)
     }
     
