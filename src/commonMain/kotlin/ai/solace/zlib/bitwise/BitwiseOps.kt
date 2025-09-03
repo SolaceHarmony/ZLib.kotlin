@@ -32,7 +32,7 @@ class BitwiseOps {
          * @return An integer with the lowest 'bits' bits set to 1
          */
         fun createMask(bits: Int): Int {
-            if (bits < 0 || bits > 32) throw IllegalArgumentException("Bits must be between 0 and 32") // TODO(detekt: UseRequire)
+            require(bits in 0..32) { "Bits must be between 0 and 32" }
             return if (bits == 32) -1 else (1 shl bits) - 1
         }
 
@@ -237,7 +237,7 @@ class BitwiseOps {
          * @return An integer with the lowest 'bits' bits set to 1
          */
         fun createMaskArithmetic(bits: Int): Int {
-            if (bits < 0 || bits > 32) throw IllegalArgumentException("Bits must be between 0 and 32") // TODO(detekt: UseRequire)
+            require(bits in 0..32) { "Bits must be between 0 and 32" }
             if (bits == 0) return 0
             if (bits == 32) return -1
 

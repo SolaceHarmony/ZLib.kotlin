@@ -96,7 +96,7 @@ object Inflate {
             val sym =
                 try {
                     CanonicalHuffman.decodeOne(br, litTable)
-                } catch (e: Throwable) { // TODO: catch specific decoding exception and attach context
+                } catch (e: IllegalStateException) { // TODO: attach more context
                     return Z_DATA_ERROR
                 }
             when {
@@ -113,7 +113,7 @@ object Inflate {
                     val distSym =
                         try {
                             CanonicalHuffman.decodeOne(br, distTable)
-                        } catch (e: Throwable) { // TODO: catch specific decoding exception and attach context
+                        } catch (e: IllegalStateException) { // TODO: attach more context
                             return Z_DATA_ERROR
                         }
                     if (distSym !in 0..29) return Z_DATA_ERROR

@@ -69,14 +69,14 @@ object CanonicalHuffman {
         br: BitReader,
         table: FullTable,
     ): Int {
-        if (table.maxLen == 0) throw IllegalStateException("Empty Huffman table")
+        if (table.maxLen == 0) error("Empty Huffman table")
         // Ensure we have up to maxLen bits available
         val look = br.peek(table.maxLen)
         val len = table.bits[look]
         if (len == 0) {
             val upcoming = br.peekBytes(8)
             val hex = upcoming.joinToString("") { b -> ((b.toInt() and 0xFF).toString(16).padStart(2, '0')) }
-            throw IllegalStateException("Invalid Huffman prefix (look=${look.toString(2).padStart(table.maxLen,'0')}) nextBytes=$hex")
+            error("Invalid Huffman prefix (look=${look.toString(2).padStart(table.maxLen,'0')}) nextBytes=$hex")
         }
         val sym = table.vals[look]
         br.take(len)
