@@ -40,7 +40,15 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
      * @return The value masked to the bit length
      */
     fun normalize(value: Long): Long {
-        return value and mask
+        // Since mask is (2^bitLength - 1), and (value & mask) = value % (mask + 1) for positive values
+        // We need to handle negative values specially
+        if (value < 0) {
+            // For negative values, we need to get the unsigned representation
+            val mod = maxValue + 1L
+            val remainder = ((value % mod) + mod) % mod
+            return remainder
+        }
+        return value % (maxValue + 1L)
     }
     
     /**
