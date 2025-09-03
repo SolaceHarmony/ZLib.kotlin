@@ -1,5 +1,6 @@
 package ai.solace.zlib.clean
 
+import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
 import ai.solace.zlib.common.ZlibLogger
 
 /**
@@ -7,6 +8,9 @@ import ai.solace.zlib.common.ZlibLogger
  * Maintains a 32-bit buffer to amortize loads and logs progress via ZlibLogger.
  */
 class BitReader(private val data: ByteArray) {
+    private val ops = ArithmeticBitwiseOps.BITS_32
+    private val ops8 = ArithmeticBitwiseOps.BITS_8
+    
     private var bitBuffer: Int = 0
     private var bitCount: Int = 0
     private var index: Int = 0
@@ -27,8 +31,10 @@ class BitReader(private val data: ByteArray) {
 
     private fun fill(minBits: Int) {
         while (bitCount < minBits && index < data.size) {
-            val b = data[index++].toInt() and 0xFF
-            bitBuffer = bitBuffer or (b shl bitCount)
+            val b = ops8.normalize(data[index++].toLong()).toInt()
+            // Use arithmetic operations instead of native bitwise
+            val shifted = ops.leftShift(b.toLong(), bitCount).toInt()
+            bitBuffer = ops.or(bitBuffer.toLong(), shifted.toLong()).toInt()
             bitCount += 8
         }
     }
@@ -36,12 +42,15 @@ class BitReader(private val data: ByteArray) {
     fun peek(n: Int): Int {
         require(n in 0..16) { "peek supports 0..16 bits" }
         fill(n)
-        return bitBuffer and ((1 shl n) - 1)
+        // Use arithmetic operations instead of native bitwise
+        val mask = ops.createMask(n).toInt()
+        return ops.and(bitBuffer.toLong(), mask.toLong()).toInt()
     }
 
     fun take(n: Int): Int {
         val v = peek(n)
-        bitBuffer = bitBuffer ushr n
+        // Use arithmetic operations instead of native bitwise
+        bitBuffer = ops.rightShift(bitBuffer.toLong(), n).toInt()
         bitCount -= n
         return v
     }

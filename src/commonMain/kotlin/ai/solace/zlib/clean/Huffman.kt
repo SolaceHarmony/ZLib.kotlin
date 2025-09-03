@@ -1,5 +1,6 @@
 package ai.solace.zlib.clean
 
+import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
 import ai.solace.zlib.common.ZlibLogger
 
 /**
@@ -20,6 +21,7 @@ object CanonicalHuffman {
      * Build canonical codes from code lengths. See RFC 1951.
      */
     fun build(lengths: IntArray): Table {
+        val ops = ArithmeticBitwiseOps.BITS_32
         val maxLen = lengths.maxOrNull() ?: 0
         val blCount = IntArray(maxLen + 1)
         for (l in lengths) if (l > 0) blCount[l]++
@@ -27,7 +29,8 @@ object CanonicalHuffman {
         val nextCode = IntArray(maxLen + 1)
         var code = 0
         for (bits in 1..maxLen) {
-            code = (code + blCount[bits - 1]) shl 1
+            // Use arithmetic operations instead of native bitwise
+            code = ops.leftShift((code + blCount[bits - 1]).toLong(), 1).toInt()
             nextCode[bits] = code
         }
 
@@ -46,7 +49,8 @@ object CanonicalHuffman {
             }
             var node = root
             for (i in (len - 1) downTo 0) {
-                val bit = (rev ushr i) and 1
+                // Use arithmetic operations instead of native bitwise
+                val bit = ops.and(ops.rightShift(rev.toLong(), i), 1L).toInt()
                 // Try inverted mapping to match stream bit order
                 if (bit == 0) {
                     if (node.right == null) node.right = Node()
@@ -80,6 +84,7 @@ object CanonicalHuffman {
      * equal that reversed code.
      */
     fun buildFull(lengths: IntArray): FullTable {
+        val ops = ArithmeticBitwiseOps.BITS_32
         val maxLen = lengths.maxOrNull() ?: 0
         if (maxLen == 0) return FullTable(0, IntArray(1), IntArray(1))
 
@@ -89,11 +94,13 @@ object CanonicalHuffman {
         val nextCode = IntArray(maxLen + 1)
         var code = 0
         for (bits in 1..maxLen) {
-            code = (code + blCount[bits - 1]) shl 1
+            // Use arithmetic operations instead of native bitwise
+            code = ops.leftShift((code + blCount[bits - 1]).toLong(), 1).toInt()
             nextCode[bits] = code
         }
 
-        val size = 1 shl maxLen
+        // Use arithmetic operations instead of native bitwise
+        val size = ops.leftShift(1L, maxLen).toInt()
         val bitsTab = IntArray(size)
         val valsTab = IntArray(size)
 
@@ -103,7 +110,8 @@ object CanonicalHuffman {
             val assigned = nextCode[len]
             nextCode[len] = assigned + 1
             val rev = reverseBits(assigned, len)
-            val stride = 1 shl len
+            // Use arithmetic operations instead of native bitwise
+            val stride = ops.leftShift(1L, len).toInt()
             var idx = rev
             while (idx < size) {
                 bitsTab[idx] = len
@@ -131,11 +139,13 @@ object CanonicalHuffman {
     }
     /** Reverse the lowest len bits of x (for LSB-first decoding). */
     private fun reverseBits(x: Int, len: Int): Int {
+        val ops = ArithmeticBitwiseOps.BITS_32
         var v = x
         var r = 0
         repeat(len) {
-            r = (r shl 1) or (v and 1)
-            v = v ushr 1
+            // Use arithmetic operations instead of native bitwise
+            r = ops.or(ops.leftShift(r.toLong(), 1), ops.and(v.toLong(), 1L)).toInt()
+            v = ops.rightShift(v.toLong(), 1).toInt()
         }
         return r
     }
