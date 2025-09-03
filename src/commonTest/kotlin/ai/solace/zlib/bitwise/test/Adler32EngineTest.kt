@@ -6,12 +6,13 @@ import kotlin.test.*
 class Adler32EngineTest {
     @Test
     fun testAdler32KnownValues() {
-        val testCases = listOf(
-            "" to 0x00000001L,
-            "a" to 0x00620062L,
-            "abc" to 0x024d0127L,
-            "message digest" to 0x29750586L,
-        )
+        val testCases =
+            listOf(
+                "" to 0x00000001L,
+                "a" to 0x00620062L,
+                "abc" to 0x024d0127L,
+                "message digest" to 0x29750586L,
+            )
         for ((input, expected) in testCases) {
             val data = input.encodeToByteArray()
             val result = Adler32Utils.adler32(1L, data, 0, data.size)

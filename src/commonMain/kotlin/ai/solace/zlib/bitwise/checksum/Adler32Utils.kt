@@ -20,7 +20,6 @@ import ai.solace.zlib.common.ADLER_NMAX
  */
 class Adler32Utils {
     companion object {
-
         /**
          * Calculates or updates an Adler-32 checksum.
          *
@@ -30,7 +29,12 @@ class Adler32Utils {
          * @param len   Number of bytes to process
          * @return Updated Adler-32 checksum
          */
-        fun adler32(adler: Long, buf: ByteArray?, index: Int, len: Int): Long {
+        fun adler32(
+            adler: Long,
+            buf: ByteArray?,
+            index: Int,
+            len: Int,
+        ): Long {
             if (buf == null) return 1L
 
             var a = (adler and 0xFFFF).toLong()

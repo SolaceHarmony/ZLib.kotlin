@@ -1,4 +1,4 @@
-package ai.solace.zlib.clean
+package ai.solace.zlib.inflate
 
 import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
 import ai.solace.zlib.common.ZlibLogger
@@ -10,13 +10,15 @@ import ai.solace.zlib.common.ZlibLogger
 class BitReader(private val data: ByteArray) {
     private val ops = ArithmeticBitwiseOps.BITS_32
     private val ops8 = ArithmeticBitwiseOps.BITS_8
-    
+
     private var bitBuffer: Int = 0
     private var bitCount: Int = 0
     private var index: Int = 0
 
     fun bitsInBuffer(): Int = bitCount
+
     fun bytesConsumed(): Int = index
+
     fun totalSize(): Int = data.size
 
     /**

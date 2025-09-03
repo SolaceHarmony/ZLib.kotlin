@@ -1,0 +1,10 @@
+root = true
+
+[*.{kt,kts}]
+ktlint_code_style = ktlint_official
+ktlint_standard_argument-list-wrapping = disabled
+max_line_length = 200
+
+[*.kts]
+indent_size = 4
+insert_final_newline = true

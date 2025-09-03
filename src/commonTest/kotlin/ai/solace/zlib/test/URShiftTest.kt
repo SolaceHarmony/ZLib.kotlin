@@ -5,17 +5,16 @@ import kotlin.test.Test
 
 /**
  * Test class to verify the correct implementation of the C# URShift operation in Kotlin.
- * 
+ *
  * The original C# code was:
  * if (((SupportClass.URShift((~ b), 16)) & 0xffff) != (b & 0xffff))
- * 
+ *
  * We need to find the correct Kotlin equivalent.
  */
 class URShiftTest {
-
     /**
      * Simulates the C# URShift operation for Int values.
-     * 
+     *
      * Based on the C# implementation:
      * public static int URShift(int number, int bits) {
      *     if (number >= 0)
@@ -24,7 +23,10 @@ class URShiftTest {
      *         return (number >> bits) + (2 << ~bits);
      * }
      */
-    private fun urShift(number: Int, bits: Int): Int {
+    private fun urShift(
+        number: Int,
+        bits: Int,
+    ): Int {
         return if (number >= 0) {
             number ushr bits
         } else {
@@ -56,7 +58,7 @@ class URShiftTest {
 
         // Compare results
         ZlibLogger.log("[DEBUG_LOG] Original == Current: ${originalExpr == currentImpl}")
-        
+
         // Test with a few more values
         testValue(0x00010001) // Lower 16 bits: 0x0001, Upper 16 bits: 0x0001
         testValue(0xFFFF0000.toInt()) // Lower 16 bits: 0x0000, Upper 16 bits: 0xFFFF

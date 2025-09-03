@@ -19,7 +19,7 @@ import ai.solace.zlib.bitwise.checksum.Adler32Utils
  * Based on the original C implementation by Mark Adler, and the Pascal translation.
  * The implementation processes data in chunks of ADLER_NMAX bytes and applies
  * the modulo operation after each chunk (not after each byte) for efficiency.
- * 
+ *
  * This class now delegates to Adler32Utils for the actual implementation.
  */
 class Adler32 {
@@ -31,9 +31,13 @@ class Adler32 {
      * @param len Number of bytes to process
      * @return Updated Adler-32 checksum
      */
-    fun adler32(adler: Long, buf: ByteArray?, index: Int, len: Int): Long {
+    fun adler32(
+        adler: Long,
+        buf: ByteArray?,
+        index: Int,
+        len: Int,
+    ): Long {
         // Delegate to the unified arithmetic-only implementation to ensure consistency across platforms
         return Adler32Utils.adler32(adler, buf, index, len)
     }
-
 }

@@ -1,15 +1,9 @@
 @file:OptIn(ExperimentalUnsignedTypes::class)
+
 package ai.solace.zlib.common
 
-/**
- * This file houses constants extracted from various zlib implementation files.
- * It provides centralized access to all constants used throughout the library.
- */
-
-/**
- * The version string for the zlib library implementation
- */
-private const val version_Renamed_Field: String = "1.0.2"
+// The version string for the zlib library implementation
+private const val VERSION: String = "1.0.2"
 
 /**
  * Returns the version string of this zlib implementation
@@ -17,12 +11,12 @@ private const val version_Renamed_Field: String = "1.0.2"
  * @return Version string of the library
  */
 fun version(): String {
-    return version_Renamed_Field
+    return VERSION
 }
 
 /**
  * Compression levels
- * 
+ *
  * Z_NO_COMPRESSION = 0: No compression, data is stored without compression
  * Z_BEST_SPEED = 1: Fastest compression with lower compression ratio
  * Z_BEST_COMPRESSION = 9: Best compression ratio but slower performance
@@ -35,7 +29,7 @@ const val Z_DEFAULT_COMPRESSION = -1
 
 /**
  * Compression strategy constants
- * 
+ *
  * Z_DEFAULT_STRATEGY = 0: Default compression strategy, good for general purpose compression
  * Z_FILTERED = 1: Filtered compression strategy, good for data produced by a filter or predictor
  * Z_HUFFMAN_ONLY = 2: Huffman-only strategy, forces Huffman encoding only (no string match)
@@ -46,7 +40,7 @@ const val Z_HUFFMAN_ONLY = 2
 
 /**
  * Flush mode constants
- * 
+ *
  * Z_NO_FLUSH = 0: No flush, normal compression operation
  * Z_PARTIAL_FLUSH = 1: Partial flush, for advanced compression only
  * Z_SYNC_FLUSH = 2: Sync flush, flushes to byte boundary for synchronization. Returns to compressing from current point
@@ -61,7 +55,7 @@ const val Z_FINISH = 4
 
 /**
  * Return and error codes
- * 
+ *
  * Z_OK = 0: Operation completed successfully
  * Z_STREAM_END = 1: End of stream reached
  * Z_NEED_DICT = 2: Dictionary needed for decompression
@@ -88,7 +82,7 @@ const val ADLER_NMAX = 5552 // NMAX is the largest n such that 255n(n+1)/2 + (n+
 
 /**
  * Constants for InfBlocks state machine
- * 
+ *
  * IBLK_TYPE = 0: Initial block header reading state
  * IBLK_LENS = 1: Reading length for stored block
  * IBLK_STORED = 2: Copying stored block data
@@ -134,7 +128,7 @@ const val TREE_DIST_CODE_LEN = 512 // Formerly DIST_CODE_LEN in Tree.kt
 
 /**
  * Constants for Deflate compression
- * 
+ *
  * MAX_MEM_LEVEL = 9: Maximum memory level for deflate
  * MAX_WBITS = 15: Maximum window bits (15 = 32KB window). This determines the size of the sliding window for LZ77 compression
  * DEF_MEM_LEVEL = 8: Default memory level for deflate compression. Balances memory usage and compression performance
@@ -142,28 +136,31 @@ const val TREE_DIST_CODE_LEN = 512 // Formerly DIST_CODE_LEN in Tree.kt
 const val MAX_MEM_LEVEL = 9
 const val MAX_WBITS = 15
 const val DEF_MEM_LEVEL = 8
+
 /**
  * Error messages corresponding to zlib error codes.
- * 
+ *
  * The array is indexed using the negative of the error code minus 2.
  * For example, Z_NEED_DICT (2) corresponds to index 0,
  * Z_STREAM_ERROR (-2) corresponds to index 4, etc.
  */
-val Z_ERRMSG = arrayOf(
-    "need dictionary",
-    "stream end",
-    "",
-    "file error",
-    "stream error",
-    "data error",
-    "insufficient memory",
-    "buffer error",
-    "incompatible version",
-    ""
-)
-/** 
+val Z_ERRMSG =
+    arrayOf(
+        "need dictionary",
+        "stream end",
+        "",
+        "file error",
+        "stream error",
+        "data error",
+        "insufficient memory",
+        "buffer error",
+        "incompatible version",
+        "",
+    )
+
+/**
  * Block processing result codes
- * 
+ *
  * NEED_MORE = 0: Block not completed, need more input or more output
  * BLOCK_DONE = 1: Block flush performed successfully
  * FINISH_STARTED = 2: Finish operation started, need only more output
@@ -174,9 +171,10 @@ const val BLOCK_DONE = 1
 const val FINISH_STARTED = 2
 const val FINISH_DONE = 3
 const val PRESET_DICT = 0x20 // preset dictionary flag in zlib header
-/** 
+
+/**
  * Deflate state machine states
- * 
+ *
  * INIT_STATE = 42: Deflate stream initialized, ready for input
  * BUSY_STATE = 113: Deflate stream processing data
  * FINISH_STATE = 666: Deflate stream in final state
@@ -185,9 +183,10 @@ const val INIT_STATE = 42
 const val BUSY_STATE = 113
 const val FINISH_STATE = 666
 const val Z_DEFLATED = 8 // The deflate compression method
-/** 
+
+/**
  * Block types for deflate
- * 
+ *
  * STORED_BLOCK = 0: Stored (uncompressed) block type
  * STATIC_TREES = 1: Block compressed with static Huffman trees
  * DYN_TREES = 2: Block compressed with dynamic Huffman trees
@@ -215,46 +214,49 @@ val TREE_EXTRA_BLBITS = intArrayOf(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
 val TREE_BL_ORDER = intArrayOf(16, 17, 18, 0, 8, 7, 9, 6, 10, 5, 11, 4, 12, 3, 13, 2, 14, 1, 15)
 
 // Base length for each length code (zlib canonical table)
-val TREE_BASE_LENGTH = intArrayOf(
-    3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
-    35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258
-)
+val TREE_BASE_LENGTH =
+    intArrayOf(
+        3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 15, 17, 19, 23, 27, 31,
+        35, 43, 51, 59, 67, 83, 99, 115, 131, 163, 195, 227, 258,
+    )
 
 // Base distance for each distance code (zlib canonical table)
-val TREE_BASE_DIST = intArrayOf(
-    1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193,
-    257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577
-)
+val TREE_BASE_DIST =
+    intArrayOf(
+        1, 2, 3, 4, 5, 7, 9, 13, 17, 25, 33, 49, 65, 97, 129, 193,
+        257, 385, 513, 769, 1025, 1537, 2049, 3073, 4097, 6145, 8193, 12289, 16385, 24577,
+    )
 
 // Tree dist code list - matches Pascal _dist_code array exactly
-internal val TREE_DIST_CODE = ubyteArrayOf(
-    0u, 1u, 2u, 3u, 4u, 4u, 5u, 5u, 6u, 6u, 6u, 6u, 7u, 7u, 7u, 7u, 8u, 8u, 8u, 8u, 8u, 8u, 8u, 8u,
-    9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u,
-    11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u,
-    12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u,
-    13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u,
-    13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
-    14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
-    14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
-    15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u,
-    15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u,
-    15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 0u, 0u, 16u, 17u, 18u, 18u, 19u, 19u,
-    20u, 20u, 20u, 20u, 21u, 21u, 21u, 21u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u,
-    24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u,
-    25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u,
-    26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u,
-    27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u,
-    28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
-    28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
-    28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
-    29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
-    29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
-    29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u
-)
+internal val TREE_DIST_CODE =
+    ubyteArrayOf(
+        0u, 1u, 2u, 3u, 4u, 4u, 5u, 5u, 6u, 6u, 6u, 6u, 7u, 7u, 7u, 7u, 8u, 8u, 8u, 8u, 8u, 8u, 8u, 8u,
+        9u, 9u, 9u, 9u, 9u, 9u, 9u, 9u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u, 10u,
+        11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 11u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u,
+        12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u, 12u,
+        13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u,
+        13u, 13u, 13u, 13u, 13u, 13u, 13u, 13u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
+        14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
+        14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u, 14u,
+        15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u,
+        15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u,
+        15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 15u, 0u, 0u, 16u, 17u, 18u, 18u, 19u, 19u,
+        20u, 20u, 20u, 20u, 21u, 21u, 21u, 21u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u,
+        24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u,
+        25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u,
+        26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u,
+        27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u,
+        28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+        28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+        28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
+        29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
+        29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
+        29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u, 29u,
+    )
 
 /**
  * States for the Inflate state machine
- * 
+ *
  * INF_METHOD = 0: Waiting for method byte
  * INF_FLAG = 1: Waiting for flag byte
  * INF_DICT4 = 2, INF_DICT3 = 3, INF_DICT2 = 4, INF_DICT1 = 5, INF_DICT0 = 6: Waiting for dictionary ID (4 bytes)
@@ -281,34 +283,36 @@ const val INF_BAD = 13
 val INF_MARK = ubyteArrayOf(0u, 0u, 0xFFu, 0xFFu)
 
 // Maps a length to a length code
-val TREE_LENGTH_CODE = ubyteArrayOf(
-    0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 8u, 9u, 9u, 10u, 10u, 11u, 11u, 12u, 12u, 12u, 12u, 13u, 13u, 13u, 13u, 14u, 14u, 14u, 14u, 15u, 15u, 15u, 15u,
-    16u, 16u, 16u, 16u, 16u, 16u, 16u, 16u, 17u, 17u, 17u, 17u, 17u, 17u, 17u, 17u, 18u, 18u, 18u, 18u, 18u, 18u, 18u, 18u, 19u, 19u, 19u, 19u, 19u, 19u, 19u, 19u,
-    20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
-    22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u,
-    24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
-    25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u,
-    26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u,
-    27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u,
-    27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u,
-    28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u
-)
+val TREE_LENGTH_CODE =
+    ubyteArrayOf(
+        0u, 1u, 2u, 3u, 4u, 5u, 6u, 7u, 8u, 8u, 9u, 9u, 10u, 10u, 11u, 11u, 12u, 12u, 12u, 12u, 13u, 13u, 13u, 13u, 14u, 14u, 14u, 14u, 15u, 15u, 15u, 15u,
+        16u, 16u, 16u, 16u, 16u, 16u, 16u, 16u, 17u, 17u, 17u, 17u, 17u, 17u, 17u, 17u, 18u, 18u, 18u, 18u, 18u, 18u, 18u, 18u, 19u, 19u, 19u, 19u, 19u, 19u, 19u, 19u,
+        20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 20u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u, 21u,
+        22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 22u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u, 23u,
+        24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u, 24u,
+        25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u, 25u,
+        26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u, 26u,
+        27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u,
+        27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u, 27u,
+        28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u, 28u,
+    )
 
 /**
  * Bit masks for extracting the lowest N bits of a value.
  * Used extensively during Huffman decoding to extract specific bit patterns.
  * The index into the array represents the number of bits to mask.
  */
-val IBLK_INFLATE_MASK = intArrayOf(
-    0x00000000, 0x00000001, 0x00000003, 0x00000007, 0x0000000f,
-    0x0000001f, 0x0000003f, 0x0000007f, 0x000000ff, 0x000001ff,
-    0x000003ff, 0x000007ff, 0x00000fff, 0x00001fff, 0x00003fff,
-    0x00007fff, 0x0000ffff
-)
+val IBLK_INFLATE_MASK =
+    intArrayOf(
+        0x00000000, 0x00000001, 0x00000003, 0x00000007, 0x0000000f,
+        0x0000001f, 0x0000003f, 0x0000007f, 0x000000ff, 0x000001ff,
+        0x000003ff, 0x000007ff, 0x00000fff, 0x00001fff, 0x00003fff,
+        0x00007fff, 0x0000ffff,
+    )
 
 /**
  * Constants for InfCodes state machine
- * 
+ *
  * ICODES_START = 0: Starting state
  * ICODES_LEN = 1: Reading length codes
  * ICODES_LENEXT = 2: Reading length extra bits

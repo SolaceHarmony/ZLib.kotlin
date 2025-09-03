@@ -1,7 +1,15 @@
-package ai.solace.zlib.clean
+package ai.solace.zlib.inflate
 
 import ai.solace.zlib.bitwise.ArithmeticBitwiseOps
-import ai.solace.zlib.common.*
+import ai.solace.zlib.common.PRESET_DICT
+import ai.solace.zlib.common.TREE_BASE_DIST
+import ai.solace.zlib.common.TREE_BASE_LENGTH
+import ai.solace.zlib.common.TREE_BL_ORDER
+import ai.solace.zlib.common.TREE_EXTRA_DBITS
+import ai.solace.zlib.common.TREE_EXTRA_LBITS
+import ai.solace.zlib.common.Z_DATA_ERROR
+import ai.solace.zlib.common.Z_DEFLATED
+import ai.solace.zlib.common.Z_OK
 
 /**
  * Minimal, readable DEFLATE decoder for provenance and debugging.
@@ -9,10 +17,9 @@ import ai.solace.zlib.common.*
  * - Dynamic blocks return Z_DATA_ERROR (not implemented here) – useful for isolating issues.
  * - Zlib wrapper parsing (CMF/FLG) included.
  */
-object CleanDeflate {
+object Inflate {
     private val ops = ArithmeticBitwiseOps.BITS_32
-    private val ops8 = ArithmeticBitwiseOps.BITS_8
-    
+
     private fun buildFixedLiteralTable(): CanonicalHuffman.FullTable {
         // RFC1951: fixed lit/len lengths
         val lens = IntArray(288)
@@ -55,7 +62,10 @@ object CleanDeflate {
         return br.take(8)
     }
 
-    private fun copyStored(br: BitReader, out: MutableList<Byte>): Int {
+    private fun copyStored(
+        br: BitReader,
+        out: MutableList<Byte>,
+    ): Int {
         // Move to next byte, then read LEN and NLEN
         br.alignToByte()
         val len = readByte(br) or (readByte(br) shl 8)
@@ -73,14 +83,22 @@ object CleanDeflate {
     private val DIST_BASE = TREE_BASE_DIST
     private val DIST_EXTRA = TREE_EXTRA_DBITS
 
-    private fun decodeFixed(br: BitReader, out: MutableList<Byte>): Int {
+    // TODO(detekt: CyclomaticComplexMethod): split into helpers (length decode, distance decode, copy)
+    // TODO(detekt: TooGenericExceptionCaught/SwallowedException): narrow exception types and surface context
+    private fun decodeFixed(
+        br: BitReader,
+        out: MutableList<Byte>,
+    ): Int {
         val litTable = buildFixedLiteralTable()
         val distTable = buildFixedDistTable()
 
         loop@ while (true) {
-            val sym = try { CanonicalHuffman.decodeOne(br, litTable) } catch (e: Throwable) {
-                return Z_DATA_ERROR
-            }
+            val sym =
+                try {
+                    CanonicalHuffman.decodeOne(br, litTable)
+                } catch (e: Throwable) { // TODO: catch specific decoding exception and attach context
+                    return Z_DATA_ERROR
+                }
             when {
                 sym < 256 -> out.add(sym.toByte())
                 sym == 256 -> break@loop // end of block
@@ -92,9 +110,12 @@ object CleanDeflate {
                     val extraVal = if (extra > 0) br.take(extra) else 0
                     val length = baseLen + extraVal
 
-                    val distSym = try { CanonicalHuffman.decodeOne(br, distTable) } catch (e: Throwable) {
-                        return Z_DATA_ERROR
-                    }
+                    val distSym =
+                        try {
+                            CanonicalHuffman.decodeOne(br, distTable)
+                        } catch (e: Throwable) { // TODO: catch specific decoding exception and attach context
+                            return Z_DATA_ERROR
+                        }
                     if (distSym !in 0..29) return Z_DATA_ERROR
                     val baseDist = DIST_BASE[distSym]
                     val extraD = DIST_EXTRA[distSym]
@@ -115,7 +136,11 @@ object CleanDeflate {
         return Z_OK
     }
 
-    private fun decodeDynamic(br: BitReader, out: MutableList<Byte>): Int {
+    // TODO(detekt: LongMethod/CyclomaticComplexMethod): refactor into phases (read code lengths, build tables, decode loop)
+    private fun decodeDynamic(
+        br: BitReader,
+        out: MutableList<Byte>,
+    ): Int {
         // Read HLIT, HDIST, HCLEN
         val hlit = br.take(5) + 257
         val hdist = br.take(5) + 1
@@ -137,7 +162,9 @@ object CleanDeflate {
         while (i < hlit) {
             val sym = CanonicalHuffman.decodeOne(br, clTableFull)
             when (sym) {
-                in 0..15 -> { litLenLens[i++] = sym }
+                in 0..15 -> {
+                    litLenLens[i++] = sym
+                }
                 16 -> {
                     if (i == 0) return Z_DATA_ERROR
                     val repeat = 3 + br.take(2)
@@ -159,7 +186,9 @@ object CleanDeflate {
         while (i < hdist) {
             val sym = CanonicalHuffman.decodeOne(br, clTableFull)
             when (sym) {
-                in 0..15 -> { distLens[i++] = sym }
+                in 0..15 -> {
+                    distLens[i++] = sym
+                }
                 16 -> {
                     if (i == 0) return Z_DATA_ERROR
                     val repeat = 3 + br.take(2)
@@ -217,7 +246,7 @@ object CleanDeflate {
 
     /**
      * Inflate a zlib-wrapped stream supporting stored and fixed blocks.
-     * Dynamic blocks return Z_DATA_ERROR to indicate unsupported in this clean path.
+     * Dynamic blocks return Z_DATA_ERROR to indicate unsupported in this path.
      */
     fun inflateZlib(input: ByteArray): Pair<Int, ByteArray> {
         val br = BitReader(input)

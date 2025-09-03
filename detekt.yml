@@ -1,0 +1,37 @@
+build:
+  maxIssues: 99999
+  excludeCorrectable: false
+
+config:
+  validation: true
+
+style:
+  MagicNumber:
+    active: false
+  WildcardImport:
+    active: false
+  MaxLineLength:
+    active: true
+    maxLineLength: 200
+  ReturnCount:
+    active: false
+
+comments:
+  UndocumentedPublicClass:
+    active: false
+  UndocumentedPublicFunction:
+    active: false
+
+performance:
+  ForEachOnRange:
+    active: false
+
+potential-bugs:
+  LateinitUsage:
+    active: true
+
+complexity:
+  LongParameterList:
+    active: false
+  TooManyFunctions:
+    active: false

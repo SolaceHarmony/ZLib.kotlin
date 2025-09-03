@@ -1,8 +1,23 @@
 @file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
+@file:Suppress("ktlint:standard:property-naming")
+
 package ai.solace.zlib.common
 
-import kotlinx.cinterop.*
-import platform.posix.*
+import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.allocArray
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.toKString
+import platform.posix.fclose
+import platform.posix.fopen
+import platform.posix.fputs
+import platform.posix.getenv
+import platform.posix.localtime
+import platform.posix.strftime
+import platform.posix.time
+import platform.posix.time_tVar
 
 actual var LOG_FILE_PATH: String? = null
 
@@ -28,6 +43,6 @@ actual fun currentTimestamp(): String {
 }
 
 actual fun getEnv(name: String): String? {
-    val v = platform.posix.getenv(name)
+    val v = getenv(name)
     return v?.toKString()
 }
