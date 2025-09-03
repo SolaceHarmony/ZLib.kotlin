@@ -4,9 +4,12 @@ package ai.solace.zlib.common
 import kotlinx.cinterop.*
 import platform.posix.*
 
+actual var LOG_FILE_PATH: String? = null
+
 actual fun logToFile(line: String) {
     memScoped {
-        val file = fopen("zlib.log", "a")
+        val path = LOG_FILE_PATH ?: "zlib.log"
+        val file = fopen(path, "a")
         if (file != null) {
             fputs(line, file)
             fclose(file)
@@ -24,3 +27,7 @@ actual fun currentTimestamp(): String {
     }
 }
 
+actual fun getEnv(name: String): String? {
+    val v = platform.posix.getenv(name)
+    return v?.toKString()
+}

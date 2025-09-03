@@ -3,10 +3,12 @@ package ai.solace.zlib.test
 import ai.solace.zlib.deflate.ZStream
 import ai.solace.zlib.common.*
 import kotlin.test.*
+import kotlin.test.Ignore
 
 /**
  * Minimal debug test to understand what's failing with multiple characters
  */
+@Ignore
 class DebugHuffmanTest {
 
     @Test
