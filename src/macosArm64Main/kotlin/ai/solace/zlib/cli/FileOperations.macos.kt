@@ -3,6 +3,8 @@ package ai.solace.zlib.cli
 import kotlinx.cinterop.ByteVar
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.allocArray
+import kotlinx.cinterop.get
+import kotlinx.cinterop.set
 import kotlinx.cinterop.memScoped
 import platform.posix.SEEK_END
 import platform.posix.SEEK_SET
