@@ -70,14 +70,11 @@ object CleanDeflate {
     private fun decodeFixed(br: BitReader, out: MutableList<Byte>): Int {
         val litTable = buildFixedLiteralTable()
         val distTable = buildFixedDistTable()
-        println("[CLEAN] fixed tables: lit.max=${litTable.maxLen} dist.max=${distTable.maxLen}")
 
         loop@ while (true) {
             val sym = try { CanonicalHuffman.decodeOne(br, litTable) } catch (e: Throwable) {
-                println("[CLEAN] decodeOne(lit) failed: ${e.message}")
                 return Z_DATA_ERROR
             }
-            println("[CLEAN] lit sym=$sym")
             when {
                 sym < 256 -> out.add(sym.toByte())
                 sym == 256 -> break@loop // end of block
@@ -90,10 +87,8 @@ object CleanDeflate {
                     val length = baseLen + extraVal
 
                     val distSym = try { CanonicalHuffman.decodeOne(br, distTable) } catch (e: Throwable) {
-                        println("[CLEAN] decodeOne(dist) failed: ${e.message}")
                         return Z_DATA_ERROR
                     }
-                    println("[CLEAN] dist sym=$distSym len=$length")
                     if (distSym !in 0..29) return Z_DATA_ERROR
                     val baseDist = DIST_BASE[distSym]
                     val extraD = DIST_EXTRA[distSym]
@@ -220,32 +215,25 @@ object CleanDeflate {
      */
     fun inflateZlib(input: ByteArray): Pair<Int, ByteArray> {
         val br = BitReader(input)
-        println("[CLEAN] begin inflateZlib; input=${input.size}")
         if (!readZlibHeader(br)) {
-            println("[CLEAN] bad zlib header")
             return Z_DATA_ERROR to byteArrayOf()
         }
-        println("[CLEAN] header ok")
 
         val out = mutableListOf<Byte>()
         var last: Int
         do {
-            println("[CLEAN] new block: bitsIn=${br.bitsInBuffer()} bytesConsumed=${br.bytesConsumed()}")
             last = br.take(1)
             val btype = br.take(2)
-            println("[CLEAN] last=$last btype=$btype")
             when (btype) {
                 0 -> { // stored
                     val r = copyStored(br, out)
                     if (r != Z_OK) return r to byteArrayOf()
                 }
                 1 -> { // fixed
-                    println("[CLEAN] decode fixed")
                     val r = decodeFixed(br, out)
                     if (r != Z_OK) return r to byteArrayOf()
                 }
                 2 -> {
-                    println("[CLEAN] decode dynamic")
                     val r = decodeDynamic(br, out)
                     if (r != Z_OK) return r to byteArrayOf()
                 }
@@ -258,7 +246,6 @@ object CleanDeflate {
         br.alignToByte()
         // Not strictly required here; primary goal is structural decoding
 
-        println("[CLEAN] done; out=${out.size}")
         return Z_OK to out.toByteArray()
     }
 }
