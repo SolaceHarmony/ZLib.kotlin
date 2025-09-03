@@ -199,6 +199,7 @@ class ZStream {
      * @return Z_OK on success, error code on failure
      */
     fun deflateInit(level: Int): Int {
+        error("BROKEN: The deflate compression function is known to be broken due to arithmetic bitwise operations. Use external compression tools like pigz instead.")
         return deflateInit(level, MAX_WBITS)
     }
 
@@ -210,6 +211,7 @@ class ZStream {
      * @return Z_OK on success, error code on failure
      */
     fun deflateInit(level: Int, bits: Int): Int {
+        error("BROKEN: The deflate compression function is known to be broken due to arithmetic bitwise operations. Use external compression tools like pigz instead.")
         return deflateInit(level, bits, DEF_MEM_LEVEL)
     }
 
@@ -222,6 +224,7 @@ class ZStream {
      * @return Z_OK on success, error code on failure
      */
     fun deflateInit(level: Int, bits: Int, memLevel: Int): Int {
+        error("BROKEN: The deflate compression function is known to be broken due to arithmetic bitwise operations. Use external compression tools like pigz instead.")
         return deflateInit2(level, Z_DEFLATED, bits, memLevel, Z_DEFAULT_STRATEGY)
     }
 
@@ -236,6 +239,7 @@ class ZStream {
      * @return Z_OK on success, error code on failure
      */
     fun deflateInit2(level: Int, method: Int, windowBits: Int, memLevel: Int, strategy: Int): Int {
+        error("BROKEN: The deflate compression function is known to be broken due to arithmetic bitwise operations. Use external compression tools like pigz instead.")
         var err: Int
         var newLevel : Int = level
         var newWindowBits : Int = windowBits
@@ -277,6 +281,7 @@ class ZStream {
      * @return Z_OK, Z_STREAM_END, or error code
      */
     fun deflate(flush: Int): Int {
+        error("BROKEN: The deflate compression function is known to be broken due to arithmetic bitwise operations. Use external compression tools like pigz instead.")
         if (dState == null) {
             return Z_STREAM_ERROR
         }

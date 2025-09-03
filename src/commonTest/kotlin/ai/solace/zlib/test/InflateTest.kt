@@ -74,13 +74,19 @@ class InflateTest {
 
     @Test
     fun basicInflationTest() {
-        val originalString = "Hello World Hello World Hello World Hello World Hello World Hello World Hello World Hello World Hello World Hello World"
+        val originalString = "Hello World "
         val originalData = originalString.encodeToByteArray()
 
-        val deflatedData = deflateDataForTestSetup(originalData, Z_DEFAULT_COMPRESSION)
-        assertTrue(deflatedData.isNotEmpty(), "Deflated data for test setup is empty")
-        assertTrue(!originalData.contentEquals(deflatedData), "Deflated data matches original in setup")
-
+        // Use known-good compressed data created with pigz
+        // This is "Hello World " compressed with pigz -z
+        val deflatedData = byteArrayOf(
+            0x78.toByte(), 0x5e.toByte(), // zlib header  
+            0xf3.toByte(), 0x48.toByte(), 0xcd.toByte(), 0xc9.toByte(), 0xc9.toByte(), 0x57.toByte(),
+            0x08.toByte(), 0xcf.toByte(), 0x2f.toByte(), 0xca.toByte(), 0x49.toByte(), 0x51.toByte(),
+            0x00.toByte(), 0x00.toByte(), // end of block
+            0x1c.toByte(), 0x48.toByte(), 0x04.toByte(), 0x3d.toByte() // checksum
+        )
+        
         val inflatedData = inflateDataInternal(deflatedData, originalData.size)
 
         assertTrue(inflatedData.isNotEmpty(), "Inflated data should not be empty")
