@@ -104,10 +104,10 @@ class BitShiftEngine(
             BitShiftMode.NATIVE -> {
                 val originalValue = normalize(value)
                 val result = when (bitWidth) {
-                    8 -> (originalValue.toByte().toInt() shr bits).toLong()
-                    16 -> (originalValue.toShort().toInt() shr bits).toLong()
-                    32 -> (originalValue.toInt() shr bits).toLong()
-                    64 -> originalValue shr bits
+                    8 -> ((originalValue.toInt() and 0xFF) ushr bits).toLong()
+                    16 -> ((originalValue.toInt() and 0xFFFF) ushr bits).toLong()
+                    32 -> (originalValue.toInt() ushr bits).toLong()
+                    64 -> originalValue ushr bits
                     else -> throw IllegalStateException()
                 }
                 
