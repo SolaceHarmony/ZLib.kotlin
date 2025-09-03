@@ -1,8 +1,20 @@
 package ai.solace.zlib.cli
 
-expect fun readFile(path: String): ByteArray
+import okio.FileSystem
+import okio.Path.Companion.toPath
 
-expect fun writeFile(
+fun readFile(path: String): ByteArray {
+    val p = path.toPath()
+    return FileSystem.SYSTEM.read(p) { readByteArray() }
+}
+
+fun writeFile(
     path: String,
     data: ByteArray,
-)
+) {
+    val p = path.toPath()
+    FileSystem.SYSTEM.write(p) {
+        write(data)
+        flush()
+    }
+}
