@@ -46,9 +46,7 @@ class BitBuffer {
      * @return The value of the consumed bits
      */
     fun consumeBits(bits: Int): Int {
-        if (bits > bitCount) {
-            throw IllegalArgumentException("Not enough bits in buffer")
-        }
+        require(bits <= bitCount) { "Not enough bits in buffer" }
 
         // Get the lowest N bits
         val result = buffer and BitwiseOps.createMask(bits)
