@@ -1,9 +1,9 @@
 package ai.solace.zlib.test
 
-import ai.solace.zlib.deflate.Adler32
 import ai.solace.zlib.common.ADLER_BASE
 import ai.solace.zlib.common.ADLER_NMAX
 import ai.solace.zlib.common.ZlibLogger
+import ai.solace.zlib.deflate.Adler32
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -12,7 +12,6 @@ import kotlin.time.ExperimentalTime
 import kotlin.time.measureTime
 
 class Adler32Test {
-
     @Test
     fun testBasicFunctionality() {
         val adler32 = Adler32()
@@ -197,38 +196,38 @@ class Adler32Test {
         val expectedDoubleNmaxResult = calculateExpectedAdler32(doubleNmaxBuffer)
         assertEquals(expectedDoubleNmaxResult, doubleNmaxResult, "Checksum for 2*NMAX length string should match expected value")
     }
-    
+
     @Test
     fun testAdlerNmaxRegression() {
         val adler32 = Adler32()
 
         // Regression test for ADLER_NMAX boundary conditions as per issue #24
         // Test with inputs around ADLER_NMAX length (n = ADLER_NMAX, n = ADLER_NMAX + 1)
-        
+
         // Test with exactly n = ADLER_NMAX
         val nmaxBuffer = ByteArray(ADLER_NMAX) { i -> (i % 256).toByte() }
         val nmaxResult = adler32.adler32(1L, nmaxBuffer, 0, nmaxBuffer.size)
-        
+
         // Test with n = ADLER_NMAX + 1
         val nmaxPlus1Buffer = ByteArray(ADLER_NMAX + 1) { i -> (i % 256).toByte() }
         val nmaxPlus1Result = adler32.adler32(1L, nmaxPlus1Buffer, 0, nmaxPlus1Buffer.size)
-        
+
         // Results should be different (this verifies chunking behavior)
         assertTrue(nmaxResult != nmaxPlus1Result, "Checksums should be different for n=ADLER_NMAX and n=ADLER_NMAX+1")
-        
+
         // Test with n = ADLER_NMAX - 1
         val nmaxMinus1Buffer = ByteArray(ADLER_NMAX - 1) { i -> (i % 256).toByte() }
         val nmaxMinus1Result = adler32.adler32(1L, nmaxMinus1Buffer, 0, nmaxMinus1Buffer.size)
-        
+
         // All three results should be different
         assertTrue(nmaxResult != nmaxMinus1Result, "Checksums should be different for n=ADLER_NMAX and n=ADLER_NMAX-1")
         assertTrue(nmaxPlus1Result != nmaxMinus1Result, "Checksums should be different for n=ADLER_NMAX+1 and n=ADLER_NMAX-1")
-        
+
         // Verify that our implementation matches the expected algorithm for these boundary cases
         assertEquals(calculateExpectedAdler32(nmaxBuffer), nmaxResult, "n=ADLER_NMAX result should match expected")
         assertEquals(calculateExpectedAdler32(nmaxPlus1Buffer), nmaxPlus1Result, "n=ADLER_NMAX+1 result should match expected")
         assertEquals(calculateExpectedAdler32(nmaxMinus1Buffer), nmaxMinus1Result, "n=ADLER_NMAX-1 result should match expected")
-        
+
         // Test that large inputs produce consistent results with chunking
         val largeBuffer = ByteArray(11000) { i -> (i % 256).toByte() } // ~2 chunks
         val largeResult = adler32.adler32(1L, largeBuffer, 0, largeBuffer.size)
@@ -246,9 +245,10 @@ class Adler32Test {
         val largeBuffer = largeString.encodeToByteArray()
 
         // Measure the time it takes to calculate the checksum
-        val duration: Duration = measureTime {
-            adler32.adler32(1L, largeBuffer, 0, largeBuffer.size)
-        }
+        val duration: Duration =
+            measureTime {
+                adler32.adler32(1L, largeBuffer, 0, largeBuffer.size)
+            }
 
         // Print the duration for informational purposes
         ZlibLogger.log("Time to calculate Adler32 for 1,000,000 bytes: $duration")
@@ -283,14 +283,14 @@ class Adler32Test {
         // Process data in chunks of ADLER_NMAX to prevent overflow
         while (i < buffer.size) {
             val chunkEnd = minOf(i + ADLER_NMAX, buffer.size)
-            
+
             // Process bytes in current chunk without modulo
             while (i < chunkEnd) {
                 s1 += (buffer[i].toInt() and 0xff)
                 s2 += s1
                 i++
             }
-            
+
             // Apply modulo only after processing the chunk
             s1 %= ADLER_BASE
             s2 %= ADLER_BASE

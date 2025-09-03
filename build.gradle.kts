@@ -4,13 +4,14 @@ import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 
 plugins {
     kotlin("multiplatform") version "2.1.20" // Updated to latest Kotlin version
+    id("org.jlleitschuh.gradle.ktlint") version "12.1.1"
+    id("io.gitlab.arturbosch.detekt") version "1.23.6"
 }
 
 kotlin {
     compilerOptions {
         freeCompilerArgs.add("-Xexpect-actual-classes")
     }
-
 
     // Only include Linux x64 for now to avoid network dependency issues
     linuxX64 {
@@ -56,7 +57,6 @@ kotlin {
             dependsOn(commonTest)
         }
 
-
         // Linux source sets
         val linuxMain by creating {
             dependsOn(nativeMain)
@@ -70,6 +70,7 @@ kotlin {
         val linuxX64Main by getting {
             dependsOn(linuxMain)
         }
+
         @Suppress("unused")
         val linuxX64Test by getting {
             dependsOn(linuxTest)
@@ -80,12 +81,12 @@ kotlin {
         val macosArm64Main by getting {
             dependsOn(nativeMain)
         }
+
         @Suppress("unused")
         val macosArm64Test by getting {
             dependsOn(nativeTest)
         }
     }
-
 }
 
 repositories {
@@ -94,4 +95,40 @@ repositories {
 
 dependencies {
     // Add any dependencies your project needs here.
+}
+
+// Ktlint configuration
+ktlint {
+    android.set(false)
+    outputToConsole.set(true)
+    ignoreFailures.set(false)
+    filter {
+        // Exclude test sources from ktlint checks for now
+        exclude("src/**/test/**")
+        exclude("**/src/commonTest/**")
+        exclude("**/src/*Test*/**")
+    }
+}
+
+// Disable ktlint checks over test source sets for now
+tasks.matching { it.name.contains("TestSourceSet") }.configureEach {
+    enabled = false
+}
+
+// Detekt configuration
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    config.setFrom(files("detekt.yml"))
+    source.setFrom(files(
+        "src/commonMain/kotlin",
+        "src/nativeMain/kotlin",
+        "src/linuxMain/kotlin",
+        "src/macosArm64Main/kotlin"
+    ))
+    ignoreFailures = true
+}
+
+tasks.named("check").configure {
+    dependsOn("ktlintCheck", "detekt")
 }

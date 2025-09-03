@@ -8,27 +8,26 @@ import kotlin.test.*
  * This addresses the issue where MAX_WBITS was referenced but not properly imported.
  */
 class MaxWBitsImportTest {
-
     @Test
     fun testMaxWBitsIsAccessible() {
         // Test that MAX_WBITS constant is accessible without compilation errors
         val maxWindowBits = MAX_WBITS
-        
+
         // MAX_WBITS should be 15 (representing 32K window size)
         assertEquals(15, maxWindowBits, "MAX_WBITS should be 15")
     }
-    
+
     @Test
     fun testMaxWBitsCanBeUsedInComputations() {
         // Test that MAX_WBITS can be used in typical calculations
         val windowSize = 1 shl MAX_WBITS // 2^15 = 32768
         assertEquals(32768, windowSize, "Window size calculation should work with MAX_WBITS")
-        
+
         // Test using MAX_WBITS in bitwise operations (common in zlib)
         val wbitsCheck = MAX_WBITS and 0x0F
         assertEquals(15, wbitsCheck, "Bitwise operations with MAX_WBITS should work")
     }
-    
+
     @Test
     fun testMaxWBitsInInflateSetup() {
         // Test the specific use case mentioned in InfBlocksUtilsTest.kt

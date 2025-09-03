@@ -7,19 +7,19 @@ package ai.solace.zlib.bitwise
 class BitBuffer {
     private var buffer: Int = 0
     private var bitCount: Int = 0
-    
+
     /**
      * Gets the current bit buffer value
      * @return The current buffer value
      */
     fun getBuffer(): Int = buffer
-    
+
     /**
      * Gets the current number of valid bits in the buffer
      * @return The bit count
      */
     fun getBitCount(): Int = bitCount
-    
+
     /**
      * Adds bits from a byte to the buffer
      * @param b The byte to add
@@ -30,7 +30,7 @@ class BitBuffer {
         bitCount += 8
         return 8
     }
-    
+
     /**
      * Peeks at the next N bits without consuming them
      * @param bits Number of bits to peek
@@ -39,7 +39,7 @@ class BitBuffer {
     fun peekBits(bits: Int): Int {
         return buffer and BitwiseOps.createMask(bits)
     }
-    
+
     /**
      * Consumes N bits from the buffer
      * @param bits Number of bits to consume
@@ -49,7 +49,7 @@ class BitBuffer {
         if (bits > bitCount) {
             throw IllegalArgumentException("Not enough bits in buffer")
         }
-        
+
         // Get the lowest N bits
         val result = buffer and BitwiseOps.createMask(bits)
 
@@ -65,7 +65,7 @@ class BitBuffer {
 
         return result
     }
-    
+
     /**
      * Checks if the buffer has at least N bits available
      * @param bits Number of bits to check for
@@ -74,7 +74,7 @@ class BitBuffer {
     fun hasEnoughBits(bits: Int): Boolean {
         return bitCount >= bits
     }
-    
+
     /**
      * Resets the buffer to empty state
      */
