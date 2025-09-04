@@ -63,14 +63,12 @@ object CanonicalHuffman {
         return FullTable(maxLen, bitsTab, valsTab)
     }
 
-    /** Decode one symbol using the FullTable approach. */
-    // TODO(detekt: UseCheckOrError): replace IllegalStateException with check/error for clarity
+    /** Decode one symbol using the FullTable approach with a StreamingBitReader. */
     fun decodeOne(
-        br: BitReader,
+        br: StreamingBitReader,
         table: FullTable,
     ): Int {
         if (table.maxLen == 0) error("Empty Huffman table")
-        // Ensure we have up to maxLen bits available
         val look = br.peek(table.maxLen)
         val len = table.bits[look]
         if (len == 0) {

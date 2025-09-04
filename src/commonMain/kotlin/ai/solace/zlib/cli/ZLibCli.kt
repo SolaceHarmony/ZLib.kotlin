@@ -1,14 +1,16 @@
 package ai.solace.zlib.cli
 
 import ai.solace.zlib.common.Z_OK
-import ai.solace.zlib.inflate.Inflate
+import ai.solace.zlib.inflate.InflateStream
+import okio.FileSystem
+import okio.Path.Companion.toPath
+import okio.buffer
 
 fun main(args: Array<String>) {
     if (args.isEmpty()) {
         println("ZLib.kotlin - Pure arithmetic zlib implementation")
         println("Commands:")
         println("  decompress <input.zz> <output.txt> - Decompress a zlib file")
-        println("  test-inflate <input.zz> - Test decompression with Inflate")
         return
     }
 
@@ -18,29 +20,22 @@ fun main(args: Array<String>) {
                 println("Usage: decompress <input.zz> <output.txt>")
                 return
             }
-            val input = readFile(args[1])
-            val (result, output) = Inflate.inflateZlib(input)
-            if (result == Z_OK) {
-                writeFile(args[2], output)
-                println("Decompressed ${input.size} bytes to ${output.size} bytes")
-            } else {
-                println("Decompression failed: $result")
-            }
-        }
-
-        "test-inflate" -> {
-            if (args.size < 2) {
-                println("Usage: test-inflate <input.zz>")
-                return
-            }
-            val input = readFile(args[1])
-            val (result, output) = Inflate.inflateZlib(input)
-            if (result == Z_OK) {
-                println("Success! Decompressed to ${output.size} bytes")
-                val preview = output.take(100).toByteArray().decodeToString()
-                println("First 100 chars: $preview")
-            } else {
-                println("Decompression failed: $result")
+            val inPath = args[1].toPath()
+            val outPath = args[2].toPath()
+            val src = FileSystem.SYSTEM.source(inPath).buffer()
+            val snk = FileSystem.SYSTEM.sink(outPath).buffer()
+            try {
+                val (result, bytesOut) = InflateStream.inflateZlib(src, snk)
+                snk.flush()
+                if (result == Z_OK) {
+                    val inSize = FileSystem.SYSTEM.metadata(inPath).size ?: -1L
+                    println("Decompressed ${inSize} bytes to ${bytesOut} bytes")
+                } else {
+                    println("Decompression failed: $result")
+                }
+            } finally {
+                try { src.close() } catch (_: Throwable) {}
+                try { snk.close() } catch (_: Throwable) {}
             }
         }
 
