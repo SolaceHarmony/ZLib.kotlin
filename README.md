@@ -152,6 +152,13 @@ This project is released under the [zlib License](LICENSE), a permissive open so
 
 See [`LICENSE`](LICENSE) for details.
 
+### Attribution
+
+This library is an original Kotlin Multiplatform implementation maintained by Sydney Bach / The Solace Project.
+It is inspired by and acknowledges the original zlib work by Jean‑loup Gailly and Mark Adler. Any remaining
+references to legacy code paths were removed during the rewrite; the streaming inflate presented here is a
+clean, Kotlin‑native implementation that adheres to the zlib format (RFC 1950) and DEFLATE specification (RFC 1951).
+
 ---
 
 ## Contributing
