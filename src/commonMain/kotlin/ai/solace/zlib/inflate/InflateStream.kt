@@ -184,13 +184,6 @@ object InflateStream {
     }
 
     private fun decodeFixed(br: StreamingBitReader, sink: BufferedSink, window: ByteArray, posRef: IntArray, adler: LongArray): Int {
-        val litLens = IntArray(288).also {
-            for (i in 0..143) it[i] = 8
-            for (i in 144..255) it[i] = 9
-            for (i in 256..279) it[i] = 7
-            for (i in 280..287) it[i] = 8
-        }
-        val distLens = IntArray(32) { 5 }
         val litTable = FIXED_TABLES.lit
         val distTable = FIXED_TABLES.dist
 
