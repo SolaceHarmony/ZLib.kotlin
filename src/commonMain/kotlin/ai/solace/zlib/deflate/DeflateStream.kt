@@ -132,6 +132,31 @@ object DeflateStream {
         if (extraBits > 0) bw.writeBits(extraVal, extraBits)
     }
 
+    /** Encoders for fixed Huffman coding (RFC 1951, BTYPE=01). */
+    private data class FixedEnc(
+        val litCodes: IntArray,
+        val litBits: IntArray,
+        val distCodes: IntArray,
+        val distBits: IntArray,
+    )
+
+    /** Build and return the fixed Huffman encoders (literal/length and distance). */
+    private fun buildFixedEncoders(): FixedEnc {
+        // Fixed literal/length code lengths
+        val litLenLens = IntArray(288)
+        for (i in 0..143) litLenLens[i] = 8
+        for (i in 144..255) litLenLens[i] = 9
+        litLenLens[256] = 7
+        for (i in 257..279) litLenLens[i] = 7
+        for (i in 280..287) litLenLens[i] = 8
+        val (litCodes, litBits) = CanonicalHuffman.buildEncoder(litLenLens)
+
+        // Fixed distance codes: 32 symbols, all length 5
+        val distLens = IntArray(32) { 5 }
+        val (distCodes, distBits) = CanonicalHuffman.buildEncoder(distLens)
+        return FixedEnc(litCodes, litBits, distCodes, distBits)
+    }
+
     /** Compress from source to sink with zlib wrapper using fixed Huffman (with simple RLE), fallback to stored when level<=0. */
     fun compressZlib(source: BufferedSource, sink: BufferedSink, level: Int = 6): Long {
         return when {
@@ -186,18 +211,12 @@ object DeflateStream {
         writeZlibHeader(sink, level)
         val bw = StreamingBitWriter(sink)
 
-        // Fixed literal/length code lengths
-        val litLenLens = IntArray(288)
-        for (i in 0..143) litLenLens[i] = 8
-        for (i in 144..255) litLenLens[i] = 9
-        litLenLens[256] = 7
-        for (i in 257..279) litLenLens[i] = 7
-        for (i in 280..287) litLenLens[i] = 8
-        val (litCodes, litBits) = CanonicalHuffman.buildEncoder(litLenLens)
-
-        // Fixed distance codes: 32 symbols, all length 5
-        val distLens = IntArray(32) { 5 }
-        val (distCodes, distBits) = CanonicalHuffman.buildEncoder(distLens)
+        // Build fixed Huffman encoders via helper to avoid duplication
+        val fixed = buildFixedEncoders()
+        val litCodes = fixed.litCodes
+        val litBits = fixed.litBits
+        val distCodes = fixed.distCodes
+        val distBits = fixed.distBits
 
         fun writeSymbol(sym: Int) {
             bw.writeBits(litCodes[sym], litBits[sym])
@@ -736,16 +755,12 @@ object DeflateStream {
             }
             val costDynamic = headerDyn + tokenCost(dynLitBits, dynDistBits)
 
-            val fixedLitLens = IntArray(288).also {
-                for (i in 0..143) it[i] = 8
-                for (i in 144..255) it[i] = 9
-                it[256] = 7
-                for (i in 257..279) it[i] = 7
-                for (i in 280..287) it[i] = 8
-            }
-            val fixedDistLens = IntArray(32) { 5 }
-            val (fixedLitCodes, fixedLitBits) = CanonicalHuffman.buildEncoder(fixedLitLens)
-            val (fixedDistCodes, fixedDistBits) = CanonicalHuffman.buildEncoder(fixedDistLens)
+            // Use shared fixed encoder builder to avoid duplication
+            val fixedEnc = buildFixedEncoders()
+            val fixedLitCodes = fixedEnc.litCodes
+            val fixedLitBits = fixedEnc.litBits
+            val fixedDistCodes = fixedEnc.distCodes
+            val fixedDistBits = fixedEnc.distBits
             val costFixed = 1L + 2L + tokenCost(fixedLitBits, fixedDistBits)
 
             val padStored = (8 - (bw.bitMod8() % 8)) % 8
