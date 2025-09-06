@@ -1,4 +1,5 @@
-@file:Suppress("unused")
+@file:Suppress("unused", "ktlint:standard:indent")
+
 package ai.solace.zlib.bitwise
 
 /**
@@ -19,10 +20,13 @@ package ai.solace.zlib.bitwise
 object BitwiseOps {
         // Default engines for common operations
         private val defaultEngine32 = BitShiftEngine(BitShiftMode.NATIVE, 32)
+
         @Suppress("unused") // TODO(detekt): remove if truly unused
         private val defaultEngine16 = BitShiftEngine(BitShiftMode.NATIVE, 16)
+
         @Suppress("unused") // TODO(detekt): remove if truly unused
         private val defaultEngine8 = BitShiftEngine(BitShiftMode.NATIVE, 8)
+
         private val defaultEngine64 = BitShiftEngine(BitShiftMode.NATIVE, 64)
 
         /**
