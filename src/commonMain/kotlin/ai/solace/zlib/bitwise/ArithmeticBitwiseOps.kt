@@ -127,6 +127,23 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
     }
 
     /**
+     * Estimates how many bits are worth iterating based on the value magnitude.
+     * Keeps loops tight for small inputs while capping at bitLength.
+     */
+    private fun estimateMaxBitsFor(value: Long): Int {
+        val v = normalize(value)
+        return if (v < 256) {
+            8
+        } else if (v < 65536) {
+            16
+        } else if (v < 16777216) {
+            24
+        } else {
+            bitLength
+        }
+    }
+
+    /**
      * Extracts the lowest N bits from a value
      * @param value The value to extract bits from
      * @param bits Number of bits to extract
@@ -179,16 +196,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
 
         // Determine how many bits we actually need to check
         val maxVal = if (norm1 > norm2) norm1 else norm2
-        val maxBits =
-            if (maxVal < 256) {
-                8
-            } else if (maxVal < 65536) {
-                16
-            } else if (maxVal < 16777216) {
-                24
-            } else {
-                bitLength
-            }
+        val maxBits = estimateMaxBitsFor(maxVal)
 
         var result = 0L
         var powerOf2 = 1L
@@ -246,16 +254,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         }
 
         // For small second operand, we can terminate early
-        val maxBits =
-            if (norm2 < 256) {
-                8
-            } else if (norm2 < 65536) {
-                16
-            } else if (norm2 < 16777216) {
-                24
-            } else {
-                bitLength
-            }
+        val maxBits = estimateMaxBitsFor(norm2)
 
         var result = 0L
         var powerOf2 = 1L

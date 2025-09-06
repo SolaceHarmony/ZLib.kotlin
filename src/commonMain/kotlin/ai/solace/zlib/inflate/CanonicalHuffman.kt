@@ -45,16 +45,7 @@ object CanonicalHuffman {
         val maxLen = lengths.maxOrNull() ?: 0
         if (maxLen == 0) return FullTable(0, IntArray(1), IntArray(1))
 
-        val blCount = IntArray(maxLen + 1)
-        for (l in lengths) if (l > 0) blCount[l]++
-
-        val nextCode = IntArray(maxLen + 1)
-        var code = 0
-        for (bits in 1..maxLen) {
-            // Use arithmetic operations instead of native bitwise
-            code = ops.leftShift((code + blCount[bits - 1]).toLong(), 1).toInt()
-            nextCode[bits] = code
-        }
+        val nextCode = computeNextCode(lengths, maxLen, ops)
 
         // Use arithmetic operations instead of native bitwise
         val size = ops.leftShift(1L, maxLen).toInt()
@@ -79,18 +70,29 @@ object CanonicalHuffman {
         return FullTable(maxLen, bitsTab, valsTab)
     }
 
-    /** Build encoder codes (LSB-first bit order) for given code lengths. */
-    fun buildEncoder(lengths: IntArray): Pair<IntArray, IntArray> {
-        val ops = ArithmeticBitwiseOps.BITS_32
-        val maxLen = lengths.maxOrNull() ?: 0
+    // Shared computation for canonical Huffman next codes
+    private fun computeNextCode(
+        lengths: IntArray,
+        maxLen: Int,
+        ops: ArithmeticBitwiseOps,
+    ): IntArray {
         val blCount = IntArray(maxLen + 1)
         for (l in lengths) if (l > 0) blCount[l]++
         val nextCode = IntArray(maxLen + 1)
         var code = 0
         for (bits in 1..maxLen) {
+            // Use arithmetic operations instead of native bitwise
             code = ops.leftShift((code + blCount[bits - 1]).toLong(), 1).toInt()
             nextCode[bits] = code
         }
+        return nextCode
+    }
+
+    /** Build encoder codes (LSB-first bit order) for given code lengths. */
+    fun buildEncoder(lengths: IntArray): Pair<IntArray, IntArray> {
+        val ops = ArithmeticBitwiseOps.BITS_32
+        val maxLen = lengths.maxOrNull() ?: 0
+        val nextCode = computeNextCode(lengths, maxLen, ops)
         val codes = IntArray(lengths.size)
         val lens = IntArray(lengths.size)
         for (sym in lengths.indices) {
