@@ -41,6 +41,9 @@ object DeflateStream {
         sink.writeByte(flg)
     }
 
+    // Shared constant for 32 KiB deflate window/buffer
+    private const val DEFAULT_WINDOW: Int = 1 shl 15
+
     // ---- Small internal helpers to reduce duplicated fragments ----
     /** Write a 32-bit big-endian integer to sink. */
     private fun writeBe32(sink: BufferedSink, value: Int) {
@@ -76,13 +79,14 @@ object DeflateStream {
         bw.writeBits(codes[sym], bits[sym])
     }
 
-    /** Map a match length to its Huffman code and write it, including extra bits. */
-    private fun writeLengthEncoded(
-        bw: StreamingBitWriter,
-        litCodes: IntArray,
-        litBits: IntArray,
-        length: Int,
-    ) {
+    /** Read a byte from a circular window using mask. */
+    private fun windowByteAt(window: ByteArray, mask: Int, p: Int): Int = window[p and mask].toInt() and 0xFF
+
+    private data class LengthMap(val codeSymbol: Int, val extraBits: Int, val extraVal: Int)
+    private data class DistMap(val codeSymbol: Int, val extraBits: Int, val extraVal: Int)
+
+    /** Compute length code mapping (code symbol and extra bits/value) for a given match length. */
+    private fun mapLengthToSymbol(length: Int): LengthMap {
         val base = TREE_BASE_LENGTH
         val extra = TREE_EXTRA_LBITS
         var code = -1
@@ -100,17 +104,11 @@ object DeflateStream {
             }
         }
         require(code != -1) { "Invalid length $length" }
-        bw.writeBits(litCodes[code], litBits[code])
-        if (extraBits > 0) bw.writeBits(extraVal, extraBits)
+        return LengthMap(code, extraBits, extraVal)
     }
 
-    /** Map a distance to its Huffman code and write it, including extra bits. */
-    private fun writeDistanceEncoded(
-        bw: StreamingBitWriter,
-        distCodes: IntArray,
-        distBits: IntArray,
-        dist: Int,
-    ) {
+    /** Compute distance code mapping (code symbol and extra bits/value) for a given match distance. */
+    private fun mapDistToSymbol(dist: Int): DistMap {
         val base = TREE_BASE_DIST
         val extra = TREE_EXTRA_DBITS
         var code = -1
@@ -128,8 +126,31 @@ object DeflateStream {
             }
         }
         require(code != -1) { "Invalid distance $dist" }
-        bw.writeBits(distCodes[code], distBits[code])
-        if (extraBits > 0) bw.writeBits(extraVal, extraBits)
+        return DistMap(code, extraBits, extraVal)
+    }
+
+    /** Map a match length to its Huffman code and write it, including extra bits. */
+    private fun writeLengthEncoded(
+        bw: StreamingBitWriter,
+        litCodes: IntArray,
+        litBits: IntArray,
+        length: Int,
+    ) {
+        val m = mapLengthToSymbol(length)
+        bw.writeBits(litCodes[m.codeSymbol], litBits[m.codeSymbol])
+        if (m.extraBits > 0) bw.writeBits(m.extraVal, m.extraBits)
+    }
+
+    /** Map a distance to its Huffman code and write it, including extra bits. */
+    private fun writeDistanceEncoded(
+        bw: StreamingBitWriter,
+        distCodes: IntArray,
+        distBits: IntArray,
+        dist: Int,
+    ) {
+        val m = mapDistToSymbol(dist)
+        bw.writeBits(distCodes[m.codeSymbol], distBits[m.codeSymbol])
+        if (m.extraBits > 0) bw.writeBits(m.extraVal, m.extraBits)
     }
 
     /** Encoders for fixed Huffman coding (RFC 1951, BTYPE=01). */
@@ -138,7 +159,29 @@ object DeflateStream {
         val litBits: IntArray,
         val distCodes: IntArray,
         val distBits: IntArray,
-    )
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other == null || this::class != other::class) return false
+
+            other as FixedEnc
+
+            if (!litCodes.contentEquals(other.litCodes)) return false
+            if (!litBits.contentEquals(other.litBits)) return false
+            if (!distCodes.contentEquals(other.distCodes)) return false
+            if (!distBits.contentEquals(other.distBits)) return false
+
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = litCodes.contentHashCode()
+            result = 31 * result + litBits.contentHashCode()
+            result = 31 * result + distCodes.contentHashCode()
+            result = 31 * result + distBits.contentHashCode()
+            return result
+        }
+    }
 
     /** Build and return the fixed Huffman encoders (literal/length and distance). */
     private fun buildFixedEncoders(): FixedEnc {
@@ -218,9 +261,6 @@ object DeflateStream {
         val distCodes = fixed.distCodes
         val distBits = fixed.distBits
 
-        fun writeSymbol(sym: Int) {
-            bw.writeBits(litCodes[sym], litBits[sym])
-        }
         fun writeLength(length: Int) {
             writeLengthEncoded(bw, litCodes, litBits, length)
         }
@@ -233,13 +273,14 @@ object DeflateStream {
         bw.writeBits(1, 2)
 
         // Streaming LZ77 with small lookahead buffer and 32K sliding window
-        val LOOKAHEAD = 1 shl 15 // 32KB buffer
-        val WINDOW = 1 shl 15    // 32KB window
-        val la = ByteArray(LOOKAHEAD)
-        val window = ByteArray(WINDOW)
-        val HEAD_SIZE = 1 shl 15
-        val head = IntArray(HEAD_SIZE) { -1 }
-        val prev = IntArray(WINDOW) { -1 }
+        val maxBufferCapacity = DEFAULT_WINDOW // 32KB buffer
+        val size = DEFAULT_WINDOW    // 32KB window
+        val la = ByteArray(maxBufferCapacity)
+        val window = ByteArray(size)
+        val bufferSize = DEFAULT_WINDOW
+        val winMask = size - 1
+        val head = IntArray(bufferSize) { -1 }
+        val prev = IntArray(size) { -1 }
 
         var adler = 1L
         var totalIn = 0L
@@ -249,11 +290,10 @@ object DeflateStream {
 
         fun hash3(a: Int, b: Int, c: Int): Int {
             var h = a * 251 + b * 271 + c * 277
-            h = h and (HEAD_SIZE - 1)
+            h = h and (bufferSize - 1)
             return h
         }
 
-        fun windowByte(p: Int): Int = window[p and (WINDOW - 1)].toInt() and 0xFF
 
         fun insertAt(absPos: Int) {
             if (laLen - (absPos - pos + laOff) < 3) return
@@ -262,13 +302,13 @@ object DeflateStream {
             val b = la[rel + 1].toInt() and 0xFF
             val c = la[rel + 2].toInt() and 0xFF
             val h = hash3(a, b, c)
-            val widx = absPos and (WINDOW - 1)
+            val widx = absPos and (size - 1)
             prev[widx] = head[h]
             head[h] = absPos
         }
 
         fun emitLiteral(b: Int) {
-            writeSymbol(b)
+            writeLiteral(bw, litCodes, litBits, b)
         }
 
         fun emitMatch(len: Int, dist: Int) {
@@ -282,8 +322,8 @@ object DeflateStream {
         }
 
         // Fill initial lookahead
-        while (laLen < LOOKAHEAD && !source.exhausted()) {
-            val n = source.read(la, laLen, minOf(LOOKAHEAD - laLen, 64 * 1024))
+        while (laLen < maxBufferCapacity && !source.exhausted()) {
+            val n = source.read(la, laLen, minOf(maxBufferCapacity - laLen, 64 * 1024))
             if (n <= 0) break
             adler = Adler32Utils.adler32(adler, la, laLen, n)
             laLen += n
@@ -297,7 +337,7 @@ object DeflateStream {
             cur++
         }
 
-        val MAX_CHAIN = 32
+        val maxChainLength = 32
         while (laLen > 0) {
             val rel = laOff
             val available = laLen
@@ -312,24 +352,24 @@ object DeflateStream {
                 val h = hash3(a, b, c)
                 var m = head[h]
                 var chain = 0
-                while (m != -1 && chain < MAX_CHAIN) {
+                while (m != -1 && chain < maxChainLength) {
                     val dist = pos - m
-                    if (dist in 1..WINDOW) {
+                    if (dist in 1..size) {
                         // Compare
-                        var L = 0
-                        while (L < 258 && L < available) {
-                            val w = windowByte(m + L)
-                            val v = la[rel + L].toInt() and 0xFF
+                        var matchLength = 0
+                        while (matchLength < 258 && matchLength < available) {
+                            val w = windowByteAt(window, winMask, m + matchLength)
+                            val v = la[rel + matchLength].toInt() and 0xFF
                             if (w != v) break
-                            L++
+                            matchLength++
                         }
-                        if (L >= 3 && L > bestLen) {
-                            bestLen = L
+                        if (matchLength >= 3 && matchLength > bestLen) {
+                            bestLen = matchLength
                             bestDist = dist
-                            if (L >= 258) break
+                            if (matchLength >= 258) break
                         }
                     }
-                    m = prev[m and (WINDOW - 1)]
+                    m = prev[m and (size - 1)]
                     chain++
                 }
             }
@@ -339,7 +379,7 @@ object DeflateStream {
                 // Insert each position in match into hash/window
                 var k = 0
                 while (k < bestLen) {
-                    val widx = pos and (WINDOW - 1)
+                    val widx = pos and (size - 1)
                     window[widx] = la[laOff]
                     if (available - k >= 3) insertAt(pos)
                     pos++
@@ -349,7 +389,7 @@ object DeflateStream {
                 }
             } else {
                 emitLiteral(b0)
-                val widx = pos and (WINDOW - 1)
+                val widx = pos and (size - 1)
                 window[widx] = la[laOff]
                 if (available >= 3) insertAt(pos)
                 pos++
@@ -366,7 +406,7 @@ object DeflateStream {
                 } else if (laLen == 0) {
                     laOff = 0
                 }
-                val n = source.read(la, laLen, minOf(LOOKAHEAD - laLen, 64 * 1024))
+                val n = source.read(la, laLen, minOf(maxBufferCapacity - laLen, 64 * 1024))
                 if (n > 0) {
                     adler = Adler32Utils.adler32(adler, la, laLen, n)
                     laLen += n
@@ -383,7 +423,7 @@ object DeflateStream {
         }
 
         // End of block
-        writeSymbol(256)
+        writeLiteral(bw, litCodes, litBits, 256)
         bw.flush()
 
         // Zlib trailer
@@ -400,13 +440,14 @@ object DeflateStream {
         data class TokMatch(val len: Int, val dist: Int)
 
         // Sliding LZ77 state (persists across blocks)
-        val LOOKAHEAD = 1 shl 15 // 32 KiB lookahead buffer
-        val WINDOW = 1 shl 15    // 32 KiB window
-        val la = ByteArray(LOOKAHEAD)
-        val window = ByteArray(WINDOW)
-        val HEAD_SIZE = 1 shl 15
-        val head = IntArray(HEAD_SIZE) { -1 }
-        val prev = IntArray(WINDOW) { -1 }
+        val lookaheadBufferSize = 1 shl 15 // 32 KiB lookahead buffer
+        val windowSize = 1 shl 15    // 32 KiB window
+        val la = ByteArray(lookaheadBufferSize)
+        val window = ByteArray(windowSize)
+        val capacity = 1 shl 15
+        val head = IntArray(capacity) { -1 }
+        val prev = IntArray(windowSize) { -1 }
+        val windowMask = windowSize - 1
 
         var adler = 1L
         var totalIn = 0L
@@ -414,12 +455,11 @@ object DeflateStream {
         var laLen = 0
         var laOff = 0
 
-        fun hash3(a: Int, b: Int, c: Int): Int { var h = a * 251 + b * 271 + c * 277; return h and (HEAD_SIZE - 1) }
-        fun windowByte(p: Int): Int = window[p and (WINDOW - 1)].toInt() and 0xFF
-        fun insertAt(absPos: Int) { if (laLen - (absPos - pos + laOff) < 3) return; val rel = absPos - pos + laOff; val a = la[rel].toInt() and 0xFF; val b = la[rel + 1].toInt() and 0xFF; val c = la[rel + 2].toInt() and 0xFF; val h = hash3(a, b, c); val widx = absPos and (WINDOW - 1); prev[widx] = head[h]; head[h] = absPos }
+        fun hash3(a: Int, b: Int, c: Int): Int { var h = a * 251 + b * 271 + c * 277; return h and (capacity - 1) }
+        fun insertAt(absPos: Int) { if (laLen - (absPos - pos + laOff) < 3) return; val rel = absPos - pos + laOff; val a = la[rel].toInt() and 0xFF; val b = la[rel + 1].toInt() and 0xFF; val c = la[rel + 2].toInt() and 0xFF; val h = hash3(a, b, c); val widx = absPos and (windowSize - 1); prev[widx] = head[h]; head[h] = absPos }
 
         val bw = StreamingBitWriter(sink)
-        val MAX_BLOCK = MAX_STORED // bound block size so stored is always an option
+        val maxStoredSize = MAX_STORED // bound block size so stored is always an option
         val maxChain = when {
             level <= 2 -> 8
             level <= 4 -> 16
@@ -444,12 +484,12 @@ object DeflateStream {
             val distFreq = IntArray(30)
 
             var blockRead = 0
-            val rawBuf = ByteArray(MAX_BLOCK)
+            val rawBuf = ByteArray(maxStoredSize)
             var rawLen = 0
 
             // Initial fill for this block (limited by MAX_BLOCK)
-            while (laLen < LOOKAHEAD && blockRead < MAX_BLOCK && !source.exhausted()) {
-                val toRead = minOf(LOOKAHEAD - laLen, MAX_BLOCK - blockRead, 64 * 1024)
+            while (laLen < lookaheadBufferSize && blockRead < maxStoredSize && !source.exhausted()) {
+                val toRead = minOf(lookaheadBufferSize - laLen, maxStoredSize - blockRead, 64 * 1024)
                 val n = source.read(la, laLen, toRead)
                 if (n <= 0) break
                 // Save a copy for possible stored block
@@ -470,12 +510,12 @@ object DeflateStream {
             // Tokenize only the bytes read for this block
             while (laLen > 0) {
                 val rel = laOff
-                val available = minOf(laLen, LOOKAHEAD - laOff)
-                if (rel >= LOOKAHEAD) break
+                val available = minOf(laLen, lookaheadBufferSize - laOff)
+                if (rel >= lookaheadBufferSize) break
                 val b0 = la[rel].toInt() and 0xFF
                 var bestLen = 0
                 var bestDist = 0
-                if (available >= 3 && rel + 2 < LOOKAHEAD) {
+                if (available >= 3 && rel + 2 < lookaheadBufferSize) {
                     val a = la[rel].toInt() and 0xFF
                     val b = la[rel + 1].toInt() and 0xFF
                     val c = la[rel + 2].toInt() and 0xFF
@@ -484,28 +524,28 @@ object DeflateStream {
                     var chain = 0
                     while (m != -1 && chain < maxChain) {
                         val dist = pos - m
-                        if (dist in 1..WINDOW) {
-                            var L = 0
-                            while (L < 258 && L < available) {
-                                val w = windowByte(m + L)
-                                if (rel + L >= LOOKAHEAD) break
-                                val v = la[rel + L].toInt() and 0xFF
+                        if (dist in 1..windowSize) {
+                            var runLength = 0
+                            while (runLength < 258 && runLength < available) {
+                                val w = windowByteAt(window, windowMask, m + runLength)
+                                if (rel + runLength >= lookaheadBufferSize) break
+                                val v = la[rel + runLength].toInt() and 0xFF
                                 if (w != v) break
-                                L++
+                                runLength++
                             }
-                            if (L >= 3 && L > bestLen) {
-                                bestLen = L
+                            if (runLength >= 3 && runLength > bestLen) {
+                                bestLen = runLength
                                 bestDist = dist
-                                if (L >= 258) break
+                                if (runLength >= 258) break
                             }
                         }
-                        m = prev[m and (WINDOW - 1)]
+                        m = prev[m and (windowSize - 1)]
                         chain++
                     }
                 }
 
                 // Optional lazy evaluation for better ratios
-                if (doLazy && bestLen >= 3 && available > 3 && rel + 3 < LOOKAHEAD) {
+                if (doLazy && bestLen >= 3 && available > 3 && rel + 3 < lookaheadBufferSize) {
                     val rel2 = rel + 1
                     val a2 = la[rel2].toInt() and 0xFF
                     val b2 = la[rel2 + 1].toInt() and 0xFF
@@ -517,29 +557,29 @@ object DeflateStream {
                     var dist2 = 0
                     while (m2 != -1 && chain2 < maxChain) {
                         val dist = (pos + 1) - m2
-                        if (dist in 1..WINDOW) {
-                            var L = 0
-                            while (L < 258 && (rel2 + L) < (laOff + laLen)) {
-                                val w = windowByte(m2 + L)
-                                if (rel2 + L >= LOOKAHEAD) break
-                                val v = la[rel2 + L].toInt() and 0xFF
+                        if (dist in 1..windowSize) {
+                            var offset = 0
+                            while (offset < 258 && (rel2 + offset) < (laOff + laLen)) {
+                                val w = windowByteAt(window, windowMask, m2 + offset)
+                                if (rel2 + offset >= lookaheadBufferSize) break
+                                val v = la[rel2 + offset].toInt() and 0xFF
                                 if (w != v) break
-                                L++
+                                offset++
                             }
-                            if (L >= 3 && L > best2) {
-                                best2 = L
+                            if (offset >= 3 && offset > best2) {
+                                best2 = offset
                                 dist2 = dist
-                                if (L >= 258) break
+                                if (offset >= 258) break
                             }
                         }
-                        m2 = prev[m2 and (WINDOW - 1)]
+                        m2 = prev[m2 and (windowSize - 1)]
                         chain2++
                     }
                     if (best2 >= bestLen + 1) {
                         // Prefer literal; advance by 1 and continue
                         tokens.add(TokLit(b0))
                         litFreq[b0]++
-                        val widx = pos and (WINDOW - 1)
+                        val widx = pos and (windowSize - 1)
                         window[widx] = la[laOff]
                         pos++
                         laOff++
@@ -549,30 +589,18 @@ object DeflateStream {
                 }
                 if (bestLen >= 3) {
                     tokens.add(TokMatch(bestLen, bestDist))
-                    // account frequencies
-                    val base = TREE_BASE_LENGTH
-                    val extra = TREE_EXTRA_LBITS
+                    // account frequencies using shared mappers
                     run {
-                        for (i in base.indices) {
-                            val b = base[i]
-                            val e = extra[i]
-                            val maxLen = b + ((if (e > 0) (1 shl e) - 1 else 0))
-                            if (bestLen in b..maxLen) { litFreq[257 + i]++; break }
-                        }
+                        val lm = mapLengthToSymbol(bestLen)
+                        litFreq[lm.codeSymbol]++
                     }
                     run {
-                        val baseD = TREE_BASE_DIST
-                        val extraD = TREE_EXTRA_DBITS
-                        for (i in baseD.indices) {
-                            val b = baseD[i]
-                            val e = extraD[i]
-                            val maxD = b + ((if (e > 0) (1 shl e) - 1 else 0))
-                            if (bestDist in b..maxD) { distFreq[i]++; break }
-                        }
+                        val dm = mapDistToSymbol(bestDist)
+                        distFreq[dm.codeSymbol]++
                     }
                     var k = 0
                     while (k < bestLen) {
-                        val widx = pos and (WINDOW - 1)
+                        val widx = pos and (windowSize - 1)
                         window[widx] = la[laOff]
                         if (available - k >= 3) insertAt(pos)
                         pos++
@@ -583,7 +611,7 @@ object DeflateStream {
                 } else {
                     tokens.add(TokLit(b0))
                     litFreq[b0]++
-                    val widx = pos and (WINDOW - 1)
+                    val widx = pos and (windowSize - 1)
                     window[widx] = la[laOff]
                     if (available >= 3) insertAt(pos)
                     pos++
@@ -592,14 +620,14 @@ object DeflateStream {
                 }
 
                 // Refill within this block if budget remains
-                if (laLen < 1024 && blockRead < MAX_BLOCK && !source.exhausted()) {
+                if (laLen < 1024 && blockRead < maxStoredSize && !source.exhausted()) {
                     if (laOff > 0 && laLen > 0) {
                         for (t in 0 until laLen) la[t] = la[laOff + t]
                         laOff = 0
                     } else if (laLen == 0) {
                         laOff = 0
                     }
-                    val toRead = minOf(LOOKAHEAD - laLen, MAX_BLOCK - blockRead, 64 * 1024)
+                    val toRead = minOf(lookaheadBufferSize - laLen, maxStoredSize - blockRead, 64 * 1024)
                     if (toRead > 0) {
                         val n = source.read(la, laLen, toRead)
                         if (n > 0) {
@@ -643,8 +671,8 @@ object DeflateStream {
             fun lastNonZero(a: IntArray): Int { var i = a.size - 1; while (i >= 0 && a[i] == 0) i--; return i }
             val lastLit = maxOf(lastNonZero(dynLitLens), 256)
             val lastDist = maxOf(lastNonZero(dynDistLens), 0)
-            val HLIT = (lastLit + 1) - 257
-            val HDIST = (lastDist + 1) - 1
+            val lastLiteralIndex = (lastLit + 1) - 257
+            val writeLength = (lastDist + 1) - 1
 
             data class ClSym(val sym: Int, val extraBits: Int = 0, val extraCount: Int = 0)
             fun rleLengths(lengths: IntArray, count: Int): List<ClSym> {
@@ -692,10 +720,10 @@ object DeflateStream {
             val clFreq = IntArray(19)
             for (c in clSeq) clFreq[c.sym]++
             val blLens = HuffmanBuilder.buildLengths(clFreq, 7, ensureSymbol = 0)
-            val BL_ORDER = ai.solace.zlib.common.TREE_BL_ORDER
+            val bitLengthOrder = ai.solace.zlib.common.TREE_BL_ORDER
             var hclen = 19
-            while (hclen > 4 && blLens[BL_ORDER[hclen - 1]] == 0) hclen--
-            val HCLEN = hclen - 4
+            while (hclen > 4 && blLens[bitLengthOrder[hclen - 1]] == 0) hclen--
+            val hclenOffset = hclen - 4
 
             // Build encoders and estimate costs
             val (dynLitCodes, dynLitBits) = CanonicalHuffman.buildEncoder(dynLitLens)
@@ -708,32 +736,12 @@ object DeflateStream {
                     when (t) {
                         is TokLit -> bits += litBits[t.b]
                         is TokMatch -> {
-                            val base = TREE_BASE_LENGTH
-                            val extra = TREE_EXTRA_LBITS
-                            var code = -1
-                            var e = 0
-                            val length = t.len
-                            for (i in base.indices) {
-                                val b = base[i]
-                                val ee = extra[i]
-                                val maxL = b + ((if (ee > 0) (1 shl ee) - 1 else 0))
-                                if (length in b..maxL) { code = 257 + i; e = ee; break }
-                            }
-                            bits += litBits[code]
-                            bits += e
-                            val dbase = TREE_BASE_DIST
-                            val dex = TREE_EXTRA_DBITS
-                            var dcode = -1
-                            var de = 0
-                            val dist = t.dist
-                            for (i in dbase.indices) {
-                                val b = dbase[i]
-                                val ee = dex[i]
-                                val maxD = b + ((if (ee > 0) (1 shl ee) - 1 else 0))
-                                if (dist in b..maxD) { dcode = i; de = ee; break }
-                            }
-                            bits += distBits[dcode]
-                            bits += de
+                            val lm = mapLengthToSymbol(t.len)
+                            bits += litBits[lm.codeSymbol]
+                            bits += lm.extraBits
+                            val dm = mapDistToSymbol(t.dist)
+                            bits += distBits[dm.codeSymbol]
+                            bits += dm.extraBits
                         }
                     }
                 }
@@ -744,7 +752,7 @@ object DeflateStream {
 
             var headerDyn = 0L
             headerDyn += 1 + 2 + 5 + 5 + 4
-            headerDyn += 3L * (HCLEN + 4)
+            headerDyn += 3L * (hclenOffset + 4)
             for (c in clSeq) {
                 headerDyn += blBits[c.sym]
                 when (c.sym) {
@@ -773,6 +781,30 @@ object DeflateStream {
                 else -> 1 // fixed
             }
 
+            // Helper to emit tokens using provided writers (deduplicated loop)
+            fun emitTokens(
+                writeSymbol: (Int) -> Unit,
+                writeLength: (Int) -> Unit,
+                writeDistance: (Int) -> Unit,
+            ) {
+                for (t in tokens) {
+                    when (t) {
+                        is TokLit -> writeSymbol(t.b)
+                        is TokMatch -> {
+                            var remaining = t.len
+                            val d = t.dist
+                            while (remaining > 0) {
+                                val l = minOf(remaining, 258)
+                                writeLength(l)
+                                writeDistance(d)
+                                remaining -= l
+                            }
+                        }
+                    }
+                }
+                writeSymbol(256)
+            }
+
             // Emit block
             if (choice == 0) {
                 // Stored block
@@ -783,10 +815,10 @@ object DeflateStream {
                 // Dynamic block
                 bw.writeBits(if (isLast) 1 else 0, 1)
                 bw.writeBits(2, 2)
-                bw.writeBits(HLIT, 5)
-                bw.writeBits(HDIST, 5)
-                bw.writeBits(HCLEN, 4)
-                for (i in 0 until hclen) bw.writeBits(blLens[BL_ORDER[i]], 3)
+                bw.writeBits(lastLiteralIndex, 5)
+                bw.writeBits(writeLength, 5)
+                bw.writeBits(hclenOffset, 4)
+                for (i in 0 until hclen) bw.writeBits(blLens[bitLengthOrder[i]], 3)
                 fun writeBL(sym: Int) { if (blBits[sym] == 0) error("BL code missing for sym=$sym"); bw.writeBits(blCodes[sym], blBits[sym]) }
                 for (c in clSeq) {
                     writeBL(c.sym)
@@ -797,37 +829,17 @@ object DeflateStream {
                     }
                 }
                 fun writeSymbol(sym: Int) { bw.writeBits(dynLitCodes[sym], dynLitBits[sym]) }
-                fun writeLength(length: Int) {
-                    writeLengthEncoded(bw, dynLitCodes, dynLitBits, length)
-                }
-                fun writeDistance(dist: Int) {
-                    writeDistanceEncoded(bw, dynDistCodes, dynDistBits, dist)
-                }
-                for (t in tokens) {
-                    when (t) {
-                        is TokLit -> writeSymbol(t.b)
-                        is TokMatch -> { var remaining = t.len; val d = t.dist; while (remaining > 0) { val l = minOf(remaining, 258); writeLength(l); writeDistance(d); remaining -= l } }
-                    }
-                }
-                writeSymbol(256)
+                fun writeLength(length: Int) { writeLengthEncoded(bw, dynLitCodes, dynLitBits, length) }
+                fun writeDistance(dist: Int) { writeDistanceEncoded(bw, dynDistCodes, dynDistBits, dist) }
+                emitTokens(::writeSymbol, ::writeLength, ::writeDistance)
             } else {
                 // Fixed block
                 bw.writeBits(if (isLast) 1 else 0, 1)
                 bw.writeBits(1, 2)
                 fun writeSymbol(sym: Int) { bw.writeBits(fixedLitCodes[sym], fixedLitBits[sym]) }
-                fun writeLength(length: Int) {
-                    writeLengthEncoded(bw, fixedLitCodes, fixedLitBits, length)
-                }
-                fun writeDistance(dist: Int) {
-                    writeDistanceEncoded(bw, fixedDistCodes, fixedDistBits, dist)
-                }
-                for (t in tokens) {
-                    when (t) {
-                        is TokLit -> writeSymbol(t.b)
-                        is TokMatch -> { var remaining = t.len; val d = t.dist; while (remaining > 0) { val l = minOf(remaining, 258); writeLength(l); writeDistance(d); remaining -= l } }
-                    }
-                }
-                writeSymbol(256)
+                fun writeLength(length: Int) { writeLengthEncoded(bw, fixedLitCodes, fixedLitBits, length) }
+                fun writeDistance(dist: Int) { writeDistanceEncoded(bw, fixedDistCodes, fixedDistBits, dist) }
+                emitTokens(::writeSymbol, ::writeLength, ::writeDistance)
             }
 
             if (isLast) break
