@@ -1,6 +1,7 @@
 package ai.solace.zlib.cli
 
 import ai.solace.zlib.common.Z_OK
+import ai.solace.zlib.deflate.DeflateStream
 import ai.solace.zlib.inflate.InflateStream
 import okio.FileSystem
 import okio.Path.Companion.toPath
@@ -15,6 +16,25 @@ fun main(args: Array<String>) {
     }
 
     when (args[0]) {
+        "compress" -> {
+            if (args.size < 3) {
+                println("Usage: compress <input.txt> <output.zz> [level]")
+                return
+            }
+            val inPath = args[1].toPath()
+            val outPath = args[2].toPath()
+            val level = args.getOrNull(3)?.toIntOrNull() ?: 6
+            val src = FileSystem.SYSTEM.source(inPath).buffer()
+            val snk = FileSystem.SYSTEM.sink(outPath).buffer()
+            try {
+                val bytesIn = DeflateStream.compressZlib(src, snk, level)
+                val outSize = FileSystem.SYSTEM.metadata(outPath).size ?: -1L
+                println("Compressed ${bytesIn} bytes to ${outSize} bytes")
+            } finally {
+                try { src.close() } catch (_: Throwable) {}
+                try { snk.close() } catch (_: Throwable) {}
+            }
+        }
         "decompress" -> {
             if (args.size < 3) {
                 println("Usage: decompress <input.zz> <output.txt>")

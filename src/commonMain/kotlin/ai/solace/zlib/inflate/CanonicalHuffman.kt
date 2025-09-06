@@ -9,14 +9,30 @@ object CanonicalHuffman {
     /**
      * Dense decode table: size = 2^maxLen.
      * Index by the low maxLen bits from the bitstream.
-     * bits[i] = number of bits to consume (0 means invalid entry)
-     * vals[i] = symbol for that entry
+     * `bits[i]` = number of bits to consume (0 means invalid entry)
+     * `vals[i]` = symbol for that entry
      */
     data class FullTable(
         val maxLen: Int,
         val bits: IntArray,
         val vals: IntArray,
-    )
+    ) {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is FullTable) return false
+            if (maxLen != other.maxLen) return false
+            if (!bits.contentEquals(other.bits)) return false
+            if (!vals.contentEquals(other.vals)) return false
+            return true
+        }
+
+        override fun hashCode(): Int {
+            var result = maxLen
+            result = 31 * result + bits.contentHashCode()
+            result = 31 * result + vals.contentHashCode()
+            return result
+        }
+    }
 
     /**
      * Build a full lookup table occupying 2^maxLen entries.
@@ -61,6 +77,33 @@ object CanonicalHuffman {
             }
         }
         return FullTable(maxLen, bitsTab, valsTab)
+    }
+
+    /** Build encoder codes (LSB-first bit order) for given code lengths. */
+    fun buildEncoder(lengths: IntArray): Pair<IntArray, IntArray> {
+        val ops = ArithmeticBitwiseOps.BITS_32
+        val maxLen = lengths.maxOrNull() ?: 0
+        val blCount = IntArray(maxLen + 1)
+        for (l in lengths) if (l > 0) blCount[l]++
+        val nextCode = IntArray(maxLen + 1)
+        var code = 0
+        for (bits in 1..maxLen) {
+            code = ops.leftShift((code + blCount[bits - 1]).toLong(), 1).toInt()
+            nextCode[bits] = code
+        }
+        val codes = IntArray(lengths.size)
+        val lens = IntArray(lengths.size)
+        for (sym in lengths.indices) {
+            val len = lengths[sym]
+            if (len == 0) continue
+            val assigned = nextCode[len]
+            nextCode[len] = assigned + 1
+            // Reverse to LSB-first for writing
+            val rev = reverseBits(assigned, len)
+            codes[sym] = rev
+            lens[sym] = len
+        }
+        return codes to lens
     }
 
     /** Decode one symbol using the FullTable approach with a StreamingBitReader. */
