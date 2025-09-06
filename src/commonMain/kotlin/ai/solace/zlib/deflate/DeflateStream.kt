@@ -256,7 +256,7 @@ object DeflateStream {
     fun compressZlib(source: BufferedSource, sink: BufferedSink, level: Int = 6): Long {
         return when {
             level <= 0 -> compressZlibStored(source, sink, level)
-            else -> compressZlibFixed(source, sink, level) // temporarily route dynamic to fixed while we finish multi-block dynamic
+            else -> compressZlibDynamic(source, sink, level)
         }
     }
 
@@ -272,7 +272,7 @@ object DeflateStream {
         var eof = false
 
         while (!eof) {
-            var toRead = MAX_STORED
+            val toRead = MAX_STORED
             var filled = 0
             // Fill up to MAX_STORED
             while (filled < toRead && !source.exhausted()) {
@@ -448,7 +448,7 @@ object DeflateStream {
                     laLen += n
                     totalIn += n
                     // Insert new triplets starting from (pos + laLen - n - 2) to end
-                    var start = pos + laLen - n
+                    val start = pos + laLen - n
                     var insertPos = start
                     while (insertPos + 2 < pos + laLen) {
                         insertAt(insertPos)
@@ -491,7 +491,7 @@ object DeflateStream {
         var laLen = 0
         var laOff = 0
 
-        fun hash3(a: Int, b: Int, c: Int): Int { var h = a * 251 + b * 271 + c * 277; return h and (capacity - 1) }
+        fun hash3(a: Int, b: Int, c: Int): Int { val h = a * 251 + b * 271 + c * 277; return h and (capacity - 1) }
         fun insertAt(absPos: Int) {
             insertTripletAt(absPos, la, laOff, laLen, pos, head, prev, { x, y, z -> hash3(x, y, z) }, windowMask)
         }
@@ -506,7 +506,6 @@ object DeflateStream {
         }
         val doLazy = false // temporarily disable lazy parsing for stability
 
-        var firstBlock = true
         while (true) {
             // Ensure lookahead buffer is compacted at block start so new reads append contiguously
             if (laOff > 0) {
@@ -593,7 +592,6 @@ object DeflateStream {
                     var m2 = head[h2]
                     var chain2 = 0
                     var best2 = 0
-                    var dist2 = 0
                     while (m2 != -1 && chain2 < maxChain) {
                         val dist = (pos + 1) - m2
                         if (dist in 1..windowSize) {
@@ -607,7 +605,6 @@ object DeflateStream {
                             }
                             if (offset >= 3 && offset > best2) {
                                 best2 = offset
-                                dist2 = dist
                                 if (offset >= 258) break
                             }
                         }
@@ -881,7 +878,6 @@ object DeflateStream {
             }
 
             if (isLast) break
-            firstBlock = false
         }
 
         bw.flush()
