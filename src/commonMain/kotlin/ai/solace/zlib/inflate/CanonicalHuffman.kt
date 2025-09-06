@@ -17,6 +17,17 @@ object CanonicalHuffman {
         val bits: IntArray,
         val vals: IntArray,
     ) {
+        init {
+            require(maxLen >= 0) { "maxLen must be non-negative: $maxLen" }
+            // DEFLATE requires code lengths ≤ 15
+            require(maxLen <= 15) { "maxLen must be ≤ 15 for DEFLATE, was $maxLen" }
+            require(bits.size == vals.size) { "bits.size (${bits.size}) must equal vals.size (${vals.size})" }
+            val expectedSizeLong = 1L shl maxLen
+            require(expectedSizeLong <= Int.MAX_VALUE) { "2^$maxLen exceeds Int capacity" }
+            val expectedSize = expectedSizeLong.toInt()
+            require(bits.size == expectedSize) { "Array sizes (${bits.size}) must be exactly 2^maxLen ($expectedSize)" }
+        }
+
         override fun equals(other: Any?): Boolean {
             if (this === other) return true
             if (other !is FullTable) return false
