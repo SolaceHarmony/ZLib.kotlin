@@ -69,6 +69,51 @@ object InflateStream {
         adler[0] = (s2 shl 16) or s1
     }
 
+    // --- Validation and cached tables ---
+    // Validate literal/length code-lengths: must be non-empty and include EOB (256)
+    private fun validateLitLens(litLenLens: IntArray): Boolean {
+        if (litLenLens.isEmpty()) return false
+        var any = false
+        for (i in litLenLens.indices) if (litLenLens[i] != 0) { any = true }
+        val eobOk = (litLenLens.size > 256) && (litLenLens[256] > 0)
+        return any && eobOk
+    }
+
+    // Validate distance code-lengths: at least one non-zero length for dynamic blocks
+    private fun validateDistLens(distLens: IntArray): Boolean {
+        if (distLens.isEmpty()) return false
+        for (v in distLens) if (v != 0) return true
+        return false
+    }
+
+    // Safely build a FullTable; return null to signal Z_DATA_ERROR to caller
+    private fun tryBuildTable(lengths: IntArray): CanonicalHuffman.FullTable? =
+        try {
+            val t = CanonicalHuffman.buildFull(lengths)
+            if (t.maxLen == 0) null else t
+        } catch (_: Throwable) {
+            null
+        }
+
+    private val FIXED_LIT_LENS: IntArray by lazy {
+        IntArray(288).also {
+            for (i in 0..143) it[i] = 8
+            for (i in 144..255) it[i] = 9
+            for (i in 256..279) it[i] = 7
+            for (i in 280..287) it[i] = 8
+        }
+    }
+    private val FIXED_DIST_LENS: IntArray by lazy { IntArray(32) { 5 } }
+    private data class DecodeTables(
+        val lit: CanonicalHuffman.FullTable,
+        val dist: CanonicalHuffman.FullTable,
+    )
+    private val FIXED_TABLES: DecodeTables by lazy {
+        val lit = CanonicalHuffman.buildFull(FIXED_LIT_LENS)
+        val dist = CanonicalHuffman.buildFull(FIXED_DIST_LENS)
+        DecodeTables(lit, dist)
+    }
+
     // --- Helpers to deduplicate decode logic ---
     /** Decode match length from a literal/length symbol (sym >= 257). Returns -1 on error. */
     private fun decodeLength(br: StreamingBitReader, sym: Int): Int {
@@ -146,7 +191,8 @@ object InflateStream {
             for (i in 280..287) it[i] = 8
         }
         val distLens = IntArray(32) { 5 }
-        val (litTable, distTable) = buildDecodeTables(litLens, distLens)
+        val litTable = FIXED_TABLES.lit
+        val distTable = FIXED_TABLES.dist
 
         loop@ while (true) {
             val sym = CanonicalHuffman.decodeOne(br, litTable)
@@ -179,17 +225,21 @@ object InflateStream {
         val litLenLens = readCodeLengths(br, clTable, hlit) ?: return Z_DATA_ERROR
         val distLens = readCodeLengths(br, clTable, hdist) ?: return Z_DATA_ERROR
 
-        val (litTable, distTable) = buildDecodeTables(litLenLens, distLens)
+        // Validate and safely build tables
+        if (!validateLitLens(litLenLens)) return Z_DATA_ERROR
+        if (!validateDistLens(distLens)) return Z_DATA_ERROR
+        val litTable = tryBuildTable(litLenLens) ?: return Z_DATA_ERROR
+        val distTable = tryBuildTable(distLens) ?: return Z_DATA_ERROR
 
         loop@ while (true) {
-            val sym = CanonicalHuffman.decodeOne(br, litTable)
+            val sym = try { CanonicalHuffman.decodeOne(br, litTable) } catch (_: Throwable) { return Z_DATA_ERROR }
             when {
                 sym < 256 -> writeByte(sym, sink, window, posRef, adler)
                 sym == 256 -> break@loop
                 else -> {
                     val length = decodeLength(br, sym)
                     if (length < 0) return Z_DATA_ERROR
-                    val distSym = CanonicalHuffman.decodeOne(br, distTable)
+                    val distSym = try { CanonicalHuffman.decodeOne(br, distTable) } catch (_: Throwable) { return Z_DATA_ERROR }
                     val dist = decodeDistance(br, distSym)
                     if (dist < 0) return Z_DATA_ERROR
                     copyMatch(length, dist, sink, window, posRef, adler)
