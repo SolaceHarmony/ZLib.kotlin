@@ -1,3 +1,4 @@
+@file:Suppress("EmptyElseBlock")
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.bitwise.checksum.Adler32Utils
@@ -302,6 +303,7 @@ object DeflateStream {
     }
 
     /** Fixed-Huffman compressor with streaming LZ77 (greedy+lazy), limited matcher, arithmetic bit writing. */
+    @Suppress("unused")
     private fun compressZlibFixed(source: BufferedSource, sink: BufferedSink, level: Int = 6): Long {
         writeZlibHeader(sink, level)
         val bw = StreamingBitWriter(sink)

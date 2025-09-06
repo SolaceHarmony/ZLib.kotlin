@@ -1,7 +1,9 @@
 package ai.solace.zlib.test
 
-import ai.solace.zlib.common.*
-import kotlin.test.*
+import ai.solace.zlib.common.MAX_WBITS
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Test to verify that MAX_WBITS constant is properly imported and accessible.

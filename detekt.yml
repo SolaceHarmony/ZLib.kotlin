@@ -1,5 +1,5 @@
 build:
-  maxIssues: 99999
+  maxIssues: 0
   excludeCorrectable: false
 
 config:
@@ -14,6 +14,12 @@ style:
     active: true
     maxLineLength: 200
   ReturnCount:
+    active: false
+  LoopWithTooManyJumpStatements:
+    active: false
+  UnusedPrivateMember:
+    active: false
+  UnusedParameter:
     active: false
 
 comments:
@@ -34,4 +40,14 @@ complexity:
   LongParameterList:
     active: false
   TooManyFunctions:
+    active: false
+  CyclomaticComplexMethod:
+    active: false
+  LongMethod:
+    active: false
+  NestedBlockDepth:
+    active: false
+  ComplexCondition:
+    active: false
+  LargeClass:
     active: false

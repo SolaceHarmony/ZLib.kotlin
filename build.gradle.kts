@@ -109,18 +109,8 @@ dependencies {
 ktlint {
     android.set(false)
     outputToConsole.set(true)
-    ignoreFailures.set(false)
-    filter {
-        // Exclude test sources from ktlint checks for now
-        exclude("src/**/test/**")
-        exclude("**/src/commonTest/**")
-        exclude("**/src/*Test*/**")
-    }
-}
-
-// Disable ktlint checks over test source sets for now
-tasks.matching { it.name.contains("TestSourceSet") }.configureEach {
-    enabled = false
+    ignoreFailures.set(false) // Fail the build on violations
+    // No excludes: cover all source sets, including tests
 }
 
 // Detekt configuration
@@ -128,13 +118,21 @@ detekt {
     buildUponDefaultConfig = true
     allRules = false
     config.setFrom(files("detekt.yml"))
-    source.setFrom(files(
-        "src/commonMain/kotlin",
-        "src/nativeMain/kotlin",
-        "src/linuxMain/kotlin",
-        "src/macosArm64Main/kotlin"
-    ))
-    ignoreFailures = true
+    source.setFrom(
+        files(
+            // Main
+            "src/commonMain/kotlin",
+            "src/nativeMain/kotlin",
+            "src/linuxMain/kotlin",
+            "src/macosArm64Main/kotlin",
+            // Tests
+            "src/commonTest/kotlin",
+            "src/nativeTest/kotlin",
+            "src/linuxTest/kotlin",
+            "src/macosArm64Test/kotlin",
+        ),
+    )
+    ignoreFailures = false // Fail the build on violations
 }
 
 tasks.named("check").configure {

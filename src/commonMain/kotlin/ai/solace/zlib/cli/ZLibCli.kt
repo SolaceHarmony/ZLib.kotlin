@@ -29,7 +29,7 @@ fun main(args: Array<String>) {
             try {
                 val bytesIn = DeflateStream.compressZlib(src, snk, level)
                 val outSize = FileSystem.SYSTEM.metadata(outPath).size ?: -1L
-                println("Compressed ${bytesIn} bytes to ${outSize} bytes")
+                println("Compressed $bytesIn bytes to $outSize bytes")
             } finally {
                 try { src.close() } catch (_: Throwable) {}
                 try { snk.close() } catch (_: Throwable) {}
@@ -49,7 +49,7 @@ fun main(args: Array<String>) {
                 snk.flush()
                 if (result == Z_OK) {
                     val inSize = FileSystem.SYSTEM.metadata(inPath).size ?: -1L
-                    println("Decompressed ${inSize} bytes to ${bytesOut} bytes")
+                    println("Decompressed $inSize bytes to $bytesOut bytes")
                 } else {
                     println("Decompression failed: $result")
                 }

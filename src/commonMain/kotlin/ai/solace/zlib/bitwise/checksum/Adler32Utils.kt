@@ -36,7 +36,7 @@ object Adler32Utils {
         ): Long {
             if (buf == null) return 1L
 
-            var a = (adler and 0xFFFF).toLong()
+            var a = (adler and 0xFFFF)
             var b = ((adler ushr 16) and 0xFFFF)
 
             var i = index
