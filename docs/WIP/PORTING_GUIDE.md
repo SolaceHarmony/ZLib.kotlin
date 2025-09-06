@@ -4,14 +4,14 @@ This guide outlines key considerations and mappings for porting the zlib library
 
 ## 1. Data Types
 
-| Pascal | Kotlin | Notes |
-| --- | --- | --- |
-| `Byte` | `Byte` | 8-bit signed integer. For unsigned behavior, use `toUByte()`. |
-| `Word` | `Short` | 16-bit signed integer. For unsigned, use `toUShort()`. |
-| `LongInt` | `Int` | 32-bit signed integer. |
-| `uLong` | `Long` | Use `Long` to hold unsigned 32-bit values. Mask with `0xFFFFFFFFL`. |
-| `Pointer` | `ByteArray`, `IntArray`, etc. | Direct pointer arithmetic is replaced by array indexing. |
-| `^` (dereference) | `[index]` | Pointer dereferencing becomes array access. |
+| Pascal            | Kotlin                        | Notes                                                               |
+|-------------------|-------------------------------|---------------------------------------------------------------------|
+| `Byte`            | `Byte`                        | 8-bit signed integer. For unsigned behavior, use `toUByte()`.       |
+| `Word`            | `Short`                       | 16-bit signed integer. For unsigned, use `toUShort()`.              |
+| `LongInt`         | `Int`                         | 32-bit signed integer.                                              |
+| `uLong`           | `Long`                        | Use `Long` to hold unsigned 32-bit values. Mask with `0xFFFFFFFFL`. |
+| `Pointer`         | `ByteArray`, `IntArray`, etc. | Direct pointer arithmetic is replaced by array indexing.            |
+| `^` (dereference) | `[index]`                     | Pointer dereferencing becomes array access.                         |
 
 ## 2. Bitwise Operations
 
@@ -41,7 +41,6 @@ adler := adler + (byteValue and $FF);
 **Kotlin:**
 ```kotlin
 var adler: Long = 0
-...
 adler = (adler + (byteValue.toLong() and 0xFFL)) and 0xFFFFFFFFL
 ```
 

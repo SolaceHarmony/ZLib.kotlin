@@ -63,6 +63,10 @@ class BitUtilsImprovedTest {
                     expected, improved,
                     "Improved urShift should match ushr for positive values: $value >>> $shift",
                 )
+                assertEquals(
+                    expected, legacy,
+                    "Legacy urShift should match ushr for positive values: $value >>> $shift",
+                )
             }
         }
     }

@@ -1,3 +1,4 @@
+@file:Suppress("unused")
 package ai.solace.zlib.bitwise
 
 /**
@@ -18,9 +19,9 @@ package ai.solace.zlib.bitwise
 object BitwiseOps {
         // Default engines for common operations
         private val defaultEngine32 = BitShiftEngine(BitShiftMode.NATIVE, 32)
-        @Suppress("UnusedPrivateProperty") // TODO(detekt): remove if truly unused
+        @Suppress("unused") // TODO(detekt): remove if truly unused
         private val defaultEngine16 = BitShiftEngine(BitShiftMode.NATIVE, 16)
-        @Suppress("UnusedPrivateProperty") // TODO(detekt): remove if truly unused
+        @Suppress("unused") // TODO(detekt): remove if truly unused
         private val defaultEngine8 = BitShiftEngine(BitShiftMode.NATIVE, 8)
         private val defaultEngine64 = BitShiftEngine(BitShiftMode.NATIVE, 64)
 
@@ -306,7 +307,8 @@ object BitwiseOps {
             var remaining2 = value2
 
             // Process each bit position
-            for (i in 0 until 32) {
+            var count = 0
+            while (count < 32) {
                 if (remaining1 == 0 && remaining2 == 0) break
 
                 val bit1 = remaining1 % 2
@@ -320,6 +322,7 @@ object BitwiseOps {
                 remaining1 /= 2
                 remaining2 /= 2
                 powerOf2 *= 2
+                count++
             }
 
             return result
