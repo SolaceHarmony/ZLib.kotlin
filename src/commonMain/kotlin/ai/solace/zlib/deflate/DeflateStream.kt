@@ -41,6 +41,97 @@ object DeflateStream {
         sink.writeByte(flg)
     }
 
+    // ---- Small internal helpers to reduce duplicated fragments ----
+    /** Write a 32-bit big-endian integer to sink. */
+    private fun writeBe32(sink: BufferedSink, value: Int) {
+        sink.writeByte((value ushr 24) and 0xFF)
+        sink.writeByte((value ushr 16) and 0xFF)
+        sink.writeByte((value ushr 8) and 0xFF)
+        sink.writeByte(value and 0xFF)
+    }
+
+    /** Write zlib Adler-32 trailer (big-endian 4 bytes). */
+    private fun writeAdler32Trailer(sink: BufferedSink, adler: Long) {
+        writeBe32(sink, adler.toInt())
+    }
+
+    /**
+     * Emit a stored block header: BFINAL bit, BTYPE=00, align to byte, then LEN and NLEN.
+     * Does not write the payload.
+     */
+    private fun writeStoredBlockHeader(bw: StreamingBitWriter, sink: BufferedSink, length: Int, bfinal: Int) {
+        bw.writeBits(bfinal, 1)
+        bw.writeBits(0, 2) // BTYPE=00
+        bw.alignToByte()
+        val len = length and 0xFFFF
+        val nlen = len.inv() and 0xFFFF
+        sink.writeByte(len and 0xFF)
+        sink.writeByte((len ushr 8) and 0xFF)
+        sink.writeByte(nlen and 0xFF)
+        sink.writeByte((nlen ushr 8) and 0xFF)
+    }
+
+    /** Write a literal symbol using provided code tables. */
+    private fun writeLiteral(bw: StreamingBitWriter, codes: IntArray, bits: IntArray, sym: Int) {
+        bw.writeBits(codes[sym], bits[sym])
+    }
+
+    /** Map a match length to its Huffman code and write it, including extra bits. */
+    private fun writeLengthEncoded(
+        bw: StreamingBitWriter,
+        litCodes: IntArray,
+        litBits: IntArray,
+        length: Int,
+    ) {
+        val base = TREE_BASE_LENGTH
+        val extra = TREE_EXTRA_LBITS
+        var code = -1
+        var extraBits = 0
+        var extraVal = 0
+        for (i in base.indices) {
+            val b = base[i]
+            val e = extra[i]
+            val maxLen = b + (if (e > 0) (1 shl e) - 1 else 0)
+            if (length in b..maxLen) {
+                code = 257 + i
+                extraBits = e
+                extraVal = length - b
+                break
+            }
+        }
+        require(code != -1) { "Invalid length $length" }
+        bw.writeBits(litCodes[code], litBits[code])
+        if (extraBits > 0) bw.writeBits(extraVal, extraBits)
+    }
+
+    /** Map a distance to its Huffman code and write it, including extra bits. */
+    private fun writeDistanceEncoded(
+        bw: StreamingBitWriter,
+        distCodes: IntArray,
+        distBits: IntArray,
+        dist: Int,
+    ) {
+        val base = TREE_BASE_DIST
+        val extra = TREE_EXTRA_DBITS
+        var code = -1
+        var extraBits = 0
+        var extraVal = 0
+        for (i in base.indices) {
+            val b = base[i]
+            val e = extra[i]
+            val maxD = b + (if (e > 0) (1 shl e) - 1 else 0)
+            if (dist in b..maxD) {
+                code = i
+                extraBits = e
+                extraVal = dist - b
+                break
+            }
+        }
+        require(code != -1) { "Invalid distance $dist" }
+        bw.writeBits(distCodes[code], distBits[code])
+        if (extraBits > 0) bw.writeBits(extraVal, extraBits)
+    }
+
     /** Compress from source to sink with zlib wrapper using fixed Huffman (with simple RLE), fallback to stored when level<=0. */
     fun compressZlib(source: BufferedSource, sink: BufferedSink, level: Int = 6): Long {
         return when {
@@ -74,17 +165,7 @@ object DeflateStream {
 
             // Write block header: BFINAL, BTYPE=00 (stored)
             val bfinal = if (eof) 1 else 0
-            bw.writeBits(bfinal, 1)
-            bw.writeBits(0, 2) // BTYPE=00
-            bw.alignToByte()
-
-            // LEN and NLEN (little-endian 16-bit)
-            val len = filled and 0xFFFF
-            val nlen = len.inv() and 0xFFFF
-            sink.writeByte(len and 0xFF)
-            sink.writeByte((len ushr 8) and 0xFF)
-            sink.writeByte(nlen and 0xFF)
-            sink.writeByte((nlen ushr 8) and 0xFF)
+            writeStoredBlockHeader(bw, sink, filled, bfinal)
 
             // Write payload and update adler
             if (filled > 0) {
@@ -95,11 +176,7 @@ object DeflateStream {
         }
 
         // Trailer (big-endian)
-        val a = adler.toInt()
-        sink.writeByte((a ushr 24) and 0xFF)
-        sink.writeByte((a ushr 16) and 0xFF)
-        sink.writeByte((a ushr 8) and 0xFF)
-        sink.writeByte(a and 0xFF)
+        writeAdler32Trailer(sink, adler)
         sink.flush()
         return totalIn
     }
@@ -126,48 +203,10 @@ object DeflateStream {
             bw.writeBits(litCodes[sym], litBits[sym])
         }
         fun writeLength(length: Int) {
-            // Map length to code and extra bits
-            val base = TREE_BASE_LENGTH
-            val extra = TREE_EXTRA_LBITS
-            var code = -1
-            var extraBits = 0
-            var extraVal = 0
-            for (i in base.indices) {
-                val b = base[i]
-                val e = extra[i]
-                val maxLen = b + ((if (e > 0) (1 shl e) - 1 else 0))
-                if (length in b..maxLen) {
-                    code = 257 + i
-                    extraBits = e
-                    extraVal = length - b
-                    break
-                }
-            }
-            require(code != -1) { "Invalid length $length" }
-            bw.writeBits(litCodes[code], litBits[code])
-            if (extraBits > 0) bw.writeBits(extraVal, extraBits)
+            writeLengthEncoded(bw, litCodes, litBits, length)
         }
         fun writeDistance(dist: Int) {
-            // Map distance to code and extra bits
-            val base = TREE_BASE_DIST
-            val extra = TREE_EXTRA_DBITS
-            var code = -1
-            var extraBits = 0
-            var extraVal = 0
-            for (i in base.indices) {
-                val b = base[i]
-                val e = extra[i]
-                val maxD = b + ((if (e > 0) (1 shl e) - 1 else 0))
-                if (dist in b..maxD) {
-                    code = i
-                    extraBits = e
-                    extraVal = dist - b
-                    break
-                }
-            }
-            require(code != -1) { "Invalid distance $dist" }
-            bw.writeBits(distCodes[code], distBits[code])
-            if (extraBits > 0) bw.writeBits(extraVal, extraBits)
+            writeDistanceEncoded(bw, distCodes, distBits, dist)
         }
 
         // Emit single fixed block header (BFINAL=1, BTYPE=01)
@@ -329,11 +368,7 @@ object DeflateStream {
         bw.flush()
 
         // Zlib trailer
-        val a = adler.toInt()
-        sink.writeByte((a ushr 24) and 0xFF)
-        sink.writeByte((a ushr 16) and 0xFF)
-        sink.writeByte((a ushr 8) and 0xFF)
-        sink.writeByte(a and 0xFF)
+        writeAdler32Trailer(sink, adler)
         sink.flush()
         return totalIn
     }
@@ -726,16 +761,7 @@ object DeflateStream {
             // Emit block
             if (choice == 0) {
                 // Stored block
-                bw.writeBits(if (isLast) 1 else 0, 1)
-                bw.writeBits(0, 2)
-                bw.alignToByte()
-                // LEN and NLEN little-endian
-                val len = rawLen and 0xFFFF
-                val nlen = len.inv() and 0xFFFF
-                sink.writeByte(len and 0xFF)
-                sink.writeByte((len ushr 8) and 0xFF)
-                sink.writeByte(nlen and 0xFF)
-                sink.writeByte((nlen ushr 8) and 0xFF)
+                writeStoredBlockHeader(bw, sink, rawLen, if (isLast) 1 else 0)
                 if (rawLen > 0) sink.write(rawBuf, 0, rawLen)
                 // aligned now; writer is byte-aligned due to alignToByte()
             } else if (choice == 2) {
@@ -757,36 +783,10 @@ object DeflateStream {
                 }
                 fun writeSymbol(sym: Int) { bw.writeBits(dynLitCodes[sym], dynLitBits[sym]) }
                 fun writeLength(length: Int) {
-                    val base = TREE_BASE_LENGTH
-                    val extra = TREE_EXTRA_LBITS
-                    var code = -1
-                    var extraBits = 0
-                    var extraVal = 0
-                    for (i in base.indices) {
-                        val b = base[i]
-                        val e = extra[i]
-                        val maxLen = b + ((if (e > 0) (1 shl e) - 1 else 0))
-                        if (length in b..maxLen) { code = 257 + i; extraBits = e; extraVal = length - b; break }
-                    }
-                    require(code != -1) { "Invalid length $length" }
-                    bw.writeBits(dynLitCodes[code], dynLitBits[code])
-                    if (extraBits > 0) bw.writeBits(extraVal, extraBits)
+                    writeLengthEncoded(bw, dynLitCodes, dynLitBits, length)
                 }
                 fun writeDistance(dist: Int) {
-                    val base = TREE_BASE_DIST
-                    val extra = TREE_EXTRA_DBITS
-                    var code = -1
-                    var extraBits = 0
-                    var extraVal = 0
-                    for (i in base.indices) {
-                        val b = base[i]
-                        val e = extra[i]
-                        val maxD = b + ((if (e > 0) (1 shl e) - 1 else 0))
-                        if (dist in b..maxD) { code = i; extraBits = e; extraVal = dist - b; break }
-                    }
-                    require(code != -1) { "Invalid distance $dist" }
-                    bw.writeBits(dynDistCodes[code], dynDistBits[code])
-                    if (extraBits > 0) bw.writeBits(extraVal, extraBits)
+                    writeDistanceEncoded(bw, dynDistCodes, dynDistBits, dist)
                 }
                 for (t in tokens) {
                     when (t) {
@@ -801,36 +801,10 @@ object DeflateStream {
                 bw.writeBits(1, 2)
                 fun writeSymbol(sym: Int) { bw.writeBits(fixedLitCodes[sym], fixedLitBits[sym]) }
                 fun writeLength(length: Int) {
-                    val base = TREE_BASE_LENGTH
-                    val extra = TREE_EXTRA_LBITS
-                    var code = -1
-                    var extraBits = 0
-                    var extraVal = 0
-                    for (i in base.indices) {
-                        val b = base[i]
-                        val e = extra[i]
-                        val maxLen = b + ((if (e > 0) (1 shl e) - 1 else 0))
-                        if (length in b..maxLen) { code = 257 + i; extraBits = e; extraVal = length - b; break }
-                    }
-                    require(code != -1) { "Invalid length $length" }
-                    bw.writeBits(fixedLitCodes[code], fixedLitBits[code])
-                    if (extraBits > 0) bw.writeBits(extraVal, extraBits)
+                    writeLengthEncoded(bw, fixedLitCodes, fixedLitBits, length)
                 }
                 fun writeDistance(dist: Int) {
-                    val base = TREE_BASE_DIST
-                    val extra = TREE_EXTRA_DBITS
-                    var code = -1
-                    var extraBits = 0
-                    var extraVal = 0
-                    for (i in base.indices) {
-                        val b = base[i]
-                        val e = extra[i]
-                        val maxD = b + ((if (e > 0) (1 shl e) - 1 else 0))
-                        if (dist in b..maxD) { code = i; extraBits = e; extraVal = dist - b; break }
-                    }
-                    require(code != -1) { "Invalid distance $dist" }
-                    bw.writeBits(fixedDistCodes[code], fixedDistBits[code])
-                    if (extraBits > 0) bw.writeBits(extraVal, extraBits)
+                    writeDistanceEncoded(bw, fixedDistCodes, fixedDistBits, dist)
                 }
                 for (t in tokens) {
                     when (t) {
@@ -848,11 +822,7 @@ object DeflateStream {
         bw.flush()
 
         // Zlib trailer
-        val a = adler.toInt()
-        sink.writeByte((a ushr 24) and 0xFF)
-        sink.writeByte((a ushr 16) and 0xFF)
-        sink.writeByte((a ushr 8) and 0xFF)
-        sink.writeByte(a and 0xFF)
+        writeAdler32Trailer(sink, adler)
         sink.flush()
         return totalIn
     }
