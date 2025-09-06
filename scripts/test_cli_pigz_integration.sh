@@ -15,8 +15,19 @@ NC='\033[0m' # No Color
 
 # Test configuration
 TEST_DIR="/tmp/zlib_cli_pigz_tests"
-CLI_EXECUTABLE="./build/bin/linuxX64/debugExecutable/zlib-cli.kexe"
+# Auto-detect CLI executable for macOS or Linux
+if [ -f "./build/bin/macosArm64/debugExecutable/zlib-cli.kexe" ]; then
+    CLI_EXECUTABLE="./build/bin/macosArm64/debugExecutable/zlib-cli.kexe"
+elif [ -f "./build/bin/linuxX64/debugExecutable/zlib-cli.kexe" ]; then
+    CLI_EXECUTABLE="./build/bin/linuxX64/debugExecutable/zlib-cli.kexe"
+else
+    CLI_EXECUTABLE=""
+fi
 PIGZ_EXECUTABLE="pigz"
+
+# Availability flags
+PIGZ_AVAILABLE=0
+CLI_AVAILABLE=0
 
 # Test counters
 TESTS_TOTAL=0
@@ -108,22 +119,22 @@ check_prerequisites() {
     log_info "Checking prerequisites..."
     
     # Check pigz
-    if ! command -v "$PIGZ_EXECUTABLE" &> /dev/null; then
-        log_error "pigz is not installed or not in PATH"
-        return 1
-    else
+    if command -v "$PIGZ_EXECUTABLE" &> /dev/null; then
+        PIGZ_AVAILABLE=1
         log_success "pigz found: $(which $PIGZ_EXECUTABLE)"
         log_info "pigz version: $($PIGZ_EXECUTABLE --version 2>&1 | head -1)"
+    else
+        PIGZ_AVAILABLE=0
+        log_warning "pigz is not installed or not in PATH; pigz-dependent tests will be skipped"
     fi
     
     # Check CLI executable
-    if [ ! -f "$CLI_EXECUTABLE" ]; then
-        log_warning "CLI executable not found at $CLI_EXECUTABLE"
-        log_warning "You need to build it first with: ./gradlew linkDebugExecutableLinuxX64"
-        log_warning "Continuing with pigz-only tests..."
-        return 2
-    else
+    if [ -n "$CLI_EXECUTABLE" ] && [ -f "$CLI_EXECUTABLE" ]; then
+        CLI_AVAILABLE=1
         log_success "CLI executable found: $CLI_EXECUTABLE"
+    else
+        CLI_AVAILABLE=0
+        log_warning "CLI executable not found. Build it with: ./gradlew linkDebugExecutableMacosArm64 or linkDebugExecutableLinuxX64"
     fi
     
     return 0
@@ -316,7 +327,7 @@ test_compression_levels() {
     fi
     
     local input="$TEST_DIR/large_mixed.txt"
-    local original_size=$(stat -c%s "$input")
+    local original_size=$(wc -c < "$input")
     log_info "Original file size: $original_size bytes"
     
     local levels=(1 6 9)
@@ -327,7 +338,7 @@ test_compression_levels() {
         local decompressed="$TEST_DIR/level_${level}_result.txt"
         
         if "$CLI_EXECUTABLE" compress "$input" "$compressed" "$level" 2>/dev/null; then
-            local compressed_size=$(stat -c%s "$compressed")
+            local compressed_size=$(wc -c < "$compressed")
             local ratio
             if [ "$original_size" -gt 0 ]; then
                 ratio=$(awk "BEGIN {printf \"%.2f\", $compressed_size * 100 / $original_size}")
@@ -400,6 +411,46 @@ test_binary_data() {
         else
             log_error "Binary data: CLI compression failed"
         fi
+    fi
+}
+
+# CLI-only tests (no pigz)
+cli_only_tests() {
+    log_test "CLI round-trip and header"
+    if [ ! -f "$CLI_EXECUTABLE" ]; then
+        log_warning "Skipping CLI-only tests - executable not available"
+        return
+    fi
+    local input="$TEST_DIR/medium_repetitive.txt"
+    local compressed="$TEST_DIR/cli_only.zz"
+    local decompressed="$TEST_DIR/cli_only_out.txt"
+    if "$CLI_EXECUTABLE" compress "$input" "$compressed" 2>/dev/null; then
+        # Verify zlib header (78)
+        local header=$(xxd -p -l 1 "$compressed")
+        if [[ $header == "78" ]]; then
+            log_info "CLI output has zlib header (78xx)"
+        else
+            log_error "CLI output missing zlib header"
+        fi
+        # Check compression effectiveness (should be smaller for repetitive input)
+        local in_size=$(wc -c < "$input")
+        local out_size=$(wc -c < "$compressed")
+        if [ "$out_size" -lt "$in_size" ]; then
+            log_success "Compression effective: $in_size -> $out_size bytes"
+        else
+            log_warning "Compressed size not smaller (may be due to small/sample data)"
+        fi
+        if "$CLI_EXECUTABLE" decompress "$compressed" "$decompressed" 2>/dev/null; then
+            if cmp -s "$input" "$decompressed"; then
+                log_success "CLI round-trip successful"
+            else
+                log_error "CLI round-trip mismatch"
+            fi
+        else
+            log_error "CLI decompression failed"
+        fi
+    else
+        log_error "CLI compression failed"
     fi
 }
 
