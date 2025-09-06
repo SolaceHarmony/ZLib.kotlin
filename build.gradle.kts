@@ -69,22 +69,30 @@ kotlin {
         @Suppress("unused")
         val linuxX64Main by getting {
             dependsOn(linuxMain)
+            // Redundant edge for IDE clarity
+            dependsOn(commonMain)
         }
 
         @Suppress("unused")
         val linuxX64Test by getting {
             dependsOn(linuxTest)
+            // Redundant edge for IDE clarity
+            dependsOn(commonTest)
         }
 
         // Configure platform-specific source sets for macOS
         @Suppress("unused")
         val macosArm64Main by getting {
             dependsOn(nativeMain)
+            // Redundant edge for IDE clarity
+            dependsOn(commonMain)
         }
 
         @Suppress("unused")
         val macosArm64Test by getting {
             dependsOn(nativeTest)
+            // Redundant edge for IDE clarity
+            dependsOn(commonTest)
         }
     }
 }
