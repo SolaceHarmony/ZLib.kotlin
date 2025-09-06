@@ -106,8 +106,7 @@ object InflateStream {
         val out = IntArray(count)
         var i = 0
         while (i < count) {
-            val sym = CanonicalHuffman.decodeOne(br, clTable)
-            when (sym) {
+            when (val sym = CanonicalHuffman.decodeOne(br, clTable)) {
                 in 0..15 -> out[i++] = sym
                 16 -> {
                     if (i == 0) return null
