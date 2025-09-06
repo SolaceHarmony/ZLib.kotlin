@@ -82,8 +82,60 @@ object DeflateStream {
     /** Read a byte from a circular window using mask. */
     private fun windowByteAt(window: ByteArray, mask: Int, p: Int): Int = window[p and mask].toInt() and 0xFF
 
+    /** Compute hash for the three-byte sequence at index in the lookahead buffer. */
+    private fun computeHashAt(la: ByteArray, idx: Int, hash3: (Int, Int, Int) -> Int): Int {
+        val a = la[idx].toInt() and 0xFF
+        val b = la[idx + 1].toInt() and 0xFF
+        val c = la[idx + 2].toInt() and 0xFF
+        return hash3(a, b, c)
+    }
+
+    /** Shared insert into hash chain and window head for a given absolute position. */
+    private fun insertTripletAt(
+        absPos: Int,
+        la: ByteArray,
+        laOff: Int,
+        laLen: Int,
+        pos: Int,
+        head: IntArray,
+        prev: IntArray,
+        hash3: (Int, Int, Int) -> Int,
+        mask: Int,
+    ) {
+        if (laLen - (absPos - pos + laOff) < 3) return
+        val rel = absPos - pos + laOff
+        val h = computeHashAt(la, rel, hash3)
+        val widx = absPos and mask
+        prev[widx] = head[h]
+        head[h] = absPos
+    }
+
     private data class LengthMap(val codeSymbol: Int, val extraBits: Int, val extraVal: Int)
     private data class DistMap(val codeSymbol: Int, val extraBits: Int, val extraVal: Int)
+
+    // Small mutable state holder for LZ77 advancing to deduplicate loops
+    private data class LzState(var pos: Int, var laOff: Int, var laLen: Int)
+
+    private fun advanceMatch(
+        window: ByteArray,
+        la: ByteArray,
+        state: LzState,
+        mask: Int,
+        matchLen: Int,
+        available: Int,
+        insertAt: (Int) -> Unit,
+    ) {
+        var k = 0
+        while (k < matchLen) {
+            val widx = state.pos and mask
+            window[widx] = la[state.laOff]
+            if (available - k >= 3) insertAt(state.pos)
+            state.pos++
+            state.laOff++
+            state.laLen--
+            k++
+        }
+    }
 
     /** Compute length code mapping (code symbol and extra bits/value) for a given match length. */
     private fun mapLengthToSymbol(length: Int): LengthMap {
@@ -296,15 +348,7 @@ object DeflateStream {
 
 
         fun insertAt(absPos: Int) {
-            if (laLen - (absPos - pos + laOff) < 3) return
-            val rel = absPos - pos + laOff
-            val a = la[rel].toInt() and 0xFF
-            val b = la[rel + 1].toInt() and 0xFF
-            val c = la[rel + 2].toInt() and 0xFF
-            val h = hash3(a, b, c)
-            val widx = absPos and (size - 1)
-            prev[widx] = head[h]
-            head[h] = absPos
+            insertTripletAt(absPos, la, laOff, laLen, pos, head, prev, { x, y, z -> hash3(x, y, z) }, size - 1)
         }
 
         fun emitLiteral(b: Int) {
@@ -346,10 +390,7 @@ object DeflateStream {
             var bestLen = 0
             var bestDist = 0
             if (available >= 3) {
-                val a = la[rel].toInt() and 0xFF
-                val b = la[rel + 1].toInt() and 0xFF
-                val c = la[rel + 2].toInt() and 0xFF
-                val h = hash3(a, b, c)
+                val h = computeHashAt(la, rel, { x, y, z -> hash3(x, y, z) })
                 var m = head[h]
                 var chain = 0
                 while (m != -1 && chain < maxChainLength) {
@@ -376,16 +417,11 @@ object DeflateStream {
 
             if (bestLen >= 3) {
                 emitMatch(bestLen, bestDist)
-                // Insert each position in match into hash/window
-                var k = 0
-                while (k < bestLen) {
-                    val widx = pos and (size - 1)
-                    window[widx] = la[laOff]
-                    if (available - k >= 3) insertAt(pos)
-                    pos++
-                    laOff++
-                    laLen--
-                    k++
+                // Insert each position in match into hash/window (deduped)
+                run {
+                    val st = LzState(pos, laOff, laLen)
+                    advanceMatch(window, la, st, size - 1, bestLen, available, ::insertAt)
+                    pos = st.pos; laOff = st.laOff; laLen = st.laLen
                 }
             } else {
                 emitLiteral(b0)
@@ -456,7 +492,9 @@ object DeflateStream {
         var laOff = 0
 
         fun hash3(a: Int, b: Int, c: Int): Int { var h = a * 251 + b * 271 + c * 277; return h and (capacity - 1) }
-        fun insertAt(absPos: Int) { if (laLen - (absPos - pos + laOff) < 3) return; val rel = absPos - pos + laOff; val a = la[rel].toInt() and 0xFF; val b = la[rel + 1].toInt() and 0xFF; val c = la[rel + 2].toInt() and 0xFF; val h = hash3(a, b, c); val widx = absPos and (windowSize - 1); prev[widx] = head[h]; head[h] = absPos }
+        fun insertAt(absPos: Int) {
+            insertTripletAt(absPos, la, laOff, laLen, pos, head, prev, { x, y, z -> hash3(x, y, z) }, windowMask)
+        }
 
         val bw = StreamingBitWriter(sink)
         val maxStoredSize = MAX_STORED // bound block size so stored is always an option
@@ -487,16 +525,20 @@ object DeflateStream {
             val rawBuf = ByteArray(maxStoredSize)
             var rawLen = 0
 
+            fun appendRaw(n: Int) {
+                if (rawLen + n <= rawBuf.size) {
+                    for (i in 0 until n) rawBuf[rawLen + i] = la[laLen + i]
+                    rawLen += n
+                }
+            }
+
             // Initial fill for this block (limited by MAX_BLOCK)
             while (laLen < lookaheadBufferSize && blockRead < maxStoredSize && !source.exhausted()) {
                 val toRead = minOf(lookaheadBufferSize - laLen, maxStoredSize - blockRead, 64 * 1024)
                 val n = source.read(la, laLen, toRead)
                 if (n <= 0) break
                 // Save a copy for possible stored block
-                if (rawLen + n <= rawBuf.size) {
-                    for (i in 0 until n) rawBuf[rawLen + i] = la[laLen + i]
-                    rawLen += n
-                }
+                appendRaw(n)
                 adler = Adler32Utils.adler32(adler, la, laLen, n)
                 laLen += n
                 totalIn += n
@@ -516,10 +558,7 @@ object DeflateStream {
                 var bestLen = 0
                 var bestDist = 0
                 if (available >= 3 && rel + 2 < lookaheadBufferSize) {
-                    val a = la[rel].toInt() and 0xFF
-                    val b = la[rel + 1].toInt() and 0xFF
-                    val c = la[rel + 2].toInt() and 0xFF
-                    val h = hash3(a, b, c)
+                    val h = computeHashAt(la, rel, { x, y, z -> hash3(x, y, z) })
                     var m = head[h]
                     var chain = 0
                     while (m != -1 && chain < maxChain) {
@@ -598,15 +637,10 @@ object DeflateStream {
                         val dm = mapDistToSymbol(bestDist)
                         distFreq[dm.codeSymbol]++
                     }
-                    var k = 0
-                    while (k < bestLen) {
-                        val widx = pos and (windowSize - 1)
-                        window[widx] = la[laOff]
-                        if (available - k >= 3) insertAt(pos)
-                        pos++
-                        laOff++
-                        laLen--
-                        k++
+                    run {
+                        val st = LzState(pos, laOff, laLen)
+                        advanceMatch(window, la, st, windowMask, bestLen, available, ::insertAt)
+                        pos = st.pos; laOff = st.laOff; laLen = st.laLen
                     }
                 } else {
                     tokens.add(TokLit(b0))
@@ -632,10 +666,7 @@ object DeflateStream {
                         val n = source.read(la, laLen, toRead)
                         if (n > 0) {
                             // Save raw
-                            if (rawLen + n <= rawBuf.size) {
-                                for (i in 0 until n) rawBuf[rawLen + i] = la[laLen + i]
-                                rawLen += n
-                            }
+                            appendRaw(n)
                             adler = Adler32Utils.adler32(adler, la, laLen, n)
                             laLen += n
                             totalIn += n
@@ -805,6 +836,19 @@ object DeflateStream {
                 writeSymbol(256)
             }
 
+            // Emit tokens using specific code tables without redefining lambdas at each call site
+            fun emitWithTables(
+                litCodesT: IntArray,
+                litBitsT: IntArray,
+                distCodesT: IntArray,
+                distBitsT: IntArray,
+            ) {
+                fun writeSymbol(sym: Int) { bw.writeBits(litCodesT[sym], litBitsT[sym]) }
+                fun writeLength(length: Int) { writeLengthEncoded(bw, litCodesT, litBitsT, length) }
+                fun writeDistance(dist: Int) { writeDistanceEncoded(bw, distCodesT, distBitsT, dist) }
+                emitTokens(::writeSymbol, ::writeLength, ::writeDistance)
+            }
+
             // Emit block
             if (choice == 0) {
                 // Stored block
@@ -828,18 +872,12 @@ object DeflateStream {
                         18 -> bw.writeBits(c.extraCount, 7)
                     }
                 }
-                fun writeSymbol(sym: Int) { bw.writeBits(dynLitCodes[sym], dynLitBits[sym]) }
-                fun writeLength(length: Int) { writeLengthEncoded(bw, dynLitCodes, dynLitBits, length) }
-                fun writeDistance(dist: Int) { writeDistanceEncoded(bw, dynDistCodes, dynDistBits, dist) }
-                emitTokens(::writeSymbol, ::writeLength, ::writeDistance)
+                emitWithTables(dynLitCodes, dynLitBits, dynDistCodes, dynDistBits)
             } else {
                 // Fixed block
                 bw.writeBits(if (isLast) 1 else 0, 1)
                 bw.writeBits(1, 2)
-                fun writeSymbol(sym: Int) { bw.writeBits(fixedLitCodes[sym], fixedLitBits[sym]) }
-                fun writeLength(length: Int) { writeLengthEncoded(bw, fixedLitCodes, fixedLitBits, length) }
-                fun writeDistance(dist: Int) { writeDistanceEncoded(bw, fixedDistCodes, fixedDistBits, dist) }
-                emitTokens(::writeSymbol, ::writeLength, ::writeDistance)
+                emitWithTables(fixedLitCodes, fixedLitBits, fixedDistCodes, fixedDistBits)
             }
 
             if (isLast) break

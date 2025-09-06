@@ -69,6 +69,76 @@ object InflateStream {
         adler[0] = (s2 shl 16) or s1
     }
 
+    // --- Helpers to deduplicate decode logic ---
+    /** Decode match length from a literal/length symbol (sym >= 257). Returns -1 on error. */
+    private fun decodeLength(br: StreamingBitReader, sym: Int): Int {
+        val lenCode = sym - 257
+        if (lenCode !in 0..28) return -1
+        val baseLen = LENGTH_BASE[lenCode]
+        val extra = LENGTH_EXTRA[lenCode]
+        val extraVal = if (extra > 0) br.take(extra) else 0
+        return baseLen + extraVal
+    }
+
+    /** Decode match distance from a distance symbol. Returns -1 on error. */
+    private fun decodeDistance(br: StreamingBitReader, distSym: Int): Int {
+        if (distSym !in 0..29) return -1
+        val baseDist = DIST_BASE[distSym]
+        val extraD = DIST_EXTRA[distSym]
+        val extraDVal = if (extraD > 0) br.take(extraD) else 0
+        val dist = baseDist + extraDVal
+        return if (dist <= 0) -1 else dist
+    }
+
+    /** Copy a back-reference of given length and distance using the sliding window. */
+    private fun copyMatch(length: Int, dist: Int, sink: BufferedSink, window: ByteArray, posRef: IntArray, adler: LongArray) {
+        var i = 0
+        while (i < length) {
+            val srcIndex = (posRef[0] - dist + WINDOW_SIZE) and (WINDOW_SIZE - 1)
+            val b = window[srcIndex].toInt() and 0xFF
+            writeByte(b, sink, window, posRef, adler)
+            i++
+        }
+    }
+
+    /** Read code lengths sequence (RLE encoded) using the code-length Huffman table. Returns null on error. */
+    private fun readCodeLengths(br: StreamingBitReader, clTable: CanonicalHuffman.FullTable, count: Int): IntArray? {
+        val out = IntArray(count)
+        var i = 0
+        while (i < count) {
+            val sym = CanonicalHuffman.decodeOne(br, clTable)
+            when (sym) {
+                in 0..15 -> out[i++] = sym
+                16 -> {
+                    if (i == 0) return null
+                    val repeat = 3 + br.take(2)
+                    val prev = out[i - 1]
+                    repeat(repeat) { if (i < count) out[i++] = prev else return null }
+                }
+                17 -> {
+                    val repeat = 3 + br.take(3)
+                    repeat(repeat) { if (i < count) out[i++] = 0 else return null }
+                }
+                18 -> {
+                    val repeat = 11 + br.take(7)
+                    repeat(repeat) { if (i < count) out[i++] = 0 else return null }
+                }
+                else -> return null
+            }
+        }
+        return out
+    }
+
+    // Build both decode tables together to avoid duplicated code at call sites
+    private fun buildDecodeTables(
+        litLens: IntArray,
+        distLens: IntArray,
+    ): Pair<CanonicalHuffman.FullTable, CanonicalHuffman.FullTable> {
+        val litTable = CanonicalHuffman.buildFull(litLens)
+        val distTable = CanonicalHuffman.buildFull(distLens)
+        return litTable to distTable
+    }
+
     private fun decodeFixed(br: StreamingBitReader, sink: BufferedSink, window: ByteArray, posRef: IntArray, adler: LongArray): Int {
         val litLens = IntArray(288).also {
             for (i in 0..143) it[i] = 8
@@ -77,8 +147,7 @@ object InflateStream {
             for (i in 280..287) it[i] = 8
         }
         val distLens = IntArray(32) { 5 }
-        val litTable = CanonicalHuffman.buildFull(litLens)
-        val distTable = CanonicalHuffman.buildFull(distLens)
+        val (litTable, distTable) = buildDecodeTables(litLens, distLens)
 
         loop@ while (true) {
             val sym = CanonicalHuffman.decodeOne(br, litTable)
@@ -86,28 +155,12 @@ object InflateStream {
                 sym < 256 -> writeByte(sym, sink, window, posRef, adler)
                 sym == 256 -> break@loop
                 else -> {
-                    val lenCode = sym - 257
-                    if (lenCode !in 0..28) return Z_DATA_ERROR
-                    val baseLen = LENGTH_BASE[lenCode]
-                    val extra = LENGTH_EXTRA[lenCode]
-                    val extraVal = if (extra > 0) br.take(extra) else 0
-                    val length = baseLen + extraVal
-
+                    val length = decodeLength(br, sym)
+                    if (length < 0) return Z_DATA_ERROR
                     val distSym = CanonicalHuffman.decodeOne(br, distTable)
-                    if (distSym !in 0..29) return Z_DATA_ERROR
-                    val baseDist = DIST_BASE[distSym]
-                    val extraD = DIST_EXTRA[distSym]
-                    val extraDVal = if (extraD > 0) br.take(extraD) else 0
-                    val dist = baseDist + extraDVal
-                    if (dist <= 0) return Z_DATA_ERROR
-
-                    var i = 0
-                    while (i < length) {
-                        val srcIndex = (posRef[0] - dist + WINDOW_SIZE) and (WINDOW_SIZE - 1)
-                        val b = window[srcIndex].toInt() and 0xFF
-                        writeByte(b, sink, window, posRef, adler)
-                        i++
-                    }
+                    val dist = decodeDistance(br, distSym)
+                    if (dist < 0) return Z_DATA_ERROR
+                    copyMatch(length, dist, sink, window, posRef, adler)
                 }
             }
         }
@@ -124,56 +177,10 @@ object InflateStream {
         for (i in 0 until hclen) clen[order[i]] = br.take(3)
 
         val clTable = CanonicalHuffman.buildFull(clen)
-        val litLenLens = IntArray(hlit)
-        val distLens = IntArray(hdist)
+        val litLenLens = readCodeLengths(br, clTable, hlit) ?: return Z_DATA_ERROR
+        val distLens = readCodeLengths(br, clTable, hdist) ?: return Z_DATA_ERROR
 
-        var i = 0
-        while (i < hlit) {
-            val sym = CanonicalHuffman.decodeOne(br, clTable)
-            when (sym) {
-                in 0..15 -> litLenLens[i++] = sym
-                16 -> {
-                    if (i == 0) return Z_DATA_ERROR
-                    val repeat = 3 + br.take(2)
-                    val prev = litLenLens[i - 1]
-                    repeat(repeat) { if (i < hlit) litLenLens[i++] = prev else return Z_DATA_ERROR }
-                }
-                17 -> {
-                    val repeat = 3 + br.take(3)
-                    repeat(repeat) { if (i < hlit) litLenLens[i++] = 0 else return Z_DATA_ERROR }
-                }
-                18 -> {
-                    val repeat = 11 + br.take(7)
-                    repeat(repeat) { if (i < hlit) litLenLens[i++] = 0 else return Z_DATA_ERROR }
-                }
-                else -> return Z_DATA_ERROR
-            }
-        }
-        i = 0
-        while (i < hdist) {
-            val sym = CanonicalHuffman.decodeOne(br, clTable)
-            when (sym) {
-                in 0..15 -> distLens[i++] = sym
-                16 -> {
-                    if (i == 0) return Z_DATA_ERROR
-                    val repeat = 3 + br.take(2)
-                    val prev = distLens[i - 1]
-                    repeat(repeat) { if (i < hdist) distLens[i++] = prev else return Z_DATA_ERROR }
-                }
-                17 -> {
-                    val repeat = 3 + br.take(3)
-                    repeat(repeat) { if (i < hdist) distLens[i++] = 0 else return Z_DATA_ERROR }
-                }
-                18 -> {
-                    val repeat = 11 + br.take(7)
-                    repeat(repeat) { if (i < hdist) distLens[i++] = 0 else return Z_DATA_ERROR }
-                }
-                else -> return Z_DATA_ERROR
-            }
-        }
-
-        val litTable = CanonicalHuffman.buildFull(litLenLens)
-        val distTable = CanonicalHuffman.buildFull(distLens)
+        val (litTable, distTable) = buildDecodeTables(litLenLens, distLens)
 
         loop@ while (true) {
             val sym = CanonicalHuffman.decodeOne(br, litTable)
@@ -181,28 +188,12 @@ object InflateStream {
                 sym < 256 -> writeByte(sym, sink, window, posRef, adler)
                 sym == 256 -> break@loop
                 else -> {
-                    val lenCode = sym - 257
-                    if (lenCode !in 0..28) return Z_DATA_ERROR
-                    val baseLen = LENGTH_BASE[lenCode]
-                    val extra = LENGTH_EXTRA[lenCode]
-                    val extraVal = if (extra > 0) br.take(extra) else 0
-                    val length = baseLen + extraVal
-
+                    val length = decodeLength(br, sym)
+                    if (length < 0) return Z_DATA_ERROR
                     val distSym = CanonicalHuffman.decodeOne(br, distTable)
-                    if (distSym !in 0..29) return Z_DATA_ERROR
-                    val baseDist = DIST_BASE[distSym]
-                    val extraD = DIST_EXTRA[distSym]
-                    val extraDVal = if (extraD > 0) br.take(extraD) else 0
-                    val dist = baseDist + extraDVal
-                    if (dist <= 0) return Z_DATA_ERROR
-
-                    var j = 0
-                    while (j < length) {
-                        val srcIndex = (posRef[0] - dist + WINDOW_SIZE) and (WINDOW_SIZE - 1)
-                        val b = window[srcIndex].toInt() and 0xFF
-                        writeByte(b, sink, window, posRef, adler)
-                        j++
-                    }
+                    val dist = decodeDistance(br, distSym)
+                    if (dist < 0) return Z_DATA_ERROR
+                    copyMatch(length, dist, sink, window, posRef, adler)
                 }
             }
         }
