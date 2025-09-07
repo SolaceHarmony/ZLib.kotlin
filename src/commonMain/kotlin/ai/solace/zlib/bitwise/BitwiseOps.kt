@@ -36,7 +36,7 @@ object BitwiseOps {
          */
         fun createMask(bits: Int): Int {
             require(bits in 0..32) { "Bits must be between 0 and 32" }
-            return if (bits == 32) -1 else (1 shl bits) - 1
+            return createMaskArithmetic(bits)
         }
 
         /**
@@ -49,7 +49,7 @@ object BitwiseOps {
             value: Int,
             bits: Int,
         ): Int {
-            return value and createMask(bits)
+            return extractBitsArithmetic(value, bits)
         }
 
         /**
@@ -64,7 +64,12 @@ object BitwiseOps {
             startBit: Int,
             bitCount: Int,
         ): Int {
-            return (value shr startBit) and createMask(bitCount)
+            if (bitCount <= 0) return 0
+            if (startBit < 0 || startBit >= 32) return 0
+            val take = minOf(bitCount, 32 - startBit)
+            val a32 = ArithmeticBitwiseOps.BITS_32
+            val shifted = a32.rightShift(value.toLong(), startBit).toInt()
+            return extractBitsArithmetic(shifted, take)
         }
 
         /**
@@ -77,7 +82,10 @@ object BitwiseOps {
             high: Int,
             low: Int,
         ): Int {
-            return (high shl 16) or (low and 0xFFFF)
+            val a32 = ArithmeticBitwiseOps.BITS_32
+            val hi = a32.leftShift(high.toLong(), 16).toInt()
+            val lo = ((low % 65536) + 65536) % 65536
+            return a32.or(hi.toLong(), lo.toLong()).toInt()
         }
 
         /**
@@ -102,7 +110,10 @@ object BitwiseOps {
             high: Long,
             low: Long,
         ): Long {
-            return (high shl 16) or (low and 0xFFFFL)
+            val a32 = ArithmeticBitwiseOps.BITS_32
+            val hi = a32.leftShift(high, 16)
+            val lo = ((low % 65536) + 65536) % 65536
+            return a32.or(hi, lo)
         }
 
         /**
@@ -111,7 +122,8 @@ object BitwiseOps {
          * @return The high 16 bits as an integer
          */
         fun getHigh16Bits(value: Int): Int {
-            return value ushr 16
+            val a32 = ArithmeticBitwiseOps.BITS_32
+            return a32.rightShift(value.toLong(), 16).toInt()
         }
 
         /**
@@ -130,7 +142,8 @@ object BitwiseOps {
          * @return The low 16 bits as an integer
          */
         fun getLow16Bits(value: Int): Int {
-            return value and 0xFFFF
+            // Arithmetic-only extraction of lower 16 bits
+            return ((value % 65536) + 65536) % 65536
         }
 
         /**
@@ -185,7 +198,9 @@ object BitwiseOps {
             value: Int,
             bits: Int,
         ): Int {
-            return defaultEngine32.leftShift(value.toLong(), bits).value.toInt()
+            // Pure arithmetic: multiplication by 2^bits within 32-bit width
+            val a32 = ArithmeticBitwiseOps.BITS_32
+            return a32.leftShift(value.toLong(), bits).toInt()
         }
 
         /**
@@ -198,7 +213,9 @@ object BitwiseOps {
             value: Int,
             bits: Int,
         ): Int {
-            return defaultEngine32.rightShift(value.toLong(), bits).value.toInt()
+            // Pure arithmetic: floor-division by 2^bits within 32-bit width
+            val a32 = ArithmeticBitwiseOps.BITS_32
+            return a32.rightShift(value.toLong(), bits).toInt()
         }
 
         /**
