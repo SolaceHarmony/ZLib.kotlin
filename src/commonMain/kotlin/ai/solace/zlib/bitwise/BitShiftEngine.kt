@@ -74,7 +74,7 @@ class BitShiftEngine(
             BitShiftMode.ARITHMETIC -> {
                 if (arithmeticOps == null) {
                     // Fallback to native for 64-bit
-                    return leftShift(value, bits)
+                    return this.withMode(BitShiftMode.NATIVE).leftShift(value, bits)
                 }
 
                 val originalValue = normalize(value)
@@ -124,7 +124,7 @@ class BitShiftEngine(
 
             BitShiftMode.ARITHMETIC -> {
                 if (arithmeticOps == null) {
-                    return rightShift(value, bits)
+                    return this.withMode(BitShiftMode.NATIVE).rightShift(value, bits)
                 }
 
                 val result = arithmeticOps.rightShift(normalize(value), bits)
@@ -161,7 +161,7 @@ class BitShiftEngine(
 
             BitShiftMode.ARITHMETIC -> {
                 if (arithmeticOps == null) {
-                    return unsignedRightShift(value, bits)
+                    return this.withMode(BitShiftMode.NATIVE).unsignedRightShift(value, bits)
                 }
 
                 val result = arithmeticOps.rightShift(normalize(value), bits)

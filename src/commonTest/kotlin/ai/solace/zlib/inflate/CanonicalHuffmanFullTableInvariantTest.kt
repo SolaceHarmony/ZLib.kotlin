@@ -11,7 +11,7 @@ class CanonicalHuffmanFullTableInvariantTest {
             CanonicalHuffman.FullTable(
                 maxLen = 3,
                 bits = IntArray(8),
-                vals = IntArray(7)
+                vals = IntArray(7),
             )
         }
     }
@@ -23,7 +23,7 @@ class CanonicalHuffmanFullTableInvariantTest {
             CanonicalHuffman.FullTable(
                 maxLen = 4,
                 bits = IntArray(8),
-                vals = IntArray(8)
+                vals = IntArray(8),
             )
         }
     }
@@ -34,7 +34,7 @@ class CanonicalHuffmanFullTableInvariantTest {
             CanonicalHuffman.FullTable(
                 maxLen = 16,
                 bits = IntArray(16),
-                vals = IntArray(16)
+                vals = IntArray(16),
             )
         }
     }

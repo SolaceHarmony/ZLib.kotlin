@@ -292,6 +292,7 @@ object DeflateStream {
     ): Long {
         return when {
             level <= 0 -> compressZlibStored(source, sink, level)
+            level == 1 -> compressZlibFixed(source, sink, level)
             else -> compressZlibDynamic(source, sink, level)
         }
     }

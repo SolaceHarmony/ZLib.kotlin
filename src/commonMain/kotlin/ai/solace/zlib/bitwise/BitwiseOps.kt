@@ -18,16 +18,16 @@ package ai.solace.zlib.bitwise
  * This class now integrates with BitShiftEngine for configurable operation modes.
  */
 object BitwiseOps {
-        // Default engines for common operations
-        private val defaultEngine32 = BitShiftEngine(BitShiftMode.NATIVE, 32)
+        // Default engines for common operations (arithmetic-only for portability)
+        private val defaultEngine32 = BitShiftEngine(BitShiftMode.ARITHMETIC, 32)
 
         @Suppress("unused") // TODO(detekt): remove if truly unused
-        private val defaultEngine16 = BitShiftEngine(BitShiftMode.NATIVE, 16)
+        private val defaultEngine16 = BitShiftEngine(BitShiftMode.ARITHMETIC, 16)
 
         @Suppress("unused") // TODO(detekt): remove if truly unused
-        private val defaultEngine8 = BitShiftEngine(BitShiftMode.NATIVE, 8)
+        private val defaultEngine8 = BitShiftEngine(BitShiftMode.ARITHMETIC, 8)
 
-        private val defaultEngine64 = BitShiftEngine(BitShiftMode.NATIVE, 64)
+        private val defaultEngine64 = BitShiftEngine(BitShiftMode.ARITHMETIC, 64)
 
         /**
          * Creates a bit mask with the specified number of bits set to 1
@@ -359,13 +359,12 @@ object BitwiseOps {
             value: Int,
             bits: Int,
         ): Int {
-            // Normalize bits to be in range [0, 31]
-            val normalizedBits = bits and 0x1F
-            if (normalizedBits == 0) return value
-
-            // Use unsigned shift to handle sign bit correctly
-            return ((value and 0xFFFFFFFF.toInt()) shl normalizedBits) or
-                ((value and 0xFFFFFFFF.toInt()) ushr (32 - normalizedBits))
+            val a32 = ArithmeticBitwiseOps.BITS_32
+            val n = bits and 31
+            if (n == 0) return a32.normalize(value.toLong()).toInt()
+            val left = a32.leftShift(value.toLong(), n).toInt()
+            val right = a32.rightShift(value.toLong(), 32 - n).toInt()
+            return a32.or(left.toLong(), right.toLong()).toInt()
         }
 
         /**
@@ -378,13 +377,12 @@ object BitwiseOps {
             value: Int,
             bits: Int,
         ): Int {
-            // Normalize bits to be in range [0, 31]
-            val normalizedBits = bits and 0x1F
-            if (normalizedBits == 0) return value
-
-            // Use unsigned shift to handle sign bit correctly
-            return ((value and 0xFFFFFFFF.toInt()) ushr normalizedBits) or
-                ((value and 0xFFFFFFFF.toInt()) shl (32 - normalizedBits))
+            val a32 = ArithmeticBitwiseOps.BITS_32
+            val n = bits and 31
+            if (n == 0) return a32.normalize(value.toLong()).toInt()
+            val right = a32.rightShift(value.toLong(), n).toInt()
+            val left = a32.leftShift(value.toLong(), 32 - n).toInt()
+            return a32.or(left.toLong(), right.toLong()).toInt()
         }
 
         /**
