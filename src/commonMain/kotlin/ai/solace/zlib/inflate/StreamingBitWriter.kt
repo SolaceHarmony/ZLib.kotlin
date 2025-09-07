@@ -13,7 +13,10 @@ class StreamingBitWriter(private val sink: BufferedSink) {
     private var bitCount: Int = 0
 
     /** Write 'count' low bits of value (LSB-first). */
-    fun writeBits(value: Int, count: Int) {
+    fun writeBits(
+        value: Int,
+        count: Int,
+    ) {
         if (count == 0) return
         // Append bits LSB-first: shift in lower 'count' bits of value at current bitCount
         val masked = value and ((1 shl count) - 1)

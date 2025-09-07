@@ -1,4 +1,5 @@
 @file:Suppress("EmptyElseBlock")
+
 package ai.solace.zlib.deflate
 
 import ai.solace.zlib.bitwise.checksum.Adler32Utils
@@ -21,14 +22,18 @@ object DeflateStream {
     private const val MAX_STORED = 65535
 
     /** level: 1 (fast) .. 9 (best) maps to zlib FLEVEL advisory. */
-    private fun flevelFor(level: Int): Int = when {
-        level >= 9 -> 3
-        level >= 6 -> 2
-        level >= 2 -> 1
-        else -> 0
-    }
+    private fun flevelFor(level: Int): Int =
+        when {
+            level >= 9 -> 3
+            level >= 6 -> 2
+            level >= 2 -> 1
+            else -> 0
+        }
 
-    private fun writeZlibHeader(sink: BufferedSink, level: Int) {
+    private fun writeZlibHeader(
+        sink: BufferedSink,
+        level: Int,
+    ) {
         val cm = 8 // deflate
         val cinfo = 7 // 32K window
         val cmf = (cinfo shl 4) or cm // 0x78
@@ -46,8 +51,12 @@ object DeflateStream {
     private const val DEFAULT_WINDOW: Int = 1 shl 15
 
     // ---- Small internal helpers to reduce duplicated fragments ----
+
     /** Write a 32-bit big-endian integer to sink. */
-    private fun writeBe32(sink: BufferedSink, value: Int) {
+    private fun writeBe32(
+        sink: BufferedSink,
+        value: Int,
+    ) {
         sink.writeByte((value ushr 24) and 0xFF)
         sink.writeByte((value ushr 16) and 0xFF)
         sink.writeByte((value ushr 8) and 0xFF)
@@ -55,7 +64,10 @@ object DeflateStream {
     }
 
     /** Write zlib Adler-32 trailer (big-endian 4 bytes). */
-    private fun writeAdler32Trailer(sink: BufferedSink, adler: Long) {
+    private fun writeAdler32Trailer(
+        sink: BufferedSink,
+        adler: Long,
+    ) {
         writeBe32(sink, adler.toInt())
     }
 
@@ -63,7 +75,12 @@ object DeflateStream {
      * Emit a stored block header: BFINAL bit, BTYPE=00, align to byte, then LEN and NLEN.
      * Does not write the payload.
      */
-    private fun writeStoredBlockHeader(bw: StreamingBitWriter, sink: BufferedSink, length: Int, bfinal: Int) {
+    private fun writeStoredBlockHeader(
+        bw: StreamingBitWriter,
+        sink: BufferedSink,
+        length: Int,
+        bfinal: Int,
+    ) {
         bw.writeBits(bfinal, 1)
         bw.writeBits(0, 2) // BTYPE=00
         bw.alignToByte()
@@ -76,15 +93,28 @@ object DeflateStream {
     }
 
     /** Write a literal symbol using provided code tables. */
-    private fun writeLiteral(bw: StreamingBitWriter, codes: IntArray, bits: IntArray, sym: Int) {
+    private fun writeLiteral(
+        bw: StreamingBitWriter,
+        codes: IntArray,
+        bits: IntArray,
+        sym: Int,
+    ) {
         bw.writeBits(codes[sym], bits[sym])
     }
 
     /** Read a byte from a circular window using mask. */
-    private fun windowByteAt(window: ByteArray, mask: Int, p: Int): Int = window[p and mask].toInt() and 0xFF
+    private fun windowByteAt(
+        window: ByteArray,
+        mask: Int,
+        p: Int,
+    ): Int = window[p and mask].toInt() and 0xFF
 
     /** Compute hash for the three-byte sequence at index in the lookahead buffer. */
-    private fun computeHashAt(la: ByteArray, idx: Int, hash3: (Int, Int, Int) -> Int): Int {
+    private fun computeHashAt(
+        la: ByteArray,
+        idx: Int,
+        hash3: (Int, Int, Int) -> Int,
+    ): Int {
         val a = la[idx].toInt() and 0xFF
         val b = la[idx + 1].toInt() and 0xFF
         val c = la[idx + 2].toInt() and 0xFF
@@ -112,6 +142,7 @@ object DeflateStream {
     }
 
     private data class LengthMap(val codeSymbol: Int, val extraBits: Int, val extraVal: Int)
+
     private data class DistMap(val codeSymbol: Int, val extraBits: Int, val extraVal: Int)
 
     // Small mutable state holder for LZ77 advancing to deduplicate loops
@@ -254,7 +285,11 @@ object DeflateStream {
     }
 
     /** Compress from source to sink with zlib wrapper using fixed Huffman (with simple RLE), fallback to stored when level<=0. */
-    fun compressZlib(source: BufferedSource, sink: BufferedSink, level: Int = 6): Long {
+    fun compressZlib(
+        source: BufferedSource,
+        sink: BufferedSink,
+        level: Int = 6,
+    ): Long {
         return when {
             level <= 0 -> compressZlibStored(source, sink, level)
             else -> compressZlibDynamic(source, sink, level)
@@ -262,7 +297,11 @@ object DeflateStream {
     }
 
     /** Stored-block compressor (no compression). */
-    private fun compressZlibStored(source: BufferedSource, sink: BufferedSink, level: Int = 0): Long {
+    private fun compressZlibStored(
+        source: BufferedSource,
+        sink: BufferedSink,
+        level: Int = 0,
+    ): Long {
         // Header
         writeZlibHeader(sink, level)
         val bw = StreamingBitWriter(sink)
@@ -304,7 +343,11 @@ object DeflateStream {
 
     /** Fixed-Huffman compressor with streaming LZ77 (greedy+lazy), limited matcher, arithmetic bit writing. */
     @Suppress("unused")
-    private fun compressZlibFixed(source: BufferedSource, sink: BufferedSink, level: Int = 6): Long {
+    private fun compressZlibFixed(
+        source: BufferedSource,
+        sink: BufferedSink,
+        level: Int = 6,
+    ): Long {
         writeZlibHeader(sink, level)
         val bw = StreamingBitWriter(sink)
 
@@ -318,6 +361,7 @@ object DeflateStream {
         fun writeLength(length: Int) {
             writeLengthEncoded(bw, litCodes, litBits, length)
         }
+
         fun writeDistance(dist: Int) {
             writeDistanceEncoded(bw, distCodes, distBits, dist)
         }
@@ -328,7 +372,7 @@ object DeflateStream {
 
         // Streaming LZ77 with small lookahead buffer and 32K sliding window
         val maxBufferCapacity = DEFAULT_WINDOW // 32KB buffer
-        val size = DEFAULT_WINDOW    // 32KB window
+        val size = DEFAULT_WINDOW // 32KB window
         val la = ByteArray(maxBufferCapacity)
         val window = ByteArray(size)
         val bufferSize = DEFAULT_WINDOW
@@ -342,12 +386,15 @@ object DeflateStream {
         var laLen = 0
         var laOff = 0
 
-        fun hash3(a: Int, b: Int, c: Int): Int {
+        fun hash3(
+            a: Int,
+            b: Int,
+            c: Int,
+        ): Int {
             var h = a * 251 + b * 271 + c * 277
             h = h and (bufferSize - 1)
             return h
         }
-
 
         fun insertAt(absPos: Int) {
             insertTripletAt(absPos, la, laOff, laLen, pos, head, prev, { x, y, z -> hash3(x, y, z) }, size - 1)
@@ -357,7 +404,10 @@ object DeflateStream {
             writeLiteral(bw, litCodes, litBits, b)
         }
 
-        fun emitMatch(len: Int, dist: Int) {
+        fun emitMatch(
+            len: Int,
+            dist: Int,
+        ) {
             var remaining = len
             while (remaining > 0) {
                 val l = minOf(remaining, 258)
@@ -423,7 +473,9 @@ object DeflateStream {
                 run {
                     val st = LzState(pos, laOff, laLen)
                     advanceMatch(window, la, st, size - 1, bestLen, available, ::insertAt)
-                    pos = st.pos; laOff = st.laOff; laLen = st.laLen
+                    pos = st.pos
+                    laOff = st.laOff
+                    laLen = st.laLen
                 }
             } else {
                 emitLiteral(b0)
@@ -471,15 +523,20 @@ object DeflateStream {
     }
 
     /** Dynamic-Huffman compressor using frequency-based code lengths (≤15). Chooses stored vs fixed vs dynamic per block. */
-    private fun compressZlibDynamic(source: BufferedSource, sink: BufferedSink, level: Int = 6): Long {
+    private fun compressZlibDynamic(
+        source: BufferedSource,
+        sink: BufferedSink,
+        level: Int = 6,
+    ): Long {
         writeZlibHeader(sink, level)
 
         data class TokLit(val b: Int)
+
         data class TokMatch(val len: Int, val dist: Int)
 
         // Sliding LZ77 state (persists across blocks)
         val lookaheadBufferSize = 1 shl 15 // 32 KiB lookahead buffer
-        val windowSize = 1 shl 15    // 32 KiB window
+        val windowSize = 1 shl 15 // 32 KiB window
         val la = ByteArray(lookaheadBufferSize)
         val window = ByteArray(windowSize)
         val capacity = 1 shl 15
@@ -493,19 +550,28 @@ object DeflateStream {
         var laLen = 0
         var laOff = 0
 
-        fun hash3(a: Int, b: Int, c: Int): Int { val h = a * 251 + b * 271 + c * 277; return h and (capacity - 1) }
+        fun hash3(
+            a: Int,
+            b: Int,
+            c: Int,
+        ): Int {
+            val h = a * 251 + b * 271 + c * 277
+            return h and (capacity - 1)
+        }
+
         fun insertAt(absPos: Int) {
             insertTripletAt(absPos, la, laOff, laLen, pos, head, prev, { x, y, z -> hash3(x, y, z) }, windowMask)
         }
 
         val bw = StreamingBitWriter(sink)
         val maxStoredSize = MAX_STORED // bound block size so stored is always an option
-        val maxChain = when {
-            level <= 2 -> 8
-            level <= 4 -> 16
-            level <= 6 -> 32
-            else -> 64
-        }
+        val maxChain =
+            when {
+                level <= 2 -> 8
+                level <= 4 -> 16
+                level <= 6 -> 32
+                else -> 64
+            }
         val doLazy = false // temporarily disable lazy parsing for stability
 
         while (true) {
@@ -513,7 +579,10 @@ object DeflateStream {
             if (laOff > 0) {
                 if (laLen > 0) {
                     var t = 0
-                    while (t < laLen) { la[t] = la[laOff + t]; t++ }
+                    while (t < laLen) {
+                        la[t] = la[laOff + t]
+                        t++
+                    }
                 }
                 laOff = 0
             }
@@ -548,7 +617,10 @@ object DeflateStream {
 
             // Seed or update hash for current lookahead
             var cur = pos
-            while (cur + 2 < pos + laLen) { insertAt(cur); cur++ }
+            while (cur + 2 < pos + laLen) {
+                insertAt(cur)
+                cur++
+            }
 
             // Tokenize only the bytes read for this block
             while (laLen > 0) {
@@ -639,7 +711,9 @@ object DeflateStream {
                     run {
                         val st = LzState(pos, laOff, laLen)
                         advanceMatch(window, la, st, windowMask, bestLen, available, ::insertAt)
-                        pos = st.pos; laOff = st.laOff; laLen = st.laLen
+                        pos = st.pos
+                        laOff = st.laOff
+                        laLen = st.laLen
                     }
                 } else {
                     tokens.add(TokLit(b0))
@@ -671,7 +745,10 @@ object DeflateStream {
                             totalIn += n
                             blockRead += n
                             var insertPos = pos + laLen - n
-                            while (insertPos + 2 < pos + laLen) { insertAt(insertPos); insertPos++ }
+                            while (insertPos + 2 < pos + laLen) {
+                                insertAt(insertPos)
+                                insertPos++
+                            }
                         }
                     }
                 }
@@ -690,7 +767,10 @@ object DeflateStream {
             // Ensure at least one distance code exists
             run {
                 var any = false
-                for (v in distFreq) if (v != 0) { any = true; break }
+                for (v in distFreq) if (v != 0) {
+                    any = true
+                    break
+                }
                 if (!any) distFreq[0] = 1
             }
 
@@ -698,14 +778,22 @@ object DeflateStream {
             val dynLitLens = HuffmanBuilder.buildLengths(litFreq, 15, ensureSymbol = 256)
             val dynDistLens = HuffmanBuilder.buildLengths(distFreq, 15, ensureSymbol = 0)
 
-            fun lastNonZero(a: IntArray): Int { var i = a.size - 1; while (i >= 0 && a[i] == 0) i--; return i }
+            fun lastNonZero(a: IntArray): Int {
+                var i = a.size - 1
+                while (i >= 0 && a[i] == 0) i--
+                return i
+            }
             val lastLit = maxOf(lastNonZero(dynLitLens), 256)
             val lastDist = maxOf(lastNonZero(dynDistLens), 0)
             val lastLiteralIndex = (lastLit + 1) - 257
             val writeLength = (lastDist + 1) - 1
 
             data class ClSym(val sym: Int, val extraBits: Int = 0, val extraCount: Int = 0)
-            fun rleLengths(lengths: IntArray, count: Int): List<ClSym> {
+
+            fun rleLengths(
+                lengths: IntArray,
+                count: Int,
+            ): List<ClSym> {
                 val out = ArrayList<ClSym>()
                 var i = 0
                 var prev = -1
@@ -714,7 +802,10 @@ object DeflateStream {
                     if (l == 0) {
                         var run = 1
                         var j = i + 1
-                        while (j < count && lengths[j] == 0 && run < 138) { run++; j++ }
+                        while (j < count && lengths[j] == 0 && run < 138) {
+                            run++
+                            j++
+                        }
                         when {
                             run >= 11 -> out.add(ClSym(18, 7, run - 11))
                             run >= 3 -> out.add(ClSym(17, 3, run - 3))
@@ -725,7 +816,10 @@ object DeflateStream {
                     } else {
                         var run = 1
                         var j = i + 1
-                        while (j < count && lengths[j] == l && run < 6) { run++; j++ }
+                        while (j < count && lengths[j] == l && run < 6) {
+                            run++
+                            j++
+                        }
                         if (prev == l && run >= 3) {
                             out.add(ClSym(16, 2, run - 3))
                         } else {
@@ -744,7 +838,11 @@ object DeflateStream {
 
             val clLit = rleLengths(dynLitLens, lastLit + 1)
             val clDist = rleLengths(dynDistLens, lastDist + 1)
-            val clSeq = ArrayList<ClSym>(clLit.size + clDist.size).apply { addAll(clLit); addAll(clDist) }
+            val clSeq =
+                ArrayList<ClSym>(clLit.size + clDist.size).apply {
+                    addAll(clLit)
+                    addAll(clDist)
+                }
 
             // BL lens (<=7) from CL frequencies
             val clFreq = IntArray(19)
@@ -760,7 +858,10 @@ object DeflateStream {
             val (dynDistCodes, dynDistBits) = CanonicalHuffman.buildEncoder(dynDistLens)
             val (blCodes, blBits) = CanonicalHuffman.buildEncoder(blLens)
 
-            fun tokenCost(litBits: IntArray, distBits: IntArray): Long {
+            fun tokenCost(
+                litBits: IntArray,
+                distBits: IntArray,
+            ): Long {
                 var bits = 0L
                 for (t in tokens) {
                     when (t) {
@@ -805,11 +906,12 @@ object DeflateStream {
             val costStored = padStored + 1L + 2L + 16L + 16L + (rawLen.toLong() shl 3)
 
             // Choose encoding for this block
-            val choice = when {
-                costStored <= costDynamic && costStored <= costFixed -> 0 // stored
-                costDynamic <= costFixed -> 2 // dynamic
-                else -> 1 // fixed
-            }
+            val choice =
+                when {
+                    costStored <= costDynamic && costStored <= costFixed -> 0 // stored
+                    costDynamic <= costFixed -> 2 // dynamic
+                    else -> 1 // fixed
+                }
 
             // Helper to emit tokens using provided writers (deduplicated loop)
             fun emitTokens(
@@ -842,9 +944,17 @@ object DeflateStream {
                 distCodesT: IntArray,
                 distBitsT: IntArray,
             ) {
-                fun writeSymbol(sym: Int) { bw.writeBits(litCodesT[sym], litBitsT[sym]) }
-                fun writeLength(length: Int) { writeLengthEncoded(bw, litCodesT, litBitsT, length) }
-                fun writeDistance(dist: Int) { writeDistanceEncoded(bw, distCodesT, distBitsT, dist) }
+                fun writeSymbol(sym: Int) {
+                    bw.writeBits(litCodesT[sym], litBitsT[sym])
+                }
+
+                fun writeLength(length: Int) {
+                    writeLengthEncoded(bw, litCodesT, litBitsT, length)
+                }
+
+                fun writeDistance(dist: Int) {
+                    writeDistanceEncoded(bw, distCodesT, distBitsT, dist)
+                }
                 emitTokens(::writeSymbol, ::writeLength, ::writeDistance)
             }
 
@@ -862,7 +972,11 @@ object DeflateStream {
                 bw.writeBits(writeLength, 5)
                 bw.writeBits(hclenOffset, 4)
                 for (i in 0 until hclen) bw.writeBits(blLens[bitLengthOrder[i]], 3)
-                fun writeBL(sym: Int) { if (blBits[sym] == 0) error("BL code missing for sym=$sym"); bw.writeBits(blCodes[sym], blBits[sym]) }
+
+                fun writeBL(sym: Int) {
+                    if (blBits[sym] == 0) error("BL code missing for sym=$sym")
+                    bw.writeBits(blCodes[sym], blBits[sym])
+                }
                 for (c in clSeq) {
                     writeBL(c.sym)
                     when (c.sym) {

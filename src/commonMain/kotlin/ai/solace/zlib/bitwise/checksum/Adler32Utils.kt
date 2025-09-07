@@ -19,40 +19,40 @@ import ai.solace.zlib.common.ADLER_NMAX
  * which produced incorrect results on some platforms.
  */
 object Adler32Utils {
-        /**
-         * Calculates or updates an Adler-32 checksum.
-         *
-         * @param adler Initial checksum value (use 1 for new checksums)
-         * @param buf   Data buffer to calculate checksum for
-         * @param index Starting index in the buffer
-         * @param len   Number of bytes to process
-         * @return Updated Adler-32 checksum
-         */
-        fun adler32(
-            adler: Long,
-            buf: ByteArray?,
-            index: Int,
-            len: Int,
-        ): Long {
-            if (buf == null) return 1L
+    /**
+     * Calculates or updates an Adler-32 checksum.
+     *
+     * @param adler Initial checksum value (use 1 for new checksums)
+     * @param buf   Data buffer to calculate checksum for
+     * @param index Starting index in the buffer
+     * @param len   Number of bytes to process
+     * @return Updated Adler-32 checksum
+     */
+    fun adler32(
+        adler: Long,
+        buf: ByteArray?,
+        index: Int,
+        len: Int,
+    ): Long {
+        if (buf == null) return 1L
 
-            var a = (adler and 0xFFFF)
-            var b = ((adler ushr 16) and 0xFFFF)
+        var a = (adler and 0xFFFF)
+        var b = ((adler ushr 16) and 0xFFFF)
 
-            var i = index
-            val end = index + len
+        var i = index
+        val end = index + len
 
-            while (i < end) {
-                val chunkEnd = minOf(i + ADLER_NMAX, end)
-                while (i < chunkEnd) {
-                    a += BitwiseOps.byteToUnsignedInt(buf[i])
-                    b += a
-                    i++
-                }
-                a %= ADLER_BASE
-                b %= ADLER_BASE
+        while (i < end) {
+            val chunkEnd = minOf(i + ADLER_NMAX, end)
+            while (i < chunkEnd) {
+                a += BitwiseOps.byteToUnsignedInt(buf[i])
+                b += a
+                i++
             }
-
-            return ((b and 0xFFFF) shl 16) or (a and 0xFFFF)
+            a %= ADLER_BASE
+            b %= ADLER_BASE
         }
+
+        return ((b and 0xFFFF) shl 16) or (a and 0xFFFF)
+    }
 }

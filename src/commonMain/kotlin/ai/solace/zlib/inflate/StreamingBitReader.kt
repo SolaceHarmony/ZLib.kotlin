@@ -51,4 +51,3 @@ class StreamingBitReader(private val source: BufferedSource) {
         }
     }
 }
-

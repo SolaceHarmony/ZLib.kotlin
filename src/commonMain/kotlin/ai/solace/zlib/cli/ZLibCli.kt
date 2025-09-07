@@ -31,8 +31,14 @@ fun main(args: Array<String>) {
                 val outSize = FileSystem.SYSTEM.metadata(outPath).size ?: -1L
                 println("Compressed $bytesIn bytes to $outSize bytes")
             } finally {
-                try { src.close() } catch (_: Throwable) {}
-                try { snk.close() } catch (_: Throwable) {}
+                try {
+                    src.close()
+                } catch (_: Throwable) {
+                }
+                try {
+                    snk.close()
+                } catch (_: Throwable) {
+                }
             }
         }
         "decompress" -> {
@@ -54,8 +60,14 @@ fun main(args: Array<String>) {
                     println("Decompression failed: $result")
                 }
             } finally {
-                try { src.close() } catch (_: Throwable) {}
-                try { snk.close() } catch (_: Throwable) {}
+                try {
+                    src.close()
+                } catch (_: Throwable) {
+                }
+                try {
+                    snk.close()
+                } catch (_: Throwable) {
+                }
             }
         }
 

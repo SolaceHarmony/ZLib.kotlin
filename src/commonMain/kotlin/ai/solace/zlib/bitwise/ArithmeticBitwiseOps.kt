@@ -228,7 +228,6 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
      * @param value2 Second value
      * @return The result of value1 AND value2
      */
-    // TODO(detekt: CyclomaticComplexMethod): simplify branch logic and factor optimizations
     fun and(
         value1: Long,
         value2: Long,
