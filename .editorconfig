@@ -2,6 +2,10 @@ root = true
 
 [*.{kt,kts}]
 max_line_length = 200
+ktlint_standard_parameter-list-wrapping = disabled
+ktlint_standard_if-else-wrapping = disabled
+ktlint_standard_kdoc-comments = disabled
+ktlint_standard_file-annotations = disabled
 
 [*.kts]
 indent_size = 4

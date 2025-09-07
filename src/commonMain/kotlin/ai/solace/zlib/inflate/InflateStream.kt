@@ -33,7 +33,13 @@ object InflateStream {
         return true
     }
 
-    private fun copyStored(br: StreamingBitReader, sink: BufferedSink, window: ByteArray, posRef: IntArray, adler: LongArray): Int {
+    private fun copyStored(
+        br: StreamingBitReader,
+        sink: BufferedSink,
+        window: ByteArray,
+        posRef: IntArray,
+        adler: LongArray,
+    ): Int {
         br.alignToByte()
         val len = br.readAlignedByte() or (br.readAlignedByte() shl 8)
         val nlen = br.readAlignedByte() or (br.readAlignedByte() shl 8)
@@ -44,7 +50,8 @@ object InflateStream {
         repeat(len) {
             val b = br.readAlignedByte()
             sink.writeByte(b)
-            window[pos] = b.toByte(); pos = (pos + 1) and (WINDOW_SIZE - 1)
+            window[pos] = b.toByte()
+            pos = (pos + 1) and (WINDOW_SIZE - 1)
             s1 = (s1 + (b and 0xFF)) % 65521
             s2 = (s2 + s1) % 65521
         }
@@ -58,7 +65,13 @@ object InflateStream {
     private val DIST_BASE = TREE_BASE_DIST
     private val DIST_EXTRA = TREE_EXTRA_DBITS
 
-    private fun writeByte(b: Int, sink: BufferedSink, window: ByteArray, posRef: IntArray, adler: LongArray) {
+    private fun writeByte(
+        b: Int,
+        sink: BufferedSink,
+        window: ByteArray,
+        posRef: IntArray,
+        adler: LongArray,
+    ) {
         var s1 = adler[0] and 0xFFFF
         var s2 = (adler[0] ushr 16) and 0xFFFF
         sink.writeByte(b)
@@ -74,7 +87,9 @@ object InflateStream {
     private fun validateLitLens(litLenLens: IntArray): Boolean {
         if (litLenLens.isEmpty()) return false
         var any = false
-        for (i in litLenLens.indices) if (litLenLens[i] != 0) { any = true }
+        for (i in litLenLens.indices) if (litLenLens[i] != 0) {
+            any = true
+        }
         val eobOk = (litLenLens.size > 256) && (litLenLens[256] > 0)
         return any && eobOk
     }
@@ -104,10 +119,12 @@ object InflateStream {
         }
     }
     private val FIXED_DIST_LENS: IntArray by lazy { IntArray(32) { 5 } }
+
     private data class DecodeTables(
         val lit: CanonicalHuffman.FullTable,
         val dist: CanonicalHuffman.FullTable,
     )
+
     private val FIXED_TABLES: DecodeTables by lazy {
         val lit = CanonicalHuffman.buildFull(FIXED_LIT_LENS)
         val dist = CanonicalHuffman.buildFull(FIXED_DIST_LENS)
@@ -115,8 +132,12 @@ object InflateStream {
     }
 
     // --- Helpers to deduplicate decode logic ---
+
     /** Decode match length from a literal/length symbol (sym >= 257). Returns -1 on error. */
-    private fun decodeLength(br: StreamingBitReader, sym: Int): Int {
+    private fun decodeLength(
+        br: StreamingBitReader,
+        sym: Int,
+    ): Int {
         val lenCode = sym - 257
         if (lenCode !in 0..28) return -1
         val baseLen = LENGTH_BASE[lenCode]
@@ -126,7 +147,10 @@ object InflateStream {
     }
 
     /** Decode match distance from a distance symbol. Returns -1 on error. */
-    private fun decodeDistance(br: StreamingBitReader, distSym: Int): Int {
+    private fun decodeDistance(
+        br: StreamingBitReader,
+        distSym: Int,
+    ): Int {
         if (distSym !in 0..29) return -1
         val baseDist = DIST_BASE[distSym]
         val extraD = DIST_EXTRA[distSym]
@@ -136,7 +160,14 @@ object InflateStream {
     }
 
     /** Copy a back-reference of given length and distance using the sliding window. */
-    private fun copyMatch(length: Int, dist: Int, sink: BufferedSink, window: ByteArray, posRef: IntArray, adler: LongArray) {
+    private fun copyMatch(
+        length: Int,
+        dist: Int,
+        sink: BufferedSink,
+        window: ByteArray,
+        posRef: IntArray,
+        adler: LongArray,
+    ) {
         var i = 0
         while (i < length) {
             val srcIndex = (posRef[0] - dist + WINDOW_SIZE) and (WINDOW_SIZE - 1)
@@ -147,7 +178,11 @@ object InflateStream {
     }
 
     /** Read code lengths sequence (RLE encoded) using the code-length Huffman table. Returns null on error. */
-    private fun readCodeLengths(br: StreamingBitReader, clTable: CanonicalHuffman.FullTable, count: Int): IntArray? {
+    private fun readCodeLengths(
+        br: StreamingBitReader,
+        clTable: CanonicalHuffman.FullTable,
+        count: Int,
+    ): IntArray? {
         val out = IntArray(count)
         var i = 0
         while (i < count) {
@@ -183,7 +218,13 @@ object InflateStream {
         return litTable to distTable
     }
 
-    private fun decodeFixed(br: StreamingBitReader, sink: BufferedSink, window: ByteArray, posRef: IntArray, adler: LongArray): Int {
+    private fun decodeFixed(
+        br: StreamingBitReader,
+        sink: BufferedSink,
+        window: ByteArray,
+        posRef: IntArray,
+        adler: LongArray,
+    ): Int {
         val litTable = FIXED_TABLES.lit
         val distTable = FIXED_TABLES.dist
 
@@ -205,7 +246,13 @@ object InflateStream {
         return Z_OK
     }
 
-    private fun decodeDynamic(br: StreamingBitReader, sink: BufferedSink, window: ByteArray, posRef: IntArray, adler: LongArray): Int {
+    private fun decodeDynamic(
+        br: StreamingBitReader,
+        sink: BufferedSink,
+        window: ByteArray,
+        posRef: IntArray,
+        adler: LongArray,
+    ): Int {
         val hlit = br.take(5) + 257
         val hdist = br.take(5) + 1
         val hclen = br.take(4) + 4
@@ -225,14 +272,24 @@ object InflateStream {
         val distTable = tryBuildTable(distLens) ?: return Z_DATA_ERROR
 
         loop@ while (true) {
-            val sym = try { CanonicalHuffman.decodeOne(br, litTable) } catch (_: Throwable) { return Z_DATA_ERROR }
+            val sym =
+                try {
+                    CanonicalHuffman.decodeOne(br, litTable)
+                } catch (_: Throwable) {
+                    return Z_DATA_ERROR
+                }
             when {
                 sym < 256 -> writeByte(sym, sink, window, posRef, adler)
                 sym == 256 -> break@loop
                 else -> {
                     val length = decodeLength(br, sym)
                     if (length < 0) return Z_DATA_ERROR
-                    val distSym = try { CanonicalHuffman.decodeOne(br, distTable) } catch (_: Throwable) { return Z_DATA_ERROR }
+                    val distSym =
+                        try {
+                            CanonicalHuffman.decodeOne(br, distTable)
+                        } catch (_: Throwable) {
+                            return Z_DATA_ERROR
+                        }
                     val dist = decodeDistance(br, distSym)
                     if (dist < 0) return Z_DATA_ERROR
                     copyMatch(length, dist, sink, window, posRef, adler)
@@ -245,7 +302,10 @@ object InflateStream {
     /**
      * Inflate a zlib-wrapped stream from [source] to [sink]. Returns Pair(resultCode, bytesOut).
      */
-    fun inflateZlib(source: BufferedSource, sink: BufferedSink): Pair<Int, Long> {
+    fun inflateZlib(
+        source: BufferedSource,
+        sink: BufferedSink,
+    ): Pair<Int, Long> {
         val br = StreamingBitReader(source)
         if (!readZlibHeader(br)) return Z_DATA_ERROR to 0L
 
@@ -289,4 +349,3 @@ object InflateStream {
         return Z_OK to totalOut
     }
 }
-

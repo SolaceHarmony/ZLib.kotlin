@@ -7,7 +7,11 @@ package ai.solace.zlib.deflate
  */
 object HuffmanBuilder {
     /** Build code lengths for [freq] with maximum length [maxBits]. */
-    fun buildLengths(freq: IntArray, maxBits: Int, ensureSymbol: Int? = null): IntArray {
+    fun buildLengths(
+        freq: IntArray,
+        maxBits: Int,
+        ensureSymbol: Int? = null,
+    ): IntArray {
         val n = freq.size
         val totalFreq = freq.sum()
         val out = IntArray(n)
@@ -38,7 +42,11 @@ object HuffmanBuilder {
         val fprefix = LongArray(items.size + 1)
         for (i in items.indices) fprefix[i + 1] = fprefix[i] + items[i].f
 
-        fun assign(start: Int, end: Int, depth: Int) {
+        fun assign(
+            start: Int,
+            end: Int,
+            depth: Int,
+        ) {
             if (start >= end) return
             if (end - start == 1) {
                 out[items[start].sym] = maxOf(1, depth)
@@ -71,4 +79,3 @@ object HuffmanBuilder {
         return out
     }
 }
-
