@@ -11,9 +11,9 @@ import ai.solace.zlib.bitwise.BitwiseOps
  * providing both legacy compatibility and improved functionality.
  */
 object BitUtils {
-    // Default engines for BitUtils operations - using native for performance
-    private val defaultEngineInt = BitShiftEngine(BitShiftMode.NATIVE, 32)
-    private val defaultEngineLong = BitShiftEngine(BitShiftMode.NATIVE, 64)
+    // Default engines for BitUtils operations - now arithmetic-only for portability
+    private val defaultEngineInt = BitShiftEngine(BitShiftMode.ARITHMETIC, 32)
+    private val defaultEngineLong = BitShiftEngine(BitShiftMode.ARITHMETIC, 64)
 
     /**
      * Performs an unsigned right shift operation that matches the behavior of C#'s URShift.

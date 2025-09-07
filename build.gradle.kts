@@ -110,12 +110,7 @@ ktlint {
     android.set(false)
     outputToConsole.set(true)
     ignoreFailures.set(false) // Fail the build on violations
-    filter {
-        // Exclude test sources from ktlint due to parser issues on KMP tests
-        exclude("src/**/test/**")
-        exclude("**/src/commonTest/**")
-        exclude("**/src/*Test*/**")
-    }
+    // No excludes: cover all source sets, including tests
 }
 
 // Detekt configuration
@@ -144,11 +139,3 @@ tasks.named("check").configure {
     dependsOn("ktlintCheck", "detekt")
 }
 
-// Temporarily disable ktlint tasks over test source sets to unblock CI while we fix parser issues
-// This explicitly disables the known test tasks created by the ktlint plugin
-listOf(
-    "runKtlintCheckOverCommonTestSourceSet",
-    "ktlintCommonTestSourceSetCheck",
-).forEach { taskName ->
-    tasks.matching { it.name == taskName }.configureEach { enabled = false }
-}
