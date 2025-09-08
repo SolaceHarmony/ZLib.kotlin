@@ -174,7 +174,13 @@ class BitwiseOpsTest {
 
         // Negative numbers: compute expected using 32-bit logical semantics (lambda to avoid function-signature rule)
         val expectedUnsignedIntShift = { value: Int, bits: Int ->
-            if (bits <= 0) value else if (bits >= 32) 0 else ((value.toLong() and 0xFFFF_FFFFL) ushr bits).toInt()
+            if (bits <= 0) {
+                value
+            } else if (bits >= 32) {
+                0
+            } else {
+                ((value.toLong() and 0xFFFF_FFFFL) ushr bits).toInt()
+            }
         }
         assertEquals(expectedUnsignedIntShift(-1, 1), BitwiseOps.urShiftImproved(-1, 1))
         assertEquals(expectedUnsignedIntShift(-1, 2), BitwiseOps.urShiftImproved(-1, 2))

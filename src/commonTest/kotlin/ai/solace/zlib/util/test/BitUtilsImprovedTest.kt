@@ -135,9 +135,12 @@ class BitUtilsImprovedTest {
 
         val negativeTestCases =
             listOf(
-                Triple(-1, 1, 0x7FFFFFFF), // -1 >>> 1 should give max positive int
-                Triple(-256, 8, 0x00FFFFFF), // Negative byte value
-                Triple(Int.MIN_VALUE, 1, 0x40000000), // Min int value
+                // -1 >>> 1 should give max positive int
+                Triple(-1, 1, 0x7FFFFFFF),
+                // Negative byte value
+                Triple(-256, 8, 0x00FFFFFF),
+                // Min int value
+                Triple(Int.MIN_VALUE, 1, 0x40000000),
             )
 
         for ((value, shift, expectedResult) in negativeTestCases) {

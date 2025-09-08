@@ -75,7 +75,6 @@ class BitShiftSandboxTest {
     @Test
     fun testAdler32Compatibility() {
         // Test that our engines work correctly for Adler32 operations
-        val engine16 = BitShiftEngine(BitShiftMode.ARITHMETIC, 16)
         val engine32 = BitShiftEngine(BitShiftMode.NATIVE, 32)
 
         // Simulate Adler32 operations: combine high/low 16-bit values
@@ -105,10 +104,14 @@ class BitShiftSandboxTest {
         val testCases =
             listOf(
                 // value, shift, expected (for 32-bit operations)
-                Triple(0x01234567L, 4, 0x12345670L), // Hex digit shift
-                Triple(0x80000000L, 1, 0x00000000L), // Sign bit shift (overflow)
-                Triple(0x12345678L, 8, 0x34567800L), // Byte boundary shift
-                Triple(0x0000FFFFL, 16, 0xFFFF0000L), // Half-word shift
+                // Hex digit shift
+                Triple(0x01234567L, 4, 0x12345670L),
+                // Sign bit shift (overflow)
+                Triple(0x80000000L, 1, 0x00000000L),
+                // Byte boundary shift
+                Triple(0x12345678L, 8, 0x34567800L),
+                // Half-word shift
+                Triple(0x0000FFFFL, 16, 0xFFFF0000L),
             )
 
         val nativeEngine = BitShiftEngine(BitShiftMode.NATIVE, 32)

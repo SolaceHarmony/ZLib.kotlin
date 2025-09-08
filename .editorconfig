@@ -2,6 +2,7 @@ root = true
 
 [*.{kt,kts}]
 max_line_length = 200
+ij_kotlin_imports_layout = *,java,javax,kotlin
 
 [*.kts]
 indent_size = 4
