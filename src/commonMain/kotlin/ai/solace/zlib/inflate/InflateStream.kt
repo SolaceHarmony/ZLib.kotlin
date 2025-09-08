@@ -9,6 +9,7 @@ import ai.solace.zlib.common.Z_DATA_ERROR
 import ai.solace.zlib.common.Z_DEFLATED
 import ai.solace.zlib.common.Z_OK
 import ai.solace.zlib.common.Z_STREAM_END
+import ai.solace.zlib.common.Z_BUF_ERROR
 import okio.BufferedSink
 import okio.BufferedSource
 
@@ -278,7 +279,8 @@ object InflateStream {
             val sym =
                 try {
                     CanonicalHuffman.decodeOne(br, litTable)
-                } catch (_: Throwable) {
+                } catch (e: Throwable) {
+                    if (e is SourceExhausted) throw e
                     return Z_DATA_ERROR
                 }
             when {
@@ -290,7 +292,8 @@ object InflateStream {
                     val distSym =
                         try {
                             CanonicalHuffman.decodeOne(br, distTable)
-                        } catch (_: Throwable) {
+                        } catch (e: Throwable) {
+                            if (e is SourceExhausted) throw e
                             return Z_DATA_ERROR
                         }
                     val dist = decodeDistance(br, distSym)
@@ -310,46 +313,52 @@ object InflateStream {
         sink: BufferedSink,
     ): Pair<Int, Long> {
         val br = StreamingBitReader(source)
-        if (!readZlibHeader(br)) return Z_DATA_ERROR to 0L
+        try {
+            if (!readZlibHeader(br)) return Z_DATA_ERROR to 0L
 
-        val window = ByteArray(WINDOW_SIZE)
-        val posRef = intArrayOf(0)
-        val adler = longArrayOf(1L) // initial Adler-32 value
-        var totalOut = 0L
+            val window = ByteArray(WINDOW_SIZE)
+            val posRef = intArrayOf(0)
+            val adler = longArrayOf(1L) // initial Adler-32 value
+            var totalOut = 0L
 
-        while (true) {
-            val last = br.take(1)
-            when (br.take(2)) {
-                0 -> {
-                    val r = copyStored(br, sink, window, posRef, adler)
-                    if (r != Z_OK) return r to totalOut
+            while (true) {
+                val last = br.take(1)
+                when (br.take(2)) {
+                    0 -> {
+                        val r = copyStored(br, sink, window, posRef, adler)
+                        if (r != Z_OK) return r to totalOut
+                    }
+                    1 -> {
+                        val r = decodeFixed(br, sink, window, posRef, adler)
+                        if (r != Z_OK) return r to totalOut
+                    }
+                    2 -> {
+                        val r = decodeDynamic(br, sink, window, posRef, adler)
+                        if (r != Z_OK) return r to totalOut
+                    }
+                    else -> return Z_DATA_ERROR to totalOut
                 }
-                1 -> {
-                    val r = decodeFixed(br, sink, window, posRef, adler)
-                    if (r != Z_OK) return r to totalOut
-                }
-                2 -> {
-                    val r = decodeDynamic(br, sink, window, posRef, adler)
-                    if (r != Z_OK) return r to totalOut
-                }
-                else -> return Z_DATA_ERROR to totalOut
+                // We don't know bytesOut per-block; flush sink's buffer length heuristically
+                totalOut = sink.buffer.size
+                if (last == 1) break
             }
-            // We don't know bytesOut per-block; flush sink's buffer length heuristically
-            totalOut = sink.buffer.size
-            if (last == 1) break
+
+            // Read and validate Adler-32 trailer (big-endian)
+            br.alignToByte()
+            val a3 = br.readAlignedByte()
+            val a2 = br.readAlignedByte()
+            val a1 = br.readAlignedByte()
+            val a0 = br.readAlignedByte()
+            val trailer = ((a3 and 0xFF) shl 24) or ((a2 and 0xFF) shl 16) or ((a1 and 0xFF) shl 8) or (a0 and 0xFF)
+            val current = adler[0].toInt()
+            if (current != trailer) return Z_DATA_ERROR to totalOut
+
+            // End-of-stream reached and trailer verified successfully
+            return Z_STREAM_END to totalOut
+        } catch (e: SourceExhausted) {
+            // Need more input bytes to proceed
+            val out = try { sink.buffer.size } catch (_: Throwable) { 0L }
+            return Z_BUF_ERROR to out
         }
-
-        // Read and validate Adler-32 trailer (big-endian)
-        br.alignToByte()
-        val a3 = br.readAlignedByte()
-        val a2 = br.readAlignedByte()
-        val a1 = br.readAlignedByte()
-        val a0 = br.readAlignedByte()
-        val trailer = ((a3 and 0xFF) shl 24) or ((a2 and 0xFF) shl 16) or ((a1 and 0xFF) shl 8) or (a0 and 0xFF)
-        val current = adler[0].toInt()
-        if (current != trailer) return Z_DATA_ERROR to totalOut
-
-        // End-of-stream reached and trailer verified successfully
-        return Z_STREAM_END to totalOut
     }
 }
