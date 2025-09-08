@@ -1,7 +1,9 @@
 package ai.solace.zlib.bitwise.test
 
 import ai.solace.zlib.bitwise.checksum.Adler32Utils
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 class Adler32EngineTest {
     @Test

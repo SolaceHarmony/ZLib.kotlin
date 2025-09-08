@@ -3,7 +3,9 @@ package ai.solace.zlib.bitwise.test
 import ai.solace.zlib.bitwise.BitShiftEngine
 import ai.solace.zlib.bitwise.BitShiftMode
 import ai.solace.zlib.bitwise.BitwiseOps
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Test for improved bit shift operations that fix existing bugs
@@ -13,7 +15,15 @@ class ImprovedBitShiftTest {
     fun testImprovedUrShiftConsistency() {
         val testValues =
             listOf(
-                0x12345678, -0x12345678, 0x7FFFFFFF, 0x80000000.toInt(), -1, 0, 1, 255, 256,
+                0x12345678,
+                -0x12345678,
+                0x7FFFFFFF,
+                0x80000000.toInt(),
+                -1,
+                0,
+                1,
+                255,
+                256,
             )
         val testShifts = listOf(0, 1, 4, 8, 16, 31, 32)
 
@@ -28,7 +38,8 @@ class ImprovedBitShiftTest {
 
                 if (shift < 32) {
                     assertEquals(
-                        nativeResult, arithmeticResult,
+                        nativeResult,
+                        arithmeticResult,
                         "urShiftImproved inconsistent for value=0x${value.toString(16)}, shift=$shift",
                     )
                 } else {
@@ -60,7 +71,8 @@ class ImprovedBitShiftTest {
         for ((value, shift, expected) in testCases) {
             val result = BitwiseOps.urShiftImproved(value, shift)
             assertEquals(
-                expected, result,
+                expected,
+                result,
                 "urShiftImproved(0x${value.toString(16)}, $shift) should equal 0x${expected.toString(16)}",
             )
         }
@@ -79,7 +91,8 @@ class ImprovedBitShiftTest {
         for ((value, shift, expected) in testCases) {
             val result = BitwiseOps.urShiftImproved(value, shift)
             assertEquals(
-                expected, result,
+                expected,
+                result,
                 "urShiftImproved(0x${value.toString(16)}, $shift) should equal 0x${expected.toString(16)}",
             )
         }
@@ -97,7 +110,8 @@ class ImprovedBitShiftTest {
                 val native = value ushr shift
 
                 assertEquals(
-                    native, improved,
+                    native,
+                    improved,
                     "For positive values, urShiftImproved should match ushr: $value >>> $shift",
                 )
             }
@@ -143,7 +157,8 @@ class ImprovedBitShiftTest {
 
         // Both should produce the same mathematically correct result
         assertEquals(
-            nativeResult, arithmeticResult,
+            nativeResult,
+            arithmeticResult,
             "Native and arithmetic engines should produce same result",
         )
 

@@ -1,7 +1,11 @@
 package ai.solace.zlib.bitwise.test
 
-import ai.solace.zlib.bitwise.*
-import kotlin.test.*
+import ai.solace.zlib.bitwise.BitShiftEngine
+import ai.solace.zlib.bitwise.BitShiftMode
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertFalse
+import kotlin.test.assertTrue
 
 /**
  * Comprehensive test sandbox for bit shift operations that validates both
@@ -25,7 +29,8 @@ class BitShiftSandboxTest {
                         val arithmeticLeft = arithmeticEngine.leftShift(value, shift)
 
                         assertEquals(
-                            nativeLeft.value, arithmeticLeft.value,
+                            nativeLeft.value,
+                            arithmeticLeft.value,
                             "Left shift mismatch: $bitWidth-bit value=$value, shift=$shift",
                         )
 
@@ -34,7 +39,8 @@ class BitShiftSandboxTest {
                         val arithmeticRight = arithmeticEngine.rightShift(value, shift)
 
                         assertEquals(
-                            nativeRight.value, arithmeticRight.value,
+                            nativeRight.value,
+                            arithmeticRight.value,
                             "Right shift mismatch: $bitWidth-bit value=$value, shift=$shift",
                         )
 
@@ -43,7 +49,8 @@ class BitShiftSandboxTest {
                         val arithmeticUnsigned = arithmeticEngine.unsignedRightShift(value, shift)
 
                         assertEquals(
-                            nativeUnsigned.value, arithmeticUnsigned.value,
+                            nativeUnsigned.value,
+                            arithmeticUnsigned.value,
                             "Unsigned right shift mismatch: $bitWidth-bit value=$value, shift=$shift",
                         )
                     }
@@ -122,15 +129,18 @@ class BitShiftSandboxTest {
             val arithmeticResult = arithmeticEngine.leftShift(value, shift)
 
             assertEquals(
-                expected, nativeResult.value,
+                expected,
+                nativeResult.value,
                 "Native: Failed for 0x${value.toString(16)} << $shift",
             )
             assertEquals(
-                expected, arithmeticResult.value,
+                expected,
+                arithmeticResult.value,
                 "Arithmetic: Failed for 0x${value.toString(16)} << $shift",
             )
             assertEquals(
-                nativeResult.value, arithmeticResult.value,
+                nativeResult.value,
+                arithmeticResult.value,
                 "Native and arithmetic results should match for 0x${value.toString(16)} << $shift",
             )
         }
@@ -213,7 +223,8 @@ class BitShiftSandboxTest {
         val hashWithNative = simpleHash(testData, false)
 
         assertEquals(
-            hashWithNative, hashWithEngine,
+            hashWithNative,
+            hashWithEngine,
             "Engine-based hash should match native implementation",
         )
     }

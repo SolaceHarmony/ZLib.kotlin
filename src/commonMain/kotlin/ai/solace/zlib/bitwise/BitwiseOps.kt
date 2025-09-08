@@ -48,9 +48,7 @@ object BitwiseOps {
         fun extractBits(
             value: Int,
             bits: Int,
-        ): Int {
-            return extractBitsArithmetic(value, bits)
-        }
+        ): Int = extractBitsArithmetic(value, bits)
 
         /**
          * Extracts a range of bits from a value
@@ -65,7 +63,7 @@ object BitwiseOps {
             bitCount: Int,
         ): Int {
             if (bitCount <= 0) return 0
-            if (startBit < 0 || startBit >= 32) return 0
+            if (startBit !in 0..<32) return 0
             val take = minOf(bitCount, 32 - startBit)
             val a32 = ArithmeticBitwiseOps.BITS_32
             val shifted = a32.rightShift(value.toLong(), startBit).toInt()
@@ -140,18 +138,14 @@ object BitwiseOps {
          * @param value The 32-bit value
          * @return The high 16 bits as an integer (0-65535)
          */
-        fun getHigh16BitsArithmetic(value: Long): Int {
-            return ((value / 65536) % 65536 + 65536).toInt() % 65536
-        }
+        fun getHigh16BitsArithmetic(value: Long): Int = ((value / 65536) % 65536 + 65536).toInt() % 65536
 
         /**
          * Extracts the low 16 bits from a 32-bit value using arithmetic operations
          * @param value The 32-bit value
          * @return The low 16 bits as an integer (0-65535)
          */
-        fun getLow16BitsArithmetic(value: Long): Int {
-            return ((value % 65536) + 65536).toInt() % 65536
-        }
+        fun getLow16BitsArithmetic(value: Long): Int = ((value % 65536) + 65536).toInt() % 65536
 
         /**
          * Combines two 16-bit values into a 32-bit value using arithmetic operations
@@ -162,9 +156,7 @@ object BitwiseOps {
         fun combine16BitArithmetic(
             high: Int,
             low: Int,
-        ): Long {
-            return (high.toLong() * 65536) + low.toLong()
-        }
+        ): Long = (high.toLong() * 65536) + low.toLong()
 
         /**
          * Performs left shift using arithmetic operations (multiplication by powers of 2)
@@ -238,7 +230,7 @@ object BitwiseOps {
             value: Int,
             bitPosition: Int,
         ): Boolean {
-            if (bitPosition < 0 || bitPosition >= 32) return false
+            if (bitPosition !in 0..<32) return false
             val powerOf2 = leftShiftArithmetic(1, bitPosition)
             return (value / powerOf2) % 2 == 1
         }
@@ -253,9 +245,7 @@ object BitwiseOps {
         fun orArithmetic(
             value1: Int,
             value2: Int,
-        ): Int {
-            return value1 + value2
-        }
+        ): Int = value1 + value2
 
         /**
          * Performs bitwise OR using arithmetic operations that handles overlapping bits correctly
@@ -333,9 +323,7 @@ object BitwiseOps {
         /**
          * Factory function to get a configured BitwiseOps instance that uses arithmetic operations
          */
-        fun withArithmeticEngine(): ArithmeticBitwiseOps {
-            return ArithmeticBitwiseOps.BITS_32
-        }
+        fun withArithmeticEngine(): ArithmeticBitwiseOps = ArithmeticBitwiseOps.BITS_32
 
         /**
          * Improved unsigned right shift using BitShiftEngine for consistency
@@ -348,9 +336,7 @@ object BitwiseOps {
             number: Int,
             bits: Int,
             engine: BitShiftEngine = defaultEngine32,
-        ): Int {
-            return engine.unsignedRightShift(number.toLong(), bits).value.toInt()
-        }
+        ): Int = engine.unsignedRightShift(number.toLong(), bits).value.toInt()
 
         /**
          * Improved unsigned right shift using BitShiftEngine for consistency
@@ -363,7 +349,5 @@ object BitwiseOps {
             number: Long,
             bits: Int,
             engine: BitShiftEngine = defaultEngine64,
-        ): Long {
-            return engine.unsignedRightShift(number, bits).value
-        }
+        ): Long = engine.unsignedRightShift(number, bits).value
 }

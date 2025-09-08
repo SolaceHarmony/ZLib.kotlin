@@ -26,13 +26,12 @@ class URShiftTest {
     private fun urShift(
         number: Int,
         bits: Int,
-    ): Int {
-        return if (number >= 0) {
+    ): Int =
+        if (number >= 0) {
             number ushr bits
         } else {
             (number ushr bits) + (2 shl bits.inv())
         }
-    }
 
     @Test
     fun testURShiftImplementation() {

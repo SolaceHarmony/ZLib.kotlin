@@ -87,8 +87,10 @@ object InflateStream {
     private fun validateLitLens(litLenLens: IntArray): Boolean {
         if (litLenLens.isEmpty()) return false
         var any = false
-        for (i in litLenLens.indices) if (litLenLens[i] != 0) {
-            any = true
+        for (i in litLenLens.indices) {
+            if (litLenLens[i] != 0) {
+                any = true
+            }
         }
         val eobOk = (litLenLens.size > 256) && (litLenLens[256] > 0)
         return any && eobOk
