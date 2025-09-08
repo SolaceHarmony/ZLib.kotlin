@@ -1,0 +1,23 @@
+ZLib.kotlin — Kotlin Multiplatform zlib/DEFLATE library
+
+Copyright 2024–2025 Sydney Bach / The Solace Project
+
+This project is licensed under the Apache License, Version 2.0. See the LICENSE file.
+
+Attribution and Background
+- This library is a clean-room rewrite based on RFC 1950 (ZLIB format) and RFC 1951 (DEFLATE). It is not a direct port of zlib or any C# project.
+- The original zlib library was authored by Jean-loup Gailly and Mark Adler. Their work informed the format and algorithms this implementation targets.
+- The C#/.NET implementations (zlib.net / zlib.managed) served as useful references during development.
+
+zlib license notice (for attribution context)
+The original zlib library is distributed under the terms below. This notice is included here for acknowledgment only and does not alter the Apache License of this project.
+
+"This software is provided 'as-is', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.
+
+Permission is granted to anyone to use this software for any purpose, including commercial applications, and to alter it and redistribute it freely, subject to the following restrictions:
+
+1. The origin of this software must not be misrepresented; you must not claim that you wrote the original software. If you use this software in a product, an acknowledgment in the product documentation would be appreciated but is not required.
+2. Altered source versions must be plainly marked as such, and must not be misrepresented as being the original software.
+3. This notice may not be removed or altered from any source distribution."
+
+— Jean-loup Gailly and Mark Adler
