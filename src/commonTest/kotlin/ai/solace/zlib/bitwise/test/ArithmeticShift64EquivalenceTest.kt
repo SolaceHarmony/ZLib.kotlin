@@ -13,7 +13,10 @@ class ArithmeticShift64EquivalenceTest {
     }
 
     // floor division by power of two using iterative, overflow-safe steps
-    private fun floorDivPow2(x: Long, n: Int): Long {
+    private fun floorDivPow2(
+        x: Long,
+        n: Int,
+    ): Long {
         require(n in 1..63)
         var v = x
         repeat(n) {

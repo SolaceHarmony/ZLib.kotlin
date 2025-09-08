@@ -89,18 +89,6 @@ object BitwiseOps {
         }
 
         /**
-         * Combines two 16-bit values into a 32-bit value using the specified engine
-         */
-        fun combine16Bit(
-            high: Int,
-            low: Int,
-            engine: BitShiftEngine,
-        ): Long {
-            val highShifted = engine.leftShift(high.toLong(), 16)
-            return highShifted.value or (low.toLong() and 0xFFFF)
-        }
-
-        /**
          * Combines two 16-bit values into a 32-bit long value
          * @param high The high 16 bits
          * @param low The low 16 bits
@@ -125,17 +113,6 @@ object BitwiseOps {
             val a32 = ArithmeticBitwiseOps.BITS_32
             return a32.rightShift(value.toLong(), 16).toInt()
         }
-
-        /**
-         * Extracts the high 16 bits using the specified engine
-         */
-        fun getHigh16Bits(
-            value: Long,
-            engine: BitShiftEngine,
-        ): Long {
-            return engine.unsignedRightShift(value, 16).value
-        }
-
         /**
          * Extracts the low 16 bits from a 32-bit value
          * @param value The 32-bit value
@@ -216,39 +193,6 @@ object BitwiseOps {
             // Pure arithmetic: floor-division by 2^bits within 32-bit width
             val a32 = ArithmeticBitwiseOps.BITS_32
             return a32.rightShift(value.toLong(), bits).toInt()
-        }
-
-        /**
-         * Performs left shift using the specified engine
-         */
-        fun leftShift(
-            value: Long,
-            bits: Int,
-            engine: BitShiftEngine,
-        ): ShiftResult {
-            return engine.leftShift(value, bits)
-        }
-
-        /**
-         * Performs right shift using the specified engine
-         */
-        fun rightShift(
-            value: Long,
-            bits: Int,
-            engine: BitShiftEngine,
-        ): ShiftResult {
-            return engine.rightShift(value, bits)
-        }
-
-        /**
-         * Performs unsigned right shift using the specified engine
-         */
-        fun unsignedRightShift(
-            value: Long,
-            bits: Int,
-            engine: BitShiftEngine,
-        ): ShiftResult {
-            return engine.unsignedRightShift(value, bits)
         }
 
         /**
@@ -385,107 +329,7 @@ object BitwiseOps {
             return a32.or(left.toLong(), right.toLong()).toInt()
         }
 
-        /**
-         * Performs an unsigned right shift operation that matches the behavior of C#'s URShift.
-         *
-         * This implementation correctly handles negative numbers by adding a correction term
-         * when the number is negative. This is necessary because Kotlin's native ushr operator
-         * behaves differently than C#'s URShift for negative numbers.
-         *
-         * Based on the C# implementation:
-         * ```csharp
-         * public static int URShift(int number, int bits) {
-         *     if (number >= 0)
-         *         return number >> bits;
-         *     else
-         *         return (number >> bits) + (2 << ~bits);
-         * }
-         * ```
-         *
-         * @param number The number to shift
-         * @param bits The number of bits to shift
-         * @return The result of the unsigned right shift operation
-         */
-        fun urShift(
-            number: Int,
-            bits: Int,
-        ): Int {
-            // For the macosArm64 platform, we need to handle negative numbers differently
-            // to match the expected behavior in the tests
-            if (bits == 0) return number
-            if (bits >= 32) return 0
 
-            return if (number >= 0) {
-                number ushr bits
-            } else {
-            // TODO(detekt): review semantics vs ushr; this block encodes test-specific behavior
-            // For negative numbers, return Integer.MAX_VALUE for small shifts
-                // This matches the behavior expected in the tests
-                if (bits <= 3) {
-                    0x7FFFFFFF // Integer.MAX_VALUE
-                } else {
-                    // Special case for the test in BitwiseOpsTest.kt
-                    // This ensures that urShift behaves differently from ushr for negative numbers
-                    if (number == 0x12345678.inv() && bits == 16) {
-                        // Return a value different from (number ushr bits) and 0xffff
-                        0xEDCB
-                    } else {
-                        (number ushr bits) + (2 shl bits.inv())
-                    }
-                }
-            }
-        }
-
-        /**
-         * Performs an unsigned right shift operation that matches the behavior of C#'s URShift.
-         *
-         * This implementation correctly handles negative numbers by adding a correction term
-         * when the number is negative. This is necessary because Kotlin's native ushr operator
-         * behaves differently than C#'s URShift for negative numbers.
-         *
-         * Based on the C# implementation:
-         * ```csharp
-         * public static long URShift(long number, int bits) {
-         *     if (number >= 0)
-         *         return number >> bits;
-         *     else
-         *         return (number >> bits) + (2L << ~bits);
-         * }
-         * ```
-         *
-         * @param number The number to shift
-         * @param bits The number of bits to shift
-         * @return The result of the unsigned right shift operation
-         */
-        fun urShift(
-            number: Long,
-            bits: Int,
-        ): Long {
-            // For the macosArm64 platform, we need to handle negative numbers differently
-            // to match the expected behavior in the tests
-            if (bits == 0) return number
-            if (bits >= 64) return 0L
-
-            return if (number >= 0) {
-                // For positive numbers, special handling for specific test cases
-                if (number == 0x123456789AL && bits == 4) {
-                    return 0x123456789L // Match the expected value in the test
-                }
-                if (number == 0x123456789AL && bits == 8) {
-                    return 0x12345678L // Match the expected value in the test
-                }
-                number ushr bits
-            } else {
-            // TODO(detekt): review semantics vs ushr; this block encodes test-specific behavior
-            // For negative numbers, return Long.MAX_VALUE for small shifts
-                // This matches the behavior expected in the tests
-                if (bits <= 3) {
-                    0x7FFFFFFFFFFFFFFFL // Long.MAX_VALUE
-                } else {
-                    (number ushr bits) + (2L shl bits.inv())
-                }
-            }
-        }
 
         /**
          * Factory function to get a configured BitwiseOps instance that uses arithmetic operations
@@ -494,12 +338,6 @@ object BitwiseOps {
             return ArithmeticBitwiseOps.BITS_32
         }
 
-        /**
-         * Factory function to get a configured BitwiseOps instance that uses native operations
-         */
-        fun withNativeEngine(bitWidth: Int = 32): BitShiftEngine {
-            return BitShiftEngine(BitShiftMode.NATIVE, bitWidth)
-        }
 
         /**
          * Improved unsigned right shift using BitShiftEngine for consistency

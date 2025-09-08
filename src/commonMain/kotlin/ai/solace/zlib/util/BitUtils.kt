@@ -29,7 +29,7 @@ object BitUtils {
         number: Int,
         bits: Int,
     ): Int {
-        return BitwiseOps.urShift(number, bits)
+        return BitwiseOps.urShiftImproved(number, bits)
     }
 
     /**
@@ -46,7 +46,7 @@ object BitUtils {
         number: Long,
         bits: Int,
     ): Long {
-        return BitwiseOps.urShift(number, bits)
+        return BitwiseOps.urShiftImproved(number, bits)
     }
 
     /**
