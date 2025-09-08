@@ -1,0 +1,313 @@
+Initialized native services in: /Users/sydneybach/.gradle/native
+Initialized jansi services in: /Users/sydneybach/.gradle/native
+The client will now receive all logging from the daemon (pid: 15076). The daemon log file: /Users/sydneybach/.gradle/daemon/8.14/daemon-15076.out.log
+Starting 17th build in daemon [uptime: 30 mins 53.816 secs, performance: 99%, GC rate: 0.00/s, heap usage: 1% of 2 GiB, non-heap usage: 61% of 512 MiB]
+Using 32 worker leases.
+Now considering [/Volumes/stuff/Projects/ZLib.kotlin] as hierarchies to watch
+Watching the file system is configured to be enabled if available
+File system watching is active
+Starting Build
+Settings evaluated using settings file '/Volumes/stuff/Projects/ZLib.kotlin/settings.gradle.kts'.
+Projects loaded. Root project using build file '/Volumes/stuff/Projects/ZLib.kotlin/build.gradle.kts'.
+Included projects: [root project 'ZLib']
+> Configure project :
+Evaluating root project 'ZLib' using build file '/Volumes/stuff/Projects/ZLib.kotlin/build.gradle.kts'.
+Resolved plugin [id: 'org.jetbrains.kotlin.multiplatform', version: '2.2.10']
+Resolved plugin [id: 'org.jlleitschuh.gradle.ktlint', version: '13.1.0']
+Resolved plugin [id: 'io.gitlab.arturbosch.detekt', version: '1.23.8']
+Build 47992bc9-40af-4acf-87ba-b12587f78741 is started
+Using Kotlin Gradle Plugin gradle813 variant
+All projects evaluated.
+Task name matched 'check'
+Selected primary task 'check' from project :
+Add dependencies: ktlint version 1.5.0
+Add dependencies: ktlint version 1.5.0
+Tasks to be executed: [task ':checkKotlinGradlePluginConfigurationErrors', task ':compileKotlinLinuxX64', task ':linuxX64ProcessResources', task ':linuxX64MainKlibrary', task ':compileTestKotlinLinuxX64', task ':linkDebugTestLinuxX64', task ':linuxX64Test', task ':compileKotlinMacosArm64', task ':macosArm64ProcessResources', task ':macosArm64MainKlibrary', task ':compileTestKotlinMacosArm64', task ':linkDebugTestMacosArm64', task ':macosArm64Test', task ':allTests', task ':detekt', task ':loadKtlintReporters', task ':runKtlintCheckOverCommonMainSourceSet', task ':ktlintCommonMainSourceSetCheck', task ':runKtlintCheckOverCommonTestSourceSet', task ':ktlintCommonTestSourceSetCheck', task ':runKtlintCheckOverKotlinScripts', task ':ktlintKotlinScriptCheck', task ':runKtlintCheckOverLinuxMainSourceSet', task ':ktlintLinuxMainSourceSetCheck', task ':runKtlintCheckOverLinuxTestSourceSet', task ':ktlintLinuxTestSourceSetCheck', task ':runKtlintCheckOverLinuxX64MainSourceSet', task ':ktlintLinuxX64MainSourceSetCheck', task ':runKtlintCheckOverLinuxX64TestSourceSet', task ':ktlintLinuxX64TestSourceSetCheck', task ':runKtlintCheckOverMacosArm64MainSourceSet', task ':ktlintMacosArm64MainSourceSetCheck', task ':runKtlintCheckOverMacosArm64TestSourceSet', task ':ktlintMacosArm64TestSourceSetCheck', task ':runKtlintCheckOverNativeMainSourceSet', task ':ktlintNativeMainSourceSetCheck', task ':runKtlintCheckOverNativeTestSourceSet', task ':ktlintNativeTestSourceSetCheck', task ':ktlintCheck', task ':check']
+Tasks that were excluded: []
+Resolve mutations for :checkKotlinGradlePluginConfigurationErrors (Thread[#2787,Execution worker,5,main]) started.
+:checkKotlinGradlePluginConfigurationErrors (Thread[#2787,Execution worker,5,main]) started.
+> Task :checkKotlinGradlePluginConfigurationErrors SKIPPED
+Skipping task ':checkKotlinGradlePluginConfigurationErrors' as task onlyIf 'errorDiagnostics are present' is false.
+Resolve mutations for :compileKotlinLinuxX64 (Thread[#2787,Execution worker,5,main]) started.
+:compileKotlinLinuxX64 (Thread[#2787,Execution worker,5,main]) started.
+> Task :compileKotlinLinuxX64
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Caching disabled for task ':compileKotlinLinuxX64' because:
+  Build cache is disabled
+Task ':compileKotlinLinuxX64' is not up-to-date because:
+  Input property 'multiplatformStructure.fragments.$3.sources' file /Volumes/stuff/Projects/ZLib.kotlin/src/commonMain/kotlin/ai/solace/zlib/inflate/InflateStream.kt has changed.
+  Input property 'sources' file /Volumes/stuff/Projects/ZLib.kotlin/src/commonMain/kotlin/ai/solace/zlib/inflate/InflateStream.kt has changed.
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/linuxX64Main/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/linuxX64Main/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/linuxX64Main/kotlin', not found
+Resolve mutations for :linuxX64ProcessResources (Thread[#2787,Execution worker,5,main]) started.
+:linuxX64ProcessResources (Thread[#2787,Execution worker,5,main]) started.
+> Task :linuxX64ProcessResources NO-SOURCE
+Skipping task ':linuxX64ProcessResources' as it has no source files and no previous output files.
+Resolve mutations for :linuxX64MainKlibrary (Thread[#2787,Execution worker,5,main]) started.
+:linuxX64MainKlibrary (Thread[#2787,Execution worker,5,main]) started.
+> Task :linuxX64MainKlibrary
+Skipping task ':linuxX64MainKlibrary' as it has no actions.
+Resolve mutations for :compileTestKotlinLinuxX64 (Thread[#2787,Execution worker,5,main]) started.
+:compileTestKotlinLinuxX64 (Thread[#2787,Execution worker,5,main]) started.
+> Task :compileTestKotlinLinuxX64
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Caching disabled for task ':compileTestKotlinLinuxX64' because:
+  Build cache is disabled
+Task ':compileTestKotlinLinuxX64' is not up-to-date because:
+  Input property 'friendModule$kotlin_gradle_plugin_common' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/linuxX64/main/klib/ZLib/default/ir/bodies.knb has changed.
+  Input property 'friendModule$kotlin_gradle_plugin_common' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/linuxX64/main/klib/ZLib/default/ir/debugInfo.knd has changed.
+  Input property 'friendModule$kotlin_gradle_plugin_common' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/linuxX64/main/klib/ZLib/default/ir/fileEntries.knf has changed.
+  and more...
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/linuxX64Test/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/linuxTest/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/nativeTest/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/linuxX64Test/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/linuxTest/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/nativeTest/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/linuxX64Test/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/linuxTest/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/nativeTest/kotlin', not found
+Resolve mutations for :linkDebugTestLinuxX64 (Thread[#2787,Execution worker,5,main]) started.
+:linkDebugTestLinuxX64 (Thread[#2787,Execution worker,5,main]) started.
+> Task :linkDebugTestLinuxX64
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Caching disabled for task ':linkDebugTestLinuxX64' because:
+  Build cache is disabled
+Task ':linkDebugTestLinuxX64' is not up-to-date because:
+  Input property 'friendModule' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/linuxX64/main/klib/ZLib/default/ir/bodies.knb has changed.
+  Input property 'friendModule' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/linuxX64/main/klib/ZLib/default/ir/debugInfo.knd has changed.
+  Input property 'friendModule' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/linuxX64/main/klib/ZLib/default/ir/fileEntries.knf has changed.
+  and more...
+Resolve mutations for :linuxX64Test (Thread[#2787,Execution worker,5,main]) started.
+:linuxX64Test (Thread[#2787,Execution worker,5,main]) started.
+> Task :linuxX64Test SKIPPED
+Skipping task ':linuxX64Test' as task onlyIf 'Task is enabled' is false.
+Resolve mutations for :compileKotlinMacosArm64 (Thread[#2787,Execution worker,5,main]) started.
+:compileKotlinMacosArm64 (Thread[#2787,Execution worker,5,main]) started.
+> Task :compileKotlinMacosArm64
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Caching disabled for task ':compileKotlinMacosArm64' because:
+  Build cache is disabled
+Task ':compileKotlinMacosArm64' is not up-to-date because:
+  Input property 'multiplatformStructure.fragments.$2.sources' file /Volumes/stuff/Projects/ZLib.kotlin/src/commonMain/kotlin/ai/solace/zlib/inflate/InflateStream.kt has changed.
+  Input property 'sources' file /Volumes/stuff/Projects/ZLib.kotlin/src/commonMain/kotlin/ai/solace/zlib/inflate/InflateStream.kt has changed.
+Resolve mutations for :macosArm64ProcessResources (Thread[#2787,Execution worker,5,main]) started.
+:macosArm64ProcessResources (Thread[#2787,Execution worker,5,main]) started.
+> Task :macosArm64ProcessResources NO-SOURCE
+Skipping task ':macosArm64ProcessResources' as it has no source files and no previous output files.
+Resolve mutations for :macosArm64MainKlibrary (Thread[#2787,Execution worker,5,main]) started.
+:macosArm64MainKlibrary (Thread[#2787,Execution worker,5,main]) started.
+> Task :macosArm64MainKlibrary
+Skipping task ':macosArm64MainKlibrary' as it has no actions.
+Resolve mutations for :compileTestKotlinMacosArm64 (Thread[#2787,Execution worker,5,main]) started.
+:compileTestKotlinMacosArm64 (Thread[#2787,Execution worker,5,main]) started.
+> Task :compileTestKotlinMacosArm64
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Caching disabled for task ':compileTestKotlinMacosArm64' because:
+  Build cache is disabled
+Task ':compileTestKotlinMacosArm64' is not up-to-date because:
+  Input property 'friendModule$kotlin_gradle_plugin_common' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/macosArm64/main/klib/ZLib/default/ir/bodies.knb has changed.
+  Input property 'friendModule$kotlin_gradle_plugin_common' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/macosArm64/main/klib/ZLib/default/ir/debugInfo.knd has changed.
+  Input property 'friendModule$kotlin_gradle_plugin_common' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/macosArm64/main/klib/ZLib/default/ir/fileEntries.knf has changed.
+  and more...
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/macosArm64Test/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/nativeTest/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/macosArm64Test/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/nativeTest/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/macosArm64Test/kotlin', not found
+file or directory '/Volumes/stuff/Projects/ZLib.kotlin/src/nativeTest/kotlin', not found
+Resolve mutations for :linkDebugTestMacosArm64 (Thread[#2787,Execution worker,5,main]) started.
+:linkDebugTestMacosArm64 (Thread[#2787,Execution worker,5,main]) started.
+> Task :linkDebugTestMacosArm64
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Acquire lock: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock ...
+Kotlin Native Bundle: Lock acquired: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Kotlin Native Bundle: Lock released: /Users/sydneybach/.konan/kotlin-native-prebuilt-macos-aarch64-2.2.10/.lock
+Caching disabled for task ':linkDebugTestMacosArm64' because:
+  Build cache is disabled
+Task ':linkDebugTestMacosArm64' is not up-to-date because:
+  Input property 'friendModule' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/macosArm64/main/klib/ZLib/default/ir/bodies.knb has changed.
+  Input property 'friendModule' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/macosArm64/main/klib/ZLib/default/ir/debugInfo.knd has changed.
+  Input property 'friendModule' file /Volumes/stuff/Projects/ZLib.kotlin/build/classes/kotlin/macosArm64/main/klib/ZLib/default/ir/fileEntries.knf has changed.
+  and more...
+Resolve mutations for :macosArm64Test (Thread[#2787,Execution worker,5,main]) started.
+:macosArm64Test (Thread[#2787,Execution worker,5,main]) started.
+> Task :macosArm64Test SKIPPED
+Skipping task ':macosArm64Test' as task onlyIf 'Task is enabled' is false.
+Resolve mutations for :allTests (Thread[#2787,Execution worker,5,main]) started.
+:allTests (Thread[#2787,Execution worker,5,main]) started.
+> Task :allTests UP-TO-DATE
+Caching disabled for task ':allTests' because:
+  Build cache is disabled
+  Caching has been disabled for the task
+Skipping task ':allTests' as it is up-to-date.
+Resolve mutations for :detekt (Thread[#2787,Execution worker,5,main]) started.
+:detekt (Thread[#2787,Execution worker,5,main]) started.
+Starting process 'command '/usr/libexec/java_home''. Working directory: /Users/sydneybach/.gradle/daemon/8.14 Command: /usr/libexec/java_home -V
+Successfully started process 'command '/usr/libexec/java_home''
+> Task :detekt FAILED
+Caching disabled for task ':detekt' because:
+  Build cache is disabled
+Task ':detekt' is not up-to-date because:
+  Task has failed previously.
+Executing detekt using DetektInvoker
+/Volumes/stuff/Projects/ZLib.kotlin/src/commonMain/kotlin/ai/solace/zlib/inflate/InflateStream.kt:310:34: The caught exception is too generic. Prefer catching specific exceptions to the case that is currently handled. [TooGenericExceptionCaught]
+/Volumes/stuff/Projects/ZLib.kotlin/src/commonMain/kotlin/ai/solace/zlib/inflate/InflateStream.kt:311:33: Instead of catching for a general exception type and checking for a specific exception type, use multiple catch blocks. [InstanceOfCheckForException]
+/Volumes/stuff/Projects/ZLib.kotlin/src/commonMain/kotlin/ai/solace/zlib/inflate/InflateStream.kt:241:26: The caught exception is swallowed. The original exception could be lost. [SwallowedException]
+/Volumes/stuff/Projects/ZLib.kotlin/src/commonMain/kotlin/ai/solace/zlib/inflate/InflateStream.kt:255:34: The caught exception is swallowed. The original exception could be lost. [SwallowedException]
+/Volumes/stuff/Projects/ZLib.kotlin/src/commonMain/kotlin/ai/solace/zlib/inflate/InflateStream.kt:298:26: The caught exception is swallowed. The original exception could be lost. [SwallowedException]
+Build 47992bc9-40af-4acf-87ba-b12587f78741 is closed
+FAILURE: Build failed with an exception.
+* What went wrong:
+Execution failed for task ':detekt'.
+> Analysis failed with 5 weighted issues.
+* Try:
+> Run with --stacktrace option to get the stack trace.
+> Run with --debug option to get more log output.
+> Run with --scan to get full insights.
+> Get more help at https://help.gradle.org.
+BUILD FAILED in 13s
+8 actionable tasks: 7 executed, 1 up-to-date
+Watched directory hierarchies: [/Volumes/stuff/Projects/ZLib.kotlin]

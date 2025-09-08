@@ -10,6 +10,7 @@ import ai.solace.zlib.common.Z_DEFLATED
 import ai.solace.zlib.common.Z_OK
 import ai.solace.zlib.common.Z_STREAM_END
 import ai.solace.zlib.common.Z_BUF_ERROR
+import ai.solace.zlib.common.ZlibLogger
 import okio.BufferedSink
 import okio.BufferedSource
 
@@ -233,14 +234,28 @@ object InflateStream {
         val distTable = FIXED_TABLES.dist
 
         loop@ while (true) {
-            val sym = CanonicalHuffman.decodeOne(br, litTable)
+            val sym =
+                try {
+                    CanonicalHuffman.decodeOne(br, litTable)
+                } catch (e: SourceExhausted) {
+                    throw e
+                } catch (e: IllegalStateException) {
+                    return Z_DATA_ERROR
+                }
             when {
                 sym < 256 -> writeByte(sym, sink, window, posRef, adler)
                 sym == 256 -> break@loop
                 else -> {
                     val length = decodeLength(br, sym)
                     if (length < 0) return Z_DATA_ERROR
-                    val distSym = CanonicalHuffman.decodeOne(br, distTable)
+                    val distSym =
+                        try {
+                            CanonicalHuffman.decodeOne(br, distTable)
+                        } catch (e: SourceExhausted) {
+                            throw e
+                        } catch (e: IllegalStateException) {
+                            return Z_DATA_ERROR
+                        }
                     val dist = decodeDistance(br, distSym)
                     if (dist < 0) return Z_DATA_ERROR
                     copyMatch(length, dist, sink, window, posRef, adler)
@@ -279,8 +294,9 @@ object InflateStream {
             val sym =
                 try {
                     CanonicalHuffman.decodeOne(br, litTable)
-                } catch (e: Throwable) {
-                    if (e is SourceExhausted) throw e
+                } catch (e: SourceExhausted) {
+                    throw e
+                } catch (e: IllegalStateException) {
                     return Z_DATA_ERROR
                 }
             when {
@@ -292,8 +308,10 @@ object InflateStream {
                     val distSym =
                         try {
                             CanonicalHuffman.decodeOne(br, distTable)
-                        } catch (e: Throwable) {
-                            if (e is SourceExhausted) throw e
+                        } catch (e: SourceExhausted) {
+                            throw e
+                        } catch (e: IllegalStateException) {
+                            ZlibLogger.logInflate("Invalid Huffman (dynamic dist): ${'$'}{e.message}", "decodeDynamic")
                             return Z_DATA_ERROR
                         }
                     val dist = decodeDistance(br, distSym)
@@ -308,6 +326,7 @@ object InflateStream {
     /**
      * Inflate a zlib-wrapped stream from [source] to [sink]. Returns Pair(resultCode, bytesOut).
      */
+    @Suppress("SwallowedException")
     fun inflateZlib(
         source: BufferedSource,
         sink: BufferedSink,
@@ -357,7 +376,8 @@ object InflateStream {
             return Z_STREAM_END to totalOut
         } catch (e: SourceExhausted) {
             // Need more input bytes to proceed
-            val out = try { sink.buffer.size } catch (_: Throwable) { 0L }
+            ZlibLogger.logInflate("Source exhausted during inflate: ${'$'}{e.message}", "inflateZlib")
+            val out = try { sink.buffer.size } catch (_: Exception) { 0L }
             return Z_BUF_ERROR to out
         }
     }
