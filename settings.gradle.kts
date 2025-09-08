@@ -1,15 +1,19 @@
+@file:Suppress("UnstableApiUsage")
+
 rootProject.name = "ZLib"
 
 pluginManagement {
     repositories {
-        mavenCentral()
         gradlePluginPortal()
+        mavenCentral()
+        google()
     }
 }
 
 dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
-        maven("https://repo.kotlin.link")
+        google()
         mavenCentral()
     }
 }
