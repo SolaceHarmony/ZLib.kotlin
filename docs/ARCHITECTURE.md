@@ -1,3 +1,45 @@
+# Architecture (Current, 2025-09-07)
+
+This section reflects the present codebase under src/commonMain and the CLI. It supersedes earlier design notes that referenced ZStream/ZInputStream.
+
+## High-level modules
+- ai.solace.zlib.deflate.DeflateStream (object)
+  - compressZlib(source: okio.BufferedSource, sink: okio.BufferedSink, level: Int = 6): Long
+  - Emits zlib header, deflate blocks (stored/fixed/dynamic), and Adler-32 trailer.
+- ai.solace.zlib.inflate.InflateStream (functions)
+  - inflateZlib(source: okio.BufferedSource, sink: okio.BufferedSink): Pair<Int, Long>
+  - Parses zlib header, deflate blocks, validates data, returns (Z_OK, bytesOut) on success.
+- ai.solace.zlib.inflate.StreamingBitReader / StreamingBitWriter
+  - LSB-first bit I/O over Okio streams with small in-memory buffers; writer uses ArithmeticBitwiseOps for arithmetic-only shifts.
+- ai.solace.zlib.inflate.CanonicalHuffman
+  - Builds canonical encoders/decoders and full decode tables; used by both compression and decompression.
+- ai.solace.zlib.bitwise.*
+  - BitShiftEngine (NATIVE/ARITHMETIC) with ShiftResult metadata.
+  - BitwiseOps (pure helpers and urShiftImproved for Int/Long).
+  - ArithmeticBitwiseOps (Long-based arithmetic-only bitwise primitives).
+  - BitBuffer (simple buffered bit manipulations for algorithms).
+- ai.solace.zlib.bitwise.checksum.Adler32Utils
+  - Arithmetic-only Adler-32 implementation: adler32(adler: Long, buf: ByteArray?, index: Int, len: Int).
+- ai.solace.zlib.common.Constants
+  - Centralized zlib constants (levels, strategies, return codes, Huffman and window parameters), and version().
+- ai.solace.zlib.cli.ZLibCli
+  - CLI entry point: compress|deflate, decompress|inflate, log-on/off using Okio FileSystem.
+
+## Data flow (current)
+- Compression: BufferedSource -> DeflateStream.compressZlib -> StreamingBitWriter -> sink (BufferedSink) + Adler32 trailer.
+- Decompression: source (BufferedSource) -> StreamingBitReader + InflateStream.inflateZlib -> sink (BufferedSink).
+- Huffman: CanonicalHuffman builds/consumes tables for fixed/dynamic modes.
+- Bitwise: Writers and helpers avoid undefined platform shifts by using arithmetic implementations when required.
+
+## Notes
+- IO is based on Okio for portability across KMP.
+- Bitwise operations for algorithmic correctness are centralized; Adler32Utils does not use BitShiftEngine.
+- Return codes and constants come from ai.solace.zlib.common.Constants.
+
+---
+
+# Legacy Architecture (historical)
+
 # Architecture Document: ZLib Implementation
 
 This document outlines the refactored architecture of the Kotlin ZLib implementation.
@@ -128,7 +170,10 @@ graph TD
         Config["Config.kt(Compression parameters)"]
         Tree["Tree.kt(Huffman tree construction - uses TreeUtils)"]
         StaticTree["StaticTree.kt(Static tree definitions)"]
-        Constants_Def["common/Constants.kt"]   subgraph "ZStream Handling"
+        Constants_Def["common/Constants.kt"]
+    end
+
+    subgraph "ZStream Handling"
         ZStream_Def["ZStream.kt(Stream state)"]
     end
 

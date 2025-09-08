@@ -1,3 +1,176 @@
+# ZLib.kotlin API (Current, 2025-09-07)
+
+This section documents the current, ground-truth API based on the code under src/commonMain. The legacy Java-style ZStream API documented below is retained only for historical reference and does not reflect the current implementation.
+
+- Kotlin version: 2.1.20
+- Platforms: Multiplatform (Native targets configured in Gradle)
+- IO: Okio BufferedSource/BufferedSink for streaming
+
+Contents (current API):
+- Compression/Decompression
+- Streams (bit-level)
+- Bitwise utilities and engine
+- Checksum
+- CLI
+- Constants
+- Examples
+
+---
+
+## Compression/Decompression
+
+Package: ai.solace.zlib.deflate / ai.solace.zlib.inflate
+
+- DeflateStream.compressZlib(source: okio.BufferedSource, sink: okio.BufferedSink, level: Int = 6): Long
+  - Compresses from source to sink with a zlib wrapper. Returns the number of input bytes consumed.
+  - level <= 0 uses stored blocks, 1 uses fixed Huffman, >=2 uses dynamic Huffman.
+
+- InflateStream.inflateZlib(source: okio.BufferedSource, sink: okio.BufferedSink): Pair<Int, Long>
+  - Decompresses a zlib stream from source to sink.
+  - Returns (resultCode, bytesWritten). resultCode is ai.solace.zlib.common.Z_OK on success.
+
+Example:
+```kotlin
+val inPath = "input.txt".toPath()
+val outPath = "output.zz".toPath()
+FileSystem.SYSTEM.source(inPath).buffer().use { src ->
+    FileSystem.SYSTEM.sink(outPath).buffer().use { snk ->
+        val bytesIn = DeflateStream.compressZlib(src, snk, level = 6)
+        println("Compressed $bytesIn bytes")
+    }
+}
+
+// Decompress
+val outTxt = "output.txt".toPath()
+FileSystem.SYSTEM.source(outPath).buffer().use { src ->
+    FileSystem.SYSTEM.sink(outTxt).buffer().use { snk ->
+        val (rc, bytesOut) = InflateStream.inflateZlib(src, snk)
+        check(rc == Z_OK)
+        println("Decompressed $bytesOut bytes")
+    }
+}
+```
+
+---
+
+## Streams (bit-level)
+
+Package: ai.solace.zlib.inflate
+
+- class StreamingBitReader(source: okio.BufferedSource)
+  - peek(n: Int): Int // 0..16 bits (LSB-first)
+  - take(n: Int): Int // consume n bits
+  - alignToByte()
+  - readAlignedByte(): Int
+  - peekBytes(count: Int): ByteArray // diagnostics; may return empty
+
+- class StreamingBitWriter(sink: okio.BufferedSink)
+  - writeBits(value: Int, count: Int)
+  - alignToByte()
+  - flush()
+  - bitMod8(): Int
+
+---
+
+## Bitwise utilities and engine
+
+Package: ai.solace.zlib.bitwise
+
+- enum class BitShiftMode { NATIVE, ARITHMETIC }
+- data class ShiftResult(value: Long, carry: Long = 0, overflow: Boolean = false)
+- class BitShiftEngine(mode: BitShiftMode = NATIVE, bitWidth: Int = 32)
+  - leftShift(value: Long, bits: Int): ShiftResult
+  - rightShift(value: Long, bits: Int): ShiftResult
+  - unsignedRightShift(value: Long, bits: Int): ShiftResult
+  - normalize(value: Long): Long
+  - withMode(newMode: BitShiftMode): BitShiftEngine
+  - withBitWidth(newBitWidth: Int): BitShiftEngine
+
+- object BitwiseOps (top-level functions in file)
+  - createMask(bits: Int): Int
+  - extractBits(value: Int, bits: Int): Int
+  - extractBitRange(value: Int, startBit: Int, bitCount: Int): Int
+  - combine16Bit(high: Int, low: Int): Int
+  - combine16BitToLong(high: Long, low: Long): Long
+  - getHigh16Bits(value: Int): Int; getLow16Bits(value: Int): Int
+  - byteToUnsignedInt(b: Byte): Int
+  - getHigh16BitsArithmetic(value: Long): Int; getLow16BitsArithmetic(value: Long): Int
+  - combine16BitArithmetic(high: Int, low: Int): Long
+  - leftShiftArithmetic(value: Int, bits: Int): Int; rightShiftArithmetic(value: Int, bits: Int): Int
+  - createMaskArithmetic(bits: Int): Int; extractBitsArithmetic(value: Int, bits: Int): Int
+  - isBitSetArithmetic(value: Int, bitPosition: Int): Boolean
+  - orArithmetic(value1: Int, value2: Int): Int
+  - orArithmeticGeneral(value1: Int, value2: Int): Int
+  - rotateLeft(value: Int, bits: Int): Int; rotateRight(value: Int, bits: Int): Int
+  - withArithmeticEngine(): ai.solace.zlib.bitwise.ArithmeticBitwiseOps
+  - urShiftImproved(number: Int, bits: Int, engine: BitShiftEngine = defaultEngine32): Int
+  - urShiftImproved(number: Long, bits: Int, engine: BitShiftEngine = defaultEngine64): Long
+
+- class ArithmeticBitwiseOps(bitLength: Int)
+  - normalize(value: Long): Long; leftShift(value: Long, bits: Int): Long; rightShift(value: Long, bits: Int): Long
+  - createMask(bits: Int): Long; isPowerOfTwo(n: Long): Boolean; estimateMaxBitsFor(value: Long): Int
+  - extractBits(value: Long, bits: Int): Long; isBitSet(value: Long, bitPosition: Int): Boolean
+  - or(value1: Long, value2: Long): Long; and(value1: Long, value2: Long): Long; xor(value1: Long, value2: Long): Long; not(value: Long): Long
+  - rotateLeft(value: Long, positions: Int): Long; rotateRight(value: Long, positions: Int): Long
+  - toUnsigned(value: Long): Long; toSigned(value: Long): Long
+  - Companion presets: ArithmeticBitwiseOps.BITS_32
+
+- class BitBuffer
+  - getBuffer(): Int; getBitCount(): Int; addByte(b: Byte): Int
+  - peekBits(bits: Int): Int; consumeBits(bits: Int): Int; hasEnoughBits(bits: Int): Boolean; reset()
+
+---
+
+## Checksum
+
+Package: ai.solace.zlib.bitwise.checksum
+
+- object Adler32Utils
+  - adler32(adler: Long, buf: ByteArray?, index: Int, len: Int): Long
+    - Uses arithmetic-only logic and Byte->Int conversion via BitwiseOps.byteToUnsignedInt.
+
+---
+
+## CLI
+
+Package: ai.solace.zlib.cli
+
+- fun main(args: Array<String>)
+  - Commands:
+    - compress|deflate <input> <output.zz> [level]
+    - decompress|inflate <input.zz> <output>
+    - log-on | log-off | help
+  - Uses Okio FileSystem to read/write files.
+
+---
+
+## Constants
+
+Package: ai.solace.zlib.common.Constants (file)
+
+Key constants you will typically use:
+- Compression levels: Z_NO_COMPRESSION(0), Z_BEST_SPEED(1), Z_BEST_COMPRESSION(9), Z_DEFAULT_COMPRESSION(-1)
+- Strategies: Z_DEFAULT_STRATEGY(0), Z_FILTERED(1), Z_HUFFMAN_ONLY(2)
+- Flush: Z_NO_FLUSH(0), Z_PARTIAL_FLUSH(1), Z_SYNC_FLUSH(2), Z_FULL_FLUSH(3), Z_FINISH(4)
+- Return codes: Z_OK(0), Z_STREAM_END(1), Z_NEED_DICT(2), Z_ERRNO(-1), Z_STREAM_ERROR(-2), Z_DATA_ERROR(-3), Z_MEM_ERROR(-4), Z_BUF_ERROR(-5), Z_VERSION_ERROR(-6)
+- Window bits: MAX_WBITS = 15 (32KiB)
+- Method: Z_DEFLATED = 8
+
+For the full list (Huffman tables, tree parameters, state codes, etc.), see the Constants.kt file.
+
+---
+
+## Examples
+
+- See examples/BasicExample.kt and examples/AdvancedExample.kt for end-to-end usage.
+- Unit tests under src/commonTest/kotlin demonstrate edge cases and exact semantics for bitwise operations, shifts, and Adler-32.
+
+---
+
+## Legacy (Java-style) API — historical reference
+
+The content below documents an older design (ZStream/ZInputStream) and does not match the current implementation. Prefer the sections above for the real API.
+
 # ZLib.kotlin API Documentation
 
 [![License: Zlib](https://img.shields.io/badge/license-Zlib-lightgrey.svg)](https://opensource.org/licenses/Zlib)
@@ -114,7 +287,7 @@ A higher-level streaming interface for decompression that implements the `InputS
 #### Constructor
 
 ```kotlin
-val zinput = ZInputStream(inputStream: InputStream)
+val zinput = ZInputStream(inputStream)
 ```
 
 #### Methods
@@ -141,7 +314,7 @@ Exception class for zlib-specific errors.
 #### Constructor
 
 ```kotlin
-ZStreamException(message: String)
+throw ZStreamException("message")
 ```
 
 ---
@@ -205,8 +378,6 @@ const val DEF_WBITS = MAX_WBITS
 ### Basic Compression
 
 ```kotlin
-import ai.solace.zlib.deflate.ZStream
-import ai.solace.zlib.common.*
 
 fun compressData(input: ByteArray, level: Int = Z_DEFAULT_COMPRESSION): ByteArray {
     val stream = ZStream()
@@ -360,8 +531,6 @@ println("Decompressed: $originalString")
 ### Using ZInputStream
 
 ```kotlin
-import ai.solace.zlib.deflate.ZInputStream
-import ai.solace.zlib.streams.InputStream
 
 fun decompressWithStream(compressedData: ByteArray): ByteArray {
     val inputStream = ByteArrayInputStream(compressedData)
@@ -563,4 +732,4 @@ This API documentation is part of ZLib.kotlin, released under the [zlib License]
 
 ---
 
-*For more examples and usage patterns, see the [test files](../src/commonTest/kotlin/ai/solace/zlib/test/) in the project repository.*
+*For more examples and usage patterns, see the test file [Adler32Test.kt](../src/commonTest/kotlin/ai/solace/zlib/test/Adler32Test.kt) and other tests in that directory.*
