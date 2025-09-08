@@ -138,4 +138,3 @@ detekt {
 tasks.named("check").configure {
     dependsOn("ktlintCheck", "detekt")
 }
-

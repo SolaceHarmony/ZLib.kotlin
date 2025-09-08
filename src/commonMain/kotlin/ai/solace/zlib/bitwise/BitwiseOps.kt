@@ -113,6 +113,7 @@ object BitwiseOps {
             val a32 = ArithmeticBitwiseOps.BITS_32
             return a32.rightShift(value.toLong(), 16).toInt()
         }
+
         /**
          * Extracts the low 16 bits from a 32-bit value
          * @param value The 32-bit value
@@ -329,15 +330,12 @@ object BitwiseOps {
             return a32.or(left.toLong(), right.toLong()).toInt()
         }
 
-
-
         /**
          * Factory function to get a configured BitwiseOps instance that uses arithmetic operations
          */
         fun withArithmeticEngine(): ArithmeticBitwiseOps {
             return ArithmeticBitwiseOps.BITS_32
         }
-
 
         /**
          * Improved unsigned right shift using BitShiftEngine for consistency
