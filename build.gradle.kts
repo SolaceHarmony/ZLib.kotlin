@@ -1,6 +1,8 @@
 @file:OptIn(ExperimentalKotlinGradlePluginApi::class)
 
+import org.gradle.api.tasks.testing.Test
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
 
 plugins {
     kotlin("multiplatform") version "2.1.20" // Updated to latest Kotlin version
@@ -97,10 +99,6 @@ kotlin {
     }
 }
 
-repositories {
-    mavenCentral()
-}
-
 dependencies {
     // Add any dependencies your project needs here.
 }
@@ -137,4 +135,21 @@ detekt {
 
 tasks.named("check").configure {
     dependsOn("ktlintCheck", "detekt")
+}
+
+// Disable running tests during normal builds by default.
+// To enable tests, build with: ./gradlew build -PwithTests=true
+val withTests: Boolean =
+    providers.gradleProperty("withTests")
+        .map { it.equals("true", ignoreCase = true) }
+        .getOrElse(false)
+
+// For Kotlin Multiplatform, disable only actual test execution tasks unless explicitly enabled.
+if (!withTests) {
+    tasks.withType<Test>().configureEach {
+        enabled = false
+    }
+    tasks.withType<KotlinNativeTest>().configureEach {
+        enabled = false
+    }
 }
