@@ -728,7 +728,7 @@ stream.deflateReset()  // or inflateReset()
 
 ## License
 
-This API documentation is part of ZLib.kotlin, released under the [zlib License](../LICENSE).
+This API documentation is part of ZLib.kotlin, licensed under the [Apache License 2.0](../LICENSE). See [NOTICE](../NOTICE) for attribution and third-party notices.
 
 ---
 

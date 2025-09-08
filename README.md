@@ -1,13 +1,13 @@
 # ZLib.kotlin
 
-[![License: Zlib](https://img.shields.io/badge/license-Zlib-lightgrey.svg)](https://opensource.org/licenses/Zlib)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache_2.0-blue.svg)](LICENSE)
 [![Kotlin](https://img.shields.io/badge/Kotlin-Native-blue.svg)](https://kotlinlang.org/)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Kotlin%2FNative-orange.svg)]()
 
 ---
 
-**ZLib.kotlin** is a pure Kotlin Native port of the legendary ZLib compression library, tracing its lineage from the C#/.NET project [zlib.managed](https://github.com/philippelatulippe/ZLIB.NET), itself a fork of the original [zlib.net](http://www.componentace.com/zlib_.NET.htm). This library brings high-performance, cross-platform compression and decompression capabilities to the Kotlin ecosystem, embracing multiplatform development with modern tooling.
+**ZLib.kotlin** is a clean-room, RFC-based implementation of the zlib format (RFC 1950) and DEFLATE (RFC 1951) in pure Kotlin Multiplatform. It is not a direct port of zlib or any C# project. The original zlib and certain .NET ports served as useful references; see Credits.
 
 ---
 
@@ -20,7 +20,7 @@
 - [Documentation](#documentation)
 - [Compatibility](#compatibility)
 - [Testing](#testing)
-- [Credits & Lineage](#credits--lineage)
+- [Credits & References](#credits--references)
 - [License](#license)
 - [Contributing](#contributing)
 - [Contact](#contact)
@@ -31,7 +31,7 @@
 
 ZLib.kotlin is part of **The Solace Project** special libraries, designed to offer reliable, efficient compression for Kotlin Native targets. It is a complete rewrite in pure Kotlin, ensuring safety, maintainability, and native performance—without JNI, C interop, or external dependencies.
 
-This library was originally ported from the C#/.NET [zlib.managed](https://github.com/philippelatulippe/ZLIB.NET) project (a fork of zlib.net by ComponentAce), which itself is based on the seminal C library written by Jean-loup Gailly and Mark Adler.
+This library is a clean-room rewrite from the RFCs (RFC 1950 and RFC 1951). It is not a direct port of zlib or any C# project. The .NET implementations (zlib.net and zlib.managed) served as useful references.
 
 ---
 
@@ -39,7 +39,7 @@ This library was originally ported from the C#/.NET [zlib.managed](https://githu
 
 - **Pure Kotlin/Native implementation:** No C/C++ code or JNI required.
 - **Multiplatform support:** Kotlin Native for Linux and macOS targets.
-- **API compatible:** Designed to be familiar to users of zlib, zlib.net, or zlib.managed.
+- **Familiar API:** Designed to be comfortable for users familiar with zlib; .NET ports (zlib.net, zlib.managed) served as useful references.
 - **Fast and lightweight:** Efficient, battle-tested algorithms for compression and decompression.
 - **Zero dependencies:** No need for external libraries or system zlib installs.
 - **Actively maintained:** Open to improvements and contributions.
@@ -79,7 +79,6 @@ kotlin {
 Here's a simple example of compressing and decompressing a `ByteArray`:
 
 ```kotlin
-#import com.solaceharmony.zlib.kotlin.ZLib
 
 val data: ByteArray = "Hello, ZLib.kotlin!".encodeToByteArray()
 
@@ -92,7 +91,7 @@ val decompressed: ByteArray = ZLib.decompress(compressed)
 println(decompressed.decodeToString()) // Output: Hello, ZLib.kotlin!
 ```
 
-For more advanced usage, streaming, or custom options, see the detailed [API documentation] - ./docs/API.md and practical [examples] - ./examples/.
+For more advanced usage, streaming, or custom options, see the detailed [API documentation](./docs/API.md) and practical [examples](./examples/).
 
 ---
 
@@ -106,7 +105,7 @@ Comprehensive API documentation covering:
 - Advanced usage patterns
 - Error handling and performance tips
 
-### 💡 [Examples] ./examples/
+### 💡 Examples
 Practical examples demonstrating:
 - **Basic compression/decompression** - Simple operations with error handling
 - **Advanced techniques** - Performance comparison, streaming, custom parameters
@@ -136,21 +135,19 @@ macOS target tasks may be disabled when running on a non-macOS host.
 
 ---
 
-## Credits & Lineage
+## Credits & References
 
-- **Original C implementation:** [zlib](http://www.zlib.org) by Jean-loup Gailly and Mark Adler
-- **.NET port:** [zlib.net](http://www.componentace.com/zlib_.NET.htm) and [zlib.managed](https://github.com/philippelatulippe/ZLIB.NET)
-- **Kotlin port:** This project, as part of [The Solace Project](https://github.com/SolaceHarmony/)
+- zlib (C) Jean-loup Gailly and Mark Adler — Original C implementation inspiring the format and algorithms
+- .NET implementations used as references: [zlib.net](http://www.componentace.com/zlib_.NET.htm), [zlib.managed](https://github.com/philippelatulippe/ZLIB.NET)
+- This project: Kotlin Multiplatform implementation by Sydney Bach / The Solace Project
 
-Special thanks to all contributors and maintainers of the original and forked implementations.
+Special thanks to all contributors and maintainers of the original and derivative implementations.
 
 ---
 
 ## License
 
-This project is released under the [zlib License](LICENSE), a permissive open source license.
-
-See [`LICENSE`](LICENSE) for details.
+This project is licensed under the [Apache License 2.0](LICENSE). See [NOTICE](NOTICE) for attribution and third-party notices.
 
 ### Attribution
 
@@ -177,4 +174,4 @@ For questions or support, please [open an issue](https://github.com/SolaceHarmon
 
 ---
 
-> **Based on zlib.net and zlib-1.1.3. Credits to Jean-loup Gailly, Mark Adler, and all original contributors, as well as ComponentAce for zlib.net.**
+> Acknowledgment: We recognize the original zlib by Jean‑loup Gailly and Mark Adler, and note that .NET implementations (zlib.net, zlib.managed) were consulted as references during development.
