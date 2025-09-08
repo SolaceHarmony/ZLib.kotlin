@@ -28,9 +28,7 @@ object BitUtils {
     fun urShift(
         number: Int,
         bits: Int,
-    ): Int {
-        return BitwiseOps.urShiftImproved(number, bits)
-    }
+    ): Int = BitwiseOps.urShiftImproved(number, bits)
 
     /**
      * Performs an unsigned right shift operation that matches the behavior of C#'s URShift.
@@ -45,9 +43,7 @@ object BitUtils {
     fun urShift(
         number: Long,
         bits: Int,
-    ): Long {
-        return BitwiseOps.urShiftImproved(number, bits)
-    }
+    ): Long = BitwiseOps.urShiftImproved(number, bits)
 
     /**
      * Improved unsigned right shift operation using BitShiftEngine.
@@ -64,9 +60,7 @@ object BitUtils {
         number: Int,
         bits: Int,
         engine: BitShiftEngine = defaultEngineInt,
-    ): Int {
-        return BitwiseOps.urShiftImproved(number, bits, engine)
-    }
+    ): Int = BitwiseOps.urShiftImproved(number, bits, engine)
 
     /**
      * Improved unsigned right shift operation using BitShiftEngine.
@@ -83,23 +77,17 @@ object BitUtils {
         number: Long,
         bits: Int,
         engine: BitShiftEngine = defaultEngineLong,
-    ): Long {
-        return BitwiseOps.urShiftImproved(number, bits, engine)
-    }
+    ): Long = BitwiseOps.urShiftImproved(number, bits, engine)
 
     /**
      * Creates a BitUtils instance configured for arithmetic operations
      * @return A function that performs urShift using arithmetic operations
      */
-    fun withArithmeticMode(): BitShiftEngine {
-        return BitShiftEngine(BitShiftMode.ARITHMETIC, 32)
-    }
+    fun withArithmeticMode(): BitShiftEngine = BitShiftEngine(BitShiftMode.ARITHMETIC, 32)
 
     /**
      * Creates a BitUtils instance configured for native operations
      * @return A function that performs urShift using native operations
      */
-    fun withNativeMode(): BitShiftEngine {
-        return BitShiftEngine(BitShiftMode.NATIVE, 32)
-    }
+    fun withNativeMode(): BitShiftEngine = BitShiftEngine(BitShiftMode.NATIVE, 32)
 }

@@ -7,7 +7,9 @@ import okio.BufferedSink
  * StreamingBitWriter - LSB-first bit writer to a streaming sink.
  * Uses arithmetic-only bit shifts via ArithmeticBitwiseOps.
  */
-class StreamingBitWriter(private val sink: BufferedSink) {
+class StreamingBitWriter(
+    private val sink: BufferedSink,
+) {
     private val ops = ArithmeticBitwiseOps.BITS_32
     private var bitBuffer: Int = 0
     private var bitCount: Int = 0

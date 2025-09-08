@@ -2,7 +2,9 @@ package ai.solace.zlib.util.test
 
 import ai.solace.zlib.bitwise.BitShiftMode
 import ai.solace.zlib.util.BitUtils
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
+import kotlin.test.assertTrue
 
 /**
  * Test for updated BitUtils with improved bit shift operations
@@ -39,7 +41,8 @@ class BitUtilsImprovedTest {
                 val arithmeticResult = BitUtils.urShiftImproved(value, shift, arithmeticEngine)
 
                 assertEquals(
-                    nativeResult, arithmeticResult,
+                    nativeResult,
+                    arithmeticResult,
                     "Improved urShift should be consistent between engines for value=0x${value.toString(16)}, shift=$shift",
                 )
             }
@@ -60,11 +63,13 @@ class BitUtilsImprovedTest {
                 // For positive numbers, both should generally give the same result as ushr
                 val expected = value ushr shift
                 assertEquals(
-                    expected, improved,
+                    expected,
+                    improved,
                     "Improved urShift should match ushr for positive values: $value >>> $shift",
                 )
                 assertEquals(
-                    expected, legacy,
+                    expected,
+                    legacy,
                     "Legacy urShift should match ushr for positive values: $value >>> $shift",
                 )
             }
@@ -146,7 +151,8 @@ class BitUtilsImprovedTest {
         for ((value, shift, expectedResult) in negativeTestCases) {
             val result = BitUtils.urShiftImproved(value, shift)
             assertEquals(
-                expectedResult, result,
+                expectedResult,
+                result,
                 "urShiftImproved($value, $shift) should equal 0x${expectedResult.toString(16)}",
             )
         }

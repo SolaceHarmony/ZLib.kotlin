@@ -1,6 +1,7 @@
 @file:OptIn(ExperimentalKotlinGradlePluginApi::class)
 
 import org.gradle.api.tasks.testing.Test
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
 
@@ -114,7 +115,7 @@ dependencies {
 ktlint {
     android.set(false)
     outputToConsole.set(true)
-    ignoreFailures.set(true) // Temporarily do not fail the build on violations; reports are still generated
+    ignoreFailures.set(false)
     // No excludes: cover all source sets, including tests
 }
 
@@ -160,5 +161,47 @@ if (!withTests) {
     }
     tasks.withType<KotlinNativeTest>().configureEach {
         enabled = false
+    }
+}
+
+// Friendly root `test` task for KMP: prints targets/tasks when tests are disabled,
+// or depends on all available test tasks when -PwithTests=true
+val kmp = extensions.findByType(KotlinMultiplatformExtension::class.java)
+
+tasks.register("test") {
+    group = "verification"
+    description =
+        if (withTests) {
+            "Runs all tests across configured Kotlin Multiplatform targets"
+        } else {
+            "Displays available test targets and how to enable running tests"
+        }
+
+    if (withTests) {
+        // Only depend on tasks that are present; Gradle will ignore empty collections
+        dependsOn(tasks.withType<Test>())
+        dependsOn(tasks.withType<KotlinNativeTest>())
+    } else {
+        doFirst {
+            val targets =
+                        kmp
+                            ?.targets
+                            ?.map { it.name }
+                            ?.sorted()
+                            .orEmpty()
+            println("\n[ZLib.kotlin] Tests are disabled by default.")
+            println("To run tests, use: ./gradlew -PwithTests=true test\n")
+            if (targets.isNotEmpty()) {
+                println("Configured Kotlin Multiplatform targets: ${targets.joinToString(", ")}")
+            }
+            val jvmTests = tasks.withType<Test>().map { it.path }.sorted()
+            val nativeTests = tasks.withType<KotlinNativeTest>().map { it.path }.sorted()
+            if (jvmTests.isNotEmpty() || nativeTests.isNotEmpty()) {
+                println("Available test tasks (may be disabled on this host):")
+                if (jvmTests.isNotEmpty()) println(" - JVM: ${jvmTests.joinToString(", ")}")
+                if (nativeTests.isNotEmpty()) println(" - Native: ${nativeTests.joinToString(", ")}")
+            }
+            println()
+        }
     }
 }

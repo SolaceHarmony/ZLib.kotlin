@@ -36,9 +36,7 @@ class BitBuffer {
      * @param bits Number of bits to peek
      * @return The value of the next N bits
      */
-    fun peekBits(bits: Int): Int {
-        return buffer and BitwiseOps.createMask(bits)
-    }
+    fun peekBits(bits: Int): Int = buffer and BitwiseOps.createMask(bits)
 
     /**
      * Consumes N bits from the buffer
@@ -52,10 +50,10 @@ class BitBuffer {
         val result = buffer and BitwiseOps.createMask(bits)
 
         // Shift the buffer or clear it if consuming all bits
-        if (bits >= 32 || bitCount - bits == 0) {
-            buffer = 0
+        buffer = if (bits >= 32 || bitCount - bits == 0) {
+            0
         } else {
-            buffer = buffer ushr bits
+            buffer ushr bits
         }
 
         // Update the bit count
@@ -69,9 +67,7 @@ class BitBuffer {
      * @param bits Number of bits to check for
      * @return true if at least N bits are available, false otherwise
      */
-    fun hasEnoughBits(bits: Int): Boolean {
-        return bitCount >= bits
-    }
+    fun hasEnoughBits(bits: Int): Boolean = bitCount >= bits
 
     /**
      * Resets the buffer to empty state

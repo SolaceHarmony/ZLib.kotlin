@@ -48,7 +48,7 @@ class BitShiftEngine(
         value: Long,
         bits: Int,
     ): ShiftResult {
-        if (bits < 0 || bits >= bitWidth) {
+        if (bits !in 0..<bitWidth) {
             return ShiftResult(0L, 0L, true)
         }
 
@@ -103,7 +103,7 @@ class BitShiftEngine(
         value: Long,
         bits: Int,
     ): ShiftResult {
-        if (bits < 0 || bits >= bitWidth) {
+        if (bits !in 0..<bitWidth) {
             return ShiftResult(if (value < 0) -1L else 0L, 0L, false)
         }
 
@@ -140,7 +140,7 @@ class BitShiftEngine(
         value: Long,
         bits: Int,
     ): ShiftResult {
-        if (bits < 0 || bits >= bitWidth) {
+        if (bits !in 0..<bitWidth) {
             return ShiftResult(0L, 0L, false)
         }
 
@@ -173,27 +173,22 @@ class BitShiftEngine(
     /**
      * Normalize a value to fit within the bit width
      */
-    private fun normalize(value: Long): Long {
-        return when (bitWidth) {
+    private fun normalize(value: Long): Long =
+        when (bitWidth) {
             8 -> value and 0xFFL
             16 -> value and 0xFFFFL
             32 -> value and 0xFFFFFFFFL
             64 -> value
             else -> error("Unexpected bitWidth in normalize: $bitWidth")
         }
-    }
 
     /**
      * Creates a copy of this engine with different settings
      */
-    fun withMode(newMode: BitShiftMode): BitShiftEngine {
-        return BitShiftEngine(newMode, bitWidth)
-    }
+    fun withMode(newMode: BitShiftMode): BitShiftEngine = BitShiftEngine(newMode, bitWidth)
 
     /**
      * Creates a copy of this engine with different bit width
      */
-    fun withBitWidth(newBitWidth: Int): BitShiftEngine {
-        return BitShiftEngine(mode, newBitWidth)
-    }
+    fun withBitWidth(newBitWidth: Int): BitShiftEngine = BitShiftEngine(mode, newBitWidth)
 }

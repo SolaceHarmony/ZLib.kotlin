@@ -15,7 +15,9 @@ import ai.solace.zlib.common.ZlibLogger
  *
  * @param bitLength The number of bits for operations (8, 16, or 32)
  */
-class ArithmeticBitwiseOps(private val bitLength: Int) {
+class ArithmeticBitwiseOps(
+    private val bitLength: Int,
+) {
     init {
         require(bitLength in 1..32) { "Bit length must be between 1 and 32" }
     }
@@ -60,7 +62,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         value: Long,
         bits: Int,
     ): Long {
-        if (bits < 0 || bits >= bitLength) {
+        if (bits !in 0..<bitLength) {
             ZlibLogger.logBitwise("leftShift($value, $bits) -> 0 (out of range for $bitLength-bit)", "leftShift")
             return 0L
         }
@@ -88,7 +90,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         value: Long,
         bits: Int,
     ): Long {
-        if (bits < 0 || bits >= bitLength) return 0L
+        if (bits !in 0..<bitLength) return 0L
         if (bits == 0) return normalize(value)
 
         val divisor = if (bits <= 0) 1L else pow2(bits)
@@ -170,7 +172,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
         value: Long,
         bitPosition: Int,
     ): Boolean {
-        if (bitPosition < 0 || bitPosition >= bitLength) return false
+        if (bitPosition !in 0..<bitLength) return false
 
         val normalizedValue = normalize(value)
         val powerOf2 = leftShift(1L, bitPosition)
@@ -376,9 +378,7 @@ class ArithmeticBitwiseOps(private val bitLength: Int) {
      * @param value The signed value
      * @return The unsigned representation within bit length
      */
-    fun toUnsigned(value: Long): Long {
-        return normalize(value)
-    }
+    fun toUnsigned(value: Long): Long = normalize(value)
 
     /**
      * Converts an unsigned value to signed representation

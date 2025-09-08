@@ -24,7 +24,10 @@ object HuffmanBuilder {
             return out
         }
 
-        data class Item(val sym: Int, val f: Long)
+        data class Item(
+            val sym: Int,
+            val f: Long,
+        )
 
         // Collect used symbols
         val items = ArrayList<Item>()

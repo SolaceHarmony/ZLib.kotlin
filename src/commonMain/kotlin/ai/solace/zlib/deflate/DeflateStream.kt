@@ -141,12 +141,24 @@ object DeflateStream {
         head[h] = absPos
     }
 
-    private data class LengthMap(val codeSymbol: Int, val extraBits: Int, val extraVal: Int)
+    private data class LengthMap(
+        val codeSymbol: Int,
+        val extraBits: Int,
+        val extraVal: Int,
+    )
 
-    private data class DistMap(val codeSymbol: Int, val extraBits: Int, val extraVal: Int)
+    private data class DistMap(
+        val codeSymbol: Int,
+        val extraBits: Int,
+        val extraVal: Int,
+    )
 
     // Small mutable state holder for LZ77 advancing to deduplicate loops
-    private data class LzState(var pos: Int, var laOff: Int, var laLen: Int)
+    private data class LzState(
+        var pos: Int,
+        var laOff: Int,
+        var laLen: Int,
+    )
 
     private fun advanceMatch(
         window: ByteArray,
@@ -289,13 +301,12 @@ object DeflateStream {
         source: BufferedSource,
         sink: BufferedSink,
         level: Int = 6,
-    ): Long {
-        return when {
+    ): Long =
+        when {
             level <= 0 -> compressZlibStored(source, sink, level)
             level == 1 -> compressZlibFixed(source, sink, level)
             else -> compressZlibDynamic(source, sink, level)
         }
-    }
 
     /** Stored-block compressor (no compression). */
     private fun compressZlibStored(
@@ -443,7 +454,7 @@ object DeflateStream {
             var bestLen = 0
             var bestDist = 0
             if (available >= 3) {
-                val h = computeHashAt(la, rel, { x, y, z -> hash3(x, y, z) })
+                val h = computeHashAt(la, rel) { x, y, z -> hash3(x, y, z) }
                 var m = head[h]
                 var chain = 0
                 while (m != -1 && chain < maxChainLength) {
@@ -531,9 +542,14 @@ object DeflateStream {
     ): Long {
         writeZlibHeader(sink, level)
 
-        data class TokLit(val b: Int)
+        data class TokLit(
+            val b: Int,
+        )
 
-        data class TokMatch(val len: Int, val dist: Int)
+        data class TokMatch(
+            val len: Int,
+            val dist: Int,
+        )
 
         // Sliding LZ77 state (persists across blocks)
         val lookaheadBufferSize = 1 shl 15 // 32 KiB lookahead buffer
@@ -632,7 +648,7 @@ object DeflateStream {
                 var bestLen = 0
                 var bestDist = 0
                 if (available >= 3 && rel + 2 < lookaheadBufferSize) {
-                    val h = computeHashAt(la, rel, { x, y, z -> hash3(x, y, z) })
+                    val h = computeHashAt(la, rel) { x, y, z -> hash3(x, y, z) }
                     var m = head[h]
                     var chain = 0
                     while (m != -1 && chain < maxChain) {
@@ -768,9 +784,11 @@ object DeflateStream {
             // Ensure at least one distance code exists
             run {
                 var any = false
-                for (v in distFreq) if (v != 0) {
-                    any = true
-                    break
+                for (v in distFreq) {
+                    if (v != 0) {
+                        any = true
+                        break
+                    }
                 }
                 if (!any) distFreq[0] = 1
             }
@@ -789,7 +807,11 @@ object DeflateStream {
             val lastLiteralIndex = (lastLit + 1) - 257
             val writeLength = (lastDist + 1) - 1
 
-            data class ClSym(val sym: Int, val extraBits: Int = 0, val extraCount: Int = 0)
+            data class ClSym(
+                val sym: Int,
+                val extraBits: Int = 0,
+                val extraCount: Int = 0,
+            )
 
             fun rleLengths(
                 lengths: IntArray,

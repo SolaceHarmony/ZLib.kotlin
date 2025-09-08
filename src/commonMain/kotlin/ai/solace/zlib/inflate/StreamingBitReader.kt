@@ -6,7 +6,9 @@ import okio.BufferedSource
  * StreamingBitReader - LSB-first bit reader over a streaming source.
  * Maintains a small bit buffer and pulls more bytes from the underlying source on demand.
  */
-class StreamingBitReader(private val source: BufferedSource) {
+class StreamingBitReader(
+    private val source: BufferedSource,
+) {
     private var bitBuffer: Int = 0
     private var bitCount: Int = 0
 

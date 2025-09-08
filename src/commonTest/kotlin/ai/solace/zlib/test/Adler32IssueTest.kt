@@ -1,7 +1,8 @@
 package ai.solace.zlib.test
 
 import ai.solace.zlib.deflate.Adler32
-import kotlin.test.*
+import kotlin.test.Test
+import kotlin.test.assertEquals
 
 /**
  * Focused test to understand the Adler32 checksum issue
