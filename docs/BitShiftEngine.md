@@ -32,19 +32,15 @@ val result = engine8.leftShift(255, 1)  // Will overflow 8-bit
 - 32-bit operations for modern algorithms
 - 64-bit operations for large data processing
 
-### 4. Enhanced Adler32 Support
+### 4. Adler32 Interop
 ```kotlin
-// Use native operations for performance
-val nativeResult = Adler32Utils.adler32(1L, data, 0, data.size)
-
-// Use arithmetic operations for consistency
-val arithmeticEngine = BitShiftEngine(BitShiftMode.ARITHMETIC, 32) 
-val consistentResult = Adler32Utils.adler32(1L, data, 0, data.size, arithmeticEngine)
-
-// Factory functions
-val nativeFunction = Adler32Utils.withNativeEngine()
-val arithmeticFunction = Adler32Utils.withArithmeticEngine()
+// Adler-32 checksum (platform-consistent arithmetic implementation)
+val checksum = Adler32Utils.adler32(1L, data, 0, data.size)
 ```
+
+Notes:
+- Adler32Utils internally uses arithmetic-only operations and does not accept a BitShiftEngine.
+- Use BitShiftEngine for bit-shift behavior studies or when you need carry/overflow metadata, not for Adler32.
 
 ## Usage Examples
 
@@ -93,11 +89,10 @@ for (byte in data) {
 }
 ```
 
-### Performance Comparison
-```kotlin
-// The sandbox includes performance comparison functionality
-BitShiftSandbox.demonstratePerformanceComparison()
-```
+### Performance Notes
+- Native mode uses CPU bit shifts (fastest).
+- Arithmetic mode uses addition/multiplication/division to emulate shifts; portable and deterministic across platforms.
+- See benchmark-style assertions in tests (e.g., ImprovedBitShiftTest) for expected equivalence, not microbenchmarks.
 
 ## Migration Guide
 
