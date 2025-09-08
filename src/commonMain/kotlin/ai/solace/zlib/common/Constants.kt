@@ -164,6 +164,7 @@ const val TREE_DIST_CODE_LEN = 512 // Formerly DIST_CODE_LEN in Tree.kt
  * DEF_MEM_LEVEL = 8: Default memory level for deflate compression. Balances memory usage and compression performance
  */
 const val MAX_MEM_LEVEL = 9
+
 // Used in tests: MaxWBitsImportTest.kt and sample test_no_compression.kt; referenced in docs/API.md
 const val MAX_WBITS = 15
 const val DEF_MEM_LEVEL = 8

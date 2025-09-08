@@ -1,8 +1,8 @@
 @file:OptIn(ExperimentalKotlinGradlePluginApi::class)
 
 import org.gradle.api.tasks.testing.Test
-import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
+import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
 
 plugins {
@@ -183,12 +183,7 @@ tasks.register("test") {
         dependsOn(tasks.withType<KotlinNativeTest>())
     } else {
         doFirst {
-            val targets =
-                        kmp
-                            ?.targets
-                            ?.map { it.name }
-                            ?.sorted()
-                            .orEmpty()
+            val targets: List<String> = (kmp?.targets?.map { it.name }?.sorted()) ?: emptyList()
             println("\n[ZLib.kotlin] Tests are disabled by default.")
             println("To run tests, use: ./gradlew -PwithTests=true test\n")
             if (targets.isNotEmpty()) {

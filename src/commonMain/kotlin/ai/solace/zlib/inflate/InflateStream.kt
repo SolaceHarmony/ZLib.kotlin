@@ -8,6 +8,7 @@ import ai.solace.zlib.common.TREE_EXTRA_LBITS
 import ai.solace.zlib.common.Z_DATA_ERROR
 import ai.solace.zlib.common.Z_DEFLATED
 import ai.solace.zlib.common.Z_OK
+import ai.solace.zlib.common.Z_STREAM_END
 import okio.BufferedSink
 import okio.BufferedSource
 
@@ -348,6 +349,7 @@ object InflateStream {
         val current = adler[0].toInt()
         if (current != trailer) return Z_DATA_ERROR to totalOut
 
-        return Z_OK to totalOut
+        // End-of-stream reached and trailer verified successfully
+        return Z_STREAM_END to totalOut
     }
 }
