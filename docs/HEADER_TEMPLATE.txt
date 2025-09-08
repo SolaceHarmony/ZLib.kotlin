@@ -2,8 +2,11 @@
  * ZLib.kotlin — Kotlin Multiplatform zlib/DEFLATE library
  *
  * Copyright (c) 2024–2025 Sydney Bach / The Solace Project
- * Portions based on the original zlib by Jean‑loup Gailly and Mark Adler.
  *
- * Licensed under the zlib License. See the LICENSE file for details.
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy at http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * See the NOTICE file for attribution and third‑party notices.
  */
 
