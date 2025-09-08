@@ -207,7 +207,7 @@ class BitBufferTest {
         val consumed7Bits = buffer.consumeBits(7)
         // The value could vary depending on platform
         assertTrue(
-            consumed7Bits >= 0 && consumed7Bits < 128,
+            consumed7Bits in 0..<128,
             "Expected a 7-bit value (0-127), but got $consumed7Bits",
         )
         assertEquals(12, buffer.getBitCount())
@@ -216,7 +216,7 @@ class BitBufferTest {
         val peek12Bits = buffer.peekBits(12)
         // The value could vary depending on platform
         assertTrue(
-            peek12Bits >= 0 && peek12Bits < 4096,
+            peek12Bits in 0..<4096,
             "Expected a 12-bit value (0-4095), but got $peek12Bits",
         )
 

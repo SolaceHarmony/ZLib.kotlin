@@ -42,8 +42,8 @@ object ZlibLogger {
         val timestamp = currentTimestamp()
         val location =
             if (className.isNotEmpty() || functionName.isNotEmpty()) {
-                val cls = if (className.isNotEmpty()) className else "Unknown"
-                val func = if (functionName.isNotEmpty()) functionName else "unknown"
+                val cls = className.ifEmpty { "Unknown" }
+                val func = functionName.ifEmpty { "unknown" }
                 "[$cls::$func] "
             } else {
                 ""

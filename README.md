@@ -79,7 +79,7 @@ kotlin {
 Here's a simple example of compressing and decompressing a `ByteArray`:
 
 ```kotlin
-import com.solaceharmony.zlib.kotlin.ZLib
+#import com.solaceharmony.zlib.kotlin.ZLib
 
 val data: ByteArray = "Hello, ZLib.kotlin!".encodeToByteArray()
 
@@ -92,7 +92,7 @@ val decompressed: ByteArray = ZLib.decompress(compressed)
 println(decompressed.decodeToString()) // Output: Hello, ZLib.kotlin!
 ```
 
-For more advanced usage, streaming, or custom options, see the detailed [API documentation](docs/API.md) and practical [examples](examples/).
+For more advanced usage, streaming, or custom options, see the detailed [API documentation] - ./docs/API.md and practical [examples] - ./examples/.
 
 ---
 
@@ -106,7 +106,7 @@ Comprehensive API documentation covering:
 - Advanced usage patterns
 - Error handling and performance tips
 
-### 💡 [Examples](examples/)
+### 💡 [Examples] ./examples/
 Practical examples demonstrating:
 - **Basic compression/decompression** - Simple operations with error handling
 - **Advanced techniques** - Performance comparison, streaming, custom parameters
@@ -167,8 +167,6 @@ Contributions, bug reports, and pull requests are welcome!
 
 - Fork the repo and create your branch.
 - Submit a PR with a clear description.
-- Review the [CONTRIBUTING](CONTRIBUTING.md) guidelines.
-
 ---
 
 ## Contact

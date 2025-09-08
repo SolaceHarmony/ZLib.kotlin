@@ -9,8 +9,8 @@ object CanonicalHuffman {
     /**
      * Dense decode table: size = 2^maxLen.
      * Index by the low maxLen bits from the bitstream.
-     * `bits[i]` = number of bits to consume (0 means invalid entry)
-     * `vals[i]` = symbol for that entry
+     * bits = number of bits to consume (0 means invalid entry)
+     * vals = symbol for that entry
      */
     data class FullTable(
         val maxLen: Int,
