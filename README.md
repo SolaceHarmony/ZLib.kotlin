@@ -9,6 +9,7 @@
 
 **ZLib.kotlin** is a clean-room, RFC-based implementation of the zlib format (RFC 1950) and DEFLATE (RFC 1951) in pure Kotlin Multiplatform. It is not a direct port of zlib or any C# project. The original zlib and certain .NET ports served as useful references; see Credits.
 
+
 ---
 
 ## Table of Contents
