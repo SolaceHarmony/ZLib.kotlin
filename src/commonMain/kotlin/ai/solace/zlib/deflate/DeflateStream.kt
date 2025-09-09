@@ -354,7 +354,6 @@ object DeflateStream {
     }
 
     /** Fixed-Huffman compressor with streaming LZ77 (greedy+lazy), limited matcher, arithmetic bit writing. */
-    @Suppress("unused")
     private fun compressZlibFixed(
         source: BufferedSource,
         sink: BufferedSink,

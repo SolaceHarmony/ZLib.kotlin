@@ -5,11 +5,11 @@ import ai.solace.zlib.common.TREE_BASE_LENGTH
 import ai.solace.zlib.common.TREE_BL_ORDER
 import ai.solace.zlib.common.TREE_EXTRA_DBITS
 import ai.solace.zlib.common.TREE_EXTRA_LBITS
+import ai.solace.zlib.common.Z_BUF_ERROR
 import ai.solace.zlib.common.Z_DATA_ERROR
 import ai.solace.zlib.common.Z_DEFLATED
 import ai.solace.zlib.common.Z_OK
 import ai.solace.zlib.common.Z_STREAM_END
-import ai.solace.zlib.common.Z_BUF_ERROR
 import ai.solace.zlib.common.ZlibLogger
 import okio.BufferedSink
 import okio.BufferedSource
@@ -138,6 +138,18 @@ object InflateStream {
 
     // --- Helpers to deduplicate decode logic ---
 
+    /** Decode one symbol using [table]; convert IllegalStateException to DataFormatException with context. */
+    private fun decodeSymOrThrow(
+        br: StreamingBitReader,
+        table: CanonicalHuffman.FullTable,
+        context: String,
+    ): Int =
+        try {
+            CanonicalHuffman.decodeOne(br, table)
+        } catch (e: IllegalStateException) {
+            throw DataFormatException("Invalid Huffman ($context): ${e.message}", e)
+        }
+
     /** Decode match length from a literal/length symbol (sym >= 257). Returns -1 on error. */
     private fun decodeLength(
         br: StreamingBitReader,
@@ -213,16 +225,6 @@ object InflateStream {
         return out
     }
 
-    // Build both decode tables together to avoid duplicated code at call sites
-    private fun buildDecodeTables(
-        litLens: IntArray,
-        distLens: IntArray,
-    ): Pair<CanonicalHuffman.FullTable, CanonicalHuffman.FullTable> {
-        val litTable = CanonicalHuffman.buildFull(litLens)
-        val distTable = CanonicalHuffman.buildFull(distLens)
-        return litTable to distTable
-    }
-
     private fun decodeFixed(
         br: StreamingBitReader,
         sink: BufferedSink,
@@ -234,28 +236,14 @@ object InflateStream {
         val distTable = FIXED_TABLES.dist
 
         loop@ while (true) {
-            val sym =
-                try {
-                    CanonicalHuffman.decodeOne(br, litTable)
-                } catch (e: SourceExhausted) {
-                    throw e
-                } catch (e: IllegalStateException) {
-                    return Z_DATA_ERROR
-                }
+            val sym = decodeSymOrThrow(br, litTable, "fixed lit")
             when {
                 sym < 256 -> writeByte(sym, sink, window, posRef, adler)
                 sym == 256 -> break@loop
                 else -> {
                     val length = decodeLength(br, sym)
                     if (length < 0) return Z_DATA_ERROR
-                    val distSym =
-                        try {
-                            CanonicalHuffman.decodeOne(br, distTable)
-                        } catch (e: SourceExhausted) {
-                            throw e
-                        } catch (e: IllegalStateException) {
-                            return Z_DATA_ERROR
-                        }
+                    val distSym = decodeSymOrThrow(br, distTable, "fixed dist")
                     val dist = decodeDistance(br, distSym)
                     if (dist < 0) return Z_DATA_ERROR
                     copyMatch(length, dist, sink, window, posRef, adler)
@@ -291,29 +279,14 @@ object InflateStream {
         val distTable = tryBuildTable(distLens) ?: return Z_DATA_ERROR
 
         loop@ while (true) {
-            val sym =
-                try {
-                    CanonicalHuffman.decodeOne(br, litTable)
-                } catch (e: SourceExhausted) {
-                    throw e
-                } catch (e: IllegalStateException) {
-                    return Z_DATA_ERROR
-                }
+            val sym = decodeSymOrThrow(br, litTable, "dynamic lit")
             when {
                 sym < 256 -> writeByte(sym, sink, window, posRef, adler)
                 sym == 256 -> break@loop
                 else -> {
                     val length = decodeLength(br, sym)
                     if (length < 0) return Z_DATA_ERROR
-                    val distSym =
-                        try {
-                            CanonicalHuffman.decodeOne(br, distTable)
-                        } catch (e: SourceExhausted) {
-                            throw e
-                        } catch (e: IllegalStateException) {
-                            ZlibLogger.logInflate("Invalid Huffman (dynamic dist): ${'$'}{e.message}", "decodeDynamic")
-                            return Z_DATA_ERROR
-                        }
+                    val distSym = decodeSymOrThrow(br, distTable, "dynamic dist")
                     val dist = decodeDistance(br, distSym)
                     if (dist < 0) return Z_DATA_ERROR
                     copyMatch(length, dist, sink, window, posRef, adler)
@@ -326,7 +299,6 @@ object InflateStream {
     /**
      * Inflate a zlib-wrapped stream from [source] to [sink]. Returns Pair(resultCode, bytesOut).
      */
-    @Suppress("SwallowedException")
     fun inflateZlib(
         source: BufferedSource,
         sink: BufferedSink,
@@ -376,9 +348,24 @@ object InflateStream {
             return Z_STREAM_END to totalOut
         } catch (e: SourceExhausted) {
             // Need more input bytes to proceed
-            ZlibLogger.logInflate("Source exhausted during inflate: ${'$'}{e.message}", "inflateZlib")
-            val out = try { sink.buffer.size } catch (_: Exception) { 0L }
+            ZlibLogger.logInflate("Source exhausted during inflate: ${e.message}", "inflateZlib")
+            val out =
+                try {
+                    sink.buffer.size
+                } catch (_: Exception) {
+                    0L
+                }
             return Z_BUF_ERROR to out
+        } catch (e: DataFormatException) {
+            // Corrupt or invalid data encountered in stream
+            ZlibLogger.logInflate("Data format error during inflate: ${e.message}", "inflateZlib")
+            val out =
+                try {
+                    sink.buffer.size
+                } catch (_: Exception) {
+                    0L
+                }
+            return Z_DATA_ERROR to out
         }
     }
 }
