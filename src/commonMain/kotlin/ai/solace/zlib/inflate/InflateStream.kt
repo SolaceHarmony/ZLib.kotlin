@@ -115,6 +115,30 @@ object InflateStream {
             null
         }
 
+    // Pre-check Huffman code lengths using the classic "left" algorithm.
+    // Returns null if OK; otherwise returns a human-readable reason ("oversubscribed" or "incomplete").
+    private fun precheckCodeLengths(lengths: IntArray): String? {
+        var maxLen = 0
+        for (l in lengths) if (l > maxLen) maxLen = l
+        if (maxLen == 0) return "incomplete (no codes)"
+        val blCount = IntArray(maxLen + 1)
+        var nonZero = 0
+        for (l in lengths) {
+            if (l < 0) return "invalid length"
+            if (l > 0) {
+                nonZero++
+                blCount[l]++
+            }
+        }
+        var left = 1
+        for (bits in 1..maxLen) {
+            left = (left shl 1) - blCount[bits]
+            if (left < 0) return "oversubscribed"
+        }
+        // If left > 0, tree is incomplete. Allow a degenerate single-symbol tree; otherwise flag incomplete.
+        return if (left != 0 && nonZero > 1) "incomplete" else null
+    }
+
     private val FIXED_LIT_LENS: IntArray by lazy {
         IntArray(288).also {
             for (i in 0..143) it[i] = 8
@@ -279,6 +303,15 @@ object InflateStream {
         }
         if (!validateDistLens(distLens)) {
             ZlibLogger.logInflate("Invalid dynamic distance tree: no distance codes defined", "decodeDynamic")
+            return Z_DATA_ERROR
+        }
+        // Explicit pre-checks for over-/under-subscribed code sets
+        precheckCodeLengths(litLenLens)?.let { reason ->
+            ZlibLogger.logInflate("Invalid dynamic literal/length tree ($reason)", "decodeDynamic")
+            return Z_DATA_ERROR
+        }
+        precheckCodeLengths(distLens)?.let { reason ->
+            ZlibLogger.logInflate("Invalid dynamic distance tree ($reason)", "decodeDynamic")
             return Z_DATA_ERROR
         }
         val litTable =
