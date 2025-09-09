@@ -1,6 +1,6 @@
 package ai.solace.zlib.cli
 
-import ai.solace.zlib.common.Z_OK
+import ai.solace.zlib.common.Z_STREAM_END
 import ai.solace.zlib.common.ZlibLogger
 import ai.solace.zlib.deflate.DeflateStream
 import ai.solace.zlib.inflate.InflateStream
@@ -68,7 +68,7 @@ fun main(args: Array<String>) {
             try {
                 val (result, bytesOut) = InflateStream.inflateZlib(src, snk)
                 snk.flush()
-                if (result == Z_OK) {
+                if (result == Z_STREAM_END) {
                     val inSize = FileSystem.SYSTEM.metadata(inPath).size ?: -1L
                     println("Decompressed $inSize bytes to $bytesOut bytes")
                 } else {
@@ -104,4 +104,3 @@ fun main(args: Array<String>) {
         }
     }
 }
-

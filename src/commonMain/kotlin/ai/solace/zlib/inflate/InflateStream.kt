@@ -273,10 +273,26 @@ object InflateStream {
         val distLens = readCodeLengths(br, clTable, hdist) ?: return Z_DATA_ERROR
 
         // Validate and safely build tables
-        if (!validateLitLens(litLenLens)) return Z_DATA_ERROR
-        if (!validateDistLens(distLens)) return Z_DATA_ERROR
-        val litTable = tryBuildTable(litLenLens) ?: return Z_DATA_ERROR
-        val distTable = tryBuildTable(distLens) ?: return Z_DATA_ERROR
+        if (!validateLitLens(litLenLens)) {
+            ZlibLogger.logInflate("Invalid dynamic literal/length tree: missing codes or missing EOB(256)", "decodeDynamic")
+            return Z_DATA_ERROR
+        }
+        if (!validateDistLens(distLens)) {
+            ZlibLogger.logInflate("Invalid dynamic distance tree: no distance codes defined", "decodeDynamic")
+            return Z_DATA_ERROR
+        }
+        val litTable =
+            tryBuildTable(litLenLens)
+                ?: run {
+                    ZlibLogger.logInflate("Failed to build dynamic literal/length Huffman table (oversubscribed or incomplete)", "decodeDynamic")
+                    return Z_DATA_ERROR
+                }
+        val distTable =
+            tryBuildTable(distLens)
+                ?: run {
+                    ZlibLogger.logInflate("Failed to build dynamic distance Huffman table (oversubscribed or incomplete)", "decodeDynamic")
+                    return Z_DATA_ERROR
+                }
 
         loop@ while (true) {
             val sym = decodeSymOrThrow(br, litTable, "dynamic lit")
