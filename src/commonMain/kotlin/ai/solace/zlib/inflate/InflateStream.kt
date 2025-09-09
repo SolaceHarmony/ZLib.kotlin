@@ -8,11 +8,13 @@ import ai.solace.zlib.common.TREE_EXTRA_LBITS
 import ai.solace.zlib.common.Z_BUF_ERROR
 import ai.solace.zlib.common.Z_DATA_ERROR
 import ai.solace.zlib.common.Z_DEFLATED
+import ai.solace.zlib.common.Z_ERRNO
 import ai.solace.zlib.common.Z_OK
 import ai.solace.zlib.common.Z_STREAM_END
 import ai.solace.zlib.common.ZlibLogger
 import okio.BufferedSink
 import okio.BufferedSource
+import okio.IOException
 
 /**
  * Streaming zlib inflate: reads from a BufferedSource and writes to a BufferedSink.
@@ -415,6 +417,16 @@ object InflateStream {
                     0L
                 }
             return Z_DATA_ERROR to out
+        } catch (e: IOException) {
+            // I/O failure from underlying source/sink
+            ZlibLogger.logInflate("I/O error during inflate: ${e.message}", "inflateZlib")
+            val out =
+                try {
+                    sink.buffer.size
+                } catch (_: Exception) {
+                    0L
+                }
+            return Z_ERRNO to out
         }
     }
 }
