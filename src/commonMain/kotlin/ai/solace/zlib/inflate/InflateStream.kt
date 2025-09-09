@@ -12,6 +12,7 @@ import ai.solace.zlib.common.Z_ERRNO
 import ai.solace.zlib.common.Z_OK
 import ai.solace.zlib.common.Z_STREAM_END
 import ai.solace.zlib.common.ZlibLogger
+import kotlin.math.min
 import okio.BufferedSink
 import okio.BufferedSource
 import okio.IOException
@@ -44,6 +45,7 @@ object InflateStream {
         window: ByteArray,
         posRef: IntArray,
         adler: LongArray,
+        outCount: LongArray,
     ): Int {
         br.alignToByte()
         val len = br.readAlignedByte() or (br.readAlignedByte() shl 8)
@@ -59,6 +61,7 @@ object InflateStream {
             pos = (pos + 1) and (WINDOW_SIZE - 1)
             s1 = (s1 + (b and 0xFF)) % 65521
             s2 = (s2 + s1) % 65521
+            outCount[0] = outCount[0] + 1
         }
         posRef[0] = pos
         adler[0] = (s2 shl 16) or s1
@@ -76,6 +79,7 @@ object InflateStream {
         window: ByteArray,
         posRef: IntArray,
         adler: LongArray,
+        outCount: LongArray,
     ) {
         var s1 = adler[0] and 0xFFFF
         var s2 = (adler[0] ushr 16) and 0xFFFF
@@ -85,6 +89,7 @@ object InflateStream {
         s1 = (s1 + (b and 0xFF)) % 65521
         s2 = (s2 + s1) % 65521
         adler[0] = (s2 shl 16) or s1
+        outCount[0] = outCount[0] + 1
     }
 
     // --- Validation and cached tables ---
@@ -210,12 +215,13 @@ object InflateStream {
         window: ByteArray,
         posRef: IntArray,
         adler: LongArray,
+        outCount: LongArray,
     ) {
         var i = 0
         while (i < length) {
             val srcIndex = (posRef[0] - dist + WINDOW_SIZE) and (WINDOW_SIZE - 1)
             val b = window[srcIndex].toInt() and 0xFF
-            writeByte(b, sink, window, posRef, adler)
+            writeByte(b, sink, window, posRef, adler, outCount)
             i++
         }
     }
@@ -257,6 +263,7 @@ object InflateStream {
         window: ByteArray,
         posRef: IntArray,
         adler: LongArray,
+        outCount: LongArray,
     ): Int {
         val litTable = FIXED_TABLES.lit
         val distTable = FIXED_TABLES.dist
@@ -264,7 +271,7 @@ object InflateStream {
         loop@ while (true) {
             val sym = decodeSymOrThrow(br, litTable, "fixed lit")
             when {
-                sym < 256 -> writeByte(sym, sink, window, posRef, adler)
+                sym < 256 -> writeByte(sym, sink, window, posRef, adler, outCount)
                 sym == 256 -> break@loop
                 else -> {
                     val length = decodeLength(br, sym)
@@ -272,7 +279,12 @@ object InflateStream {
                     val distSym = decodeSymOrThrow(br, distTable, "fixed dist")
                     val dist = decodeDistance(br, distSym)
                     if (dist < 0) return Z_DATA_ERROR
-                    copyMatch(length, dist, sink, window, posRef, adler)
+                    val available = min(outCount[0], WINDOW_SIZE.toLong()).toInt()
+                    if (dist < 1 || dist > available) {
+                        ZlibLogger.logInflate("distance too far back (dist=$dist, available=$available)", "decodeFixed")
+                        return Z_DATA_ERROR
+                    }
+                    copyMatch(length, dist, sink, window, posRef, adler, outCount)
                 }
             }
         }
@@ -285,6 +297,7 @@ object InflateStream {
         window: ByteArray,
         posRef: IntArray,
         adler: LongArray,
+        outCount: LongArray,
     ): Int {
         val hlit = br.take(5) + 257
         val hdist = br.take(5) + 1
@@ -332,7 +345,7 @@ object InflateStream {
         loop@ while (true) {
             val sym = decodeSymOrThrow(br, litTable, "dynamic lit")
             when {
-                sym < 256 -> writeByte(sym, sink, window, posRef, adler)
+                sym < 256 -> writeByte(sym, sink, window, posRef, adler, outCount)
                 sym == 256 -> break@loop
                 else -> {
                     val length = decodeLength(br, sym)
@@ -340,7 +353,12 @@ object InflateStream {
                     val distSym = decodeSymOrThrow(br, distTable, "dynamic dist")
                     val dist = decodeDistance(br, distSym)
                     if (dist < 0) return Z_DATA_ERROR
-                    copyMatch(length, dist, sink, window, posRef, adler)
+                    val available = min(outCount[0], WINDOW_SIZE.toLong()).toInt()
+                    if (dist < 1 || dist > available) {
+                        ZlibLogger.logInflate("distance too far back (dist=$dist, available=$available)", "decodeDynamic")
+                        return Z_DATA_ERROR
+                    }
+                    copyMatch(length, dist, sink, window, posRef, adler, outCount)
                 }
             }
         }
@@ -355,6 +373,7 @@ object InflateStream {
         sink: BufferedSink,
     ): Pair<Int, Long> {
         val br = StreamingBitReader(source)
+        val outCount = longArrayOf(0L)
         try {
             if (!readZlibHeader(br)) return Z_DATA_ERROR to 0L
 
@@ -367,21 +386,21 @@ object InflateStream {
                 val last = br.take(1)
                 when (br.take(2)) {
                     0 -> {
-                        val r = copyStored(br, sink, window, posRef, adler)
+                        val r = copyStored(br, sink, window, posRef, adler, outCount)
                         if (r != Z_OK) return r to totalOut
                     }
                     1 -> {
-                        val r = decodeFixed(br, sink, window, posRef, adler)
+                        val r = decodeFixed(br, sink, window, posRef, adler, outCount)
                         if (r != Z_OK) return r to totalOut
                     }
                     2 -> {
-                        val r = decodeDynamic(br, sink, window, posRef, adler)
+                        val r = decodeDynamic(br, sink, window, posRef, adler, outCount)
                         if (r != Z_OK) return r to totalOut
                     }
                     else -> return Z_DATA_ERROR to totalOut
                 }
-                // We don't know bytesOut per-block; flush sink's buffer length heuristically
-                totalOut = sink.buffer.size
+                // Update bytesOut using tracked count
+                totalOut = outCount[0]
                 if (last == 1) break
             }
 
@@ -400,33 +419,15 @@ object InflateStream {
         } catch (e: SourceExhausted) {
             // Need more input bytes to proceed
             ZlibLogger.logInflate("Source exhausted during inflate: ${e.message}", "inflateZlib")
-            val out =
-                try {
-                    sink.buffer.size
-                } catch (_: Exception) {
-                    0L
-                }
-            return Z_BUF_ERROR to out
+            return Z_BUF_ERROR to outCount[0]
         } catch (e: DataFormatException) {
             // Corrupt or invalid data encountered in stream
             ZlibLogger.logInflate("Data format error during inflate: ${e.message}", "inflateZlib")
-            val out =
-                try {
-                    sink.buffer.size
-                } catch (_: Exception) {
-                    0L
-                }
-            return Z_DATA_ERROR to out
+            return Z_DATA_ERROR to outCount[0]
         } catch (e: IOException) {
             // I/O failure from underlying source/sink
             ZlibLogger.logInflate("I/O error during inflate: ${e.message}", "inflateZlib")
-            val out =
-                try {
-                    sink.buffer.size
-                } catch (_: Exception) {
-                    0L
-                }
-            return Z_ERRNO to out
+            return Z_ERRNO to outCount[0]
         }
     }
 }
