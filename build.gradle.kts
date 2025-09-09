@@ -52,6 +52,7 @@ kotlin {
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation("com.squareup.okio:okio:3.10.2")
             }
         }
         // Native shared source set (optional, exists due to expect/actual logger)
