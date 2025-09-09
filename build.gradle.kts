@@ -21,7 +21,8 @@ kotlin {
         allWarningsAsErrors.set(true)
     }
 
-    // Native targets (no JVM target)
+    // No JVM target: project is Native/JS/WASM focused; do not add JVM here
+
     macosArm64 {
         binaries {
             executable {
@@ -114,22 +115,31 @@ if (!withTests) {
     }
 }
 
-// Root `test` task: JVM only
+// Root `test` task: Native only (host-appropriate)
 tasks.register("test") {
     group = "verification"
     description =
         if (withTests) {
-            "Runs JVM tests"
+            "Runs native tests on the current host (macosArm64 or linuxX64)"
         } else {
-            "Displays how to enable running JVM tests"
+            "Displays how to enable running native tests"
         }
 
     if (withTests) {
-        dependsOn(tasks.withType<Test>())
+        val osName = System.getProperty("os.name").lowercase()
+        when {
+            osName.contains("mac") -> dependsOn("macosArm64Test")
+            osName.contains("nux") || osName.contains("linux") -> dependsOn("linuxX64Test")
+            else -> doFirst {
+                println("[ZLib.kotlin] No native test task configured for host OS: $osName")
+            }
+        }
     } else {
         doFirst {
-            println("\n[ZLib.kotlin] JVM tests are disabled by default.")
-            println("To run tests, use: ./gradlew -PwithTests=true test\n")
+            println("\n[ZLib.kotlin] Native tests are disabled by default.")
+            println("To run macOS tests: ./gradlew -PwithTests=true macosArm64Test")
+            println("To run Linux tests: ./gradlew -PwithTests=true linuxX64Test")
+            println("Or use host-agnostic: ./gradlew -PwithTests=true test\n")
         }
     }
 }
