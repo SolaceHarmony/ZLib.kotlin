@@ -9,6 +9,7 @@ import ai.solace.zlib.common.Z_BUF_ERROR
 import ai.solace.zlib.common.Z_DATA_ERROR
 import ai.solace.zlib.common.Z_DEFLATED
 import ai.solace.zlib.common.Z_ERRNO
+import ai.solace.zlib.common.Z_NEED_DICT
 import ai.solace.zlib.common.Z_OK
 import ai.solace.zlib.common.Z_STREAM_END
 import ai.solace.zlib.common.ZlibLogger
@@ -24,19 +25,23 @@ import okio.IOException
 object InflateStream {
     private const val WINDOW_SIZE = 32 * 1024
 
-    private fun readZlibHeader(br: StreamingBitReader): Boolean {
+    private fun readZlibHeader(br: StreamingBitReader): Int {
         br.alignToByte()
         val cmf = br.readAlignedByte()
         val flg = br.readAlignedByte()
         val cm = cmf and 0x0F
         val cinfo = (cmf ushr 4) and 0x0F
-        if (cm != Z_DEFLATED || cinfo > 7) return false
-        if (((cmf shl 8) or flg) % 31 != 0) return false
+        if (cm != Z_DEFLATED || cinfo > 7) return Z_DATA_ERROR
+        if (((cmf shl 8) or flg) % 31 != 0) return Z_DATA_ERROR
         val presetDict = (flg and 0x20) != 0
         if (presetDict) {
-            repeat(4) { br.readAlignedByte() } // skip DICTID
+            // RFC 1950: when FDICT is set, a DICTID follows and a preset dictionary must be supplied
+            // Since this API has no way to provide the dictionary, signal Z_NEED_DICT immediately.
+            // Still consume the DICTID bytes from the stream to leave the reader positioned correctly.
+            repeat(4) { br.readAlignedByte() }
+            return Z_NEED_DICT
         }
-        return true
+        return Z_OK
     }
 
     private fun copyStored(
@@ -375,7 +380,8 @@ object InflateStream {
         val br = StreamingBitReader(source)
         val outCount = longArrayOf(0L)
         try {
-            if (!readZlibHeader(br)) return Z_DATA_ERROR to 0L
+            val hdr = readZlibHeader(br)
+            if (hdr != Z_OK) return hdr to 0L
 
             val window = ByteArray(WINDOW_SIZE)
             val posRef = intArrayOf(0)
