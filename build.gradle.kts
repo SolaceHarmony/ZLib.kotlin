@@ -1,9 +1,7 @@
 @file:OptIn(ExperimentalKotlinGradlePluginApi::class)
 
 import org.gradle.api.tasks.testing.Test
-import org.jetbrains.kotlin.gradle.dsl.KotlinMultiplatformExtension
 import org.jetbrains.kotlin.gradle.ExperimentalKotlinGradlePluginApi
-import org.jetbrains.kotlin.gradle.targets.native.tasks.KotlinNativeTest
 
 plugins {
     kotlin("multiplatform") version "2.2.10"
@@ -12,7 +10,7 @@ plugins {
 }
 
 kotlin {
-    // Standardize on Java 17 toolchain
+    // Standardize on Java 17 toolchain (used by Gradle tooling even without JVM target)
     jvmToolchain(17)
 
     // Modern Kotlin compiler options (K2)
@@ -21,11 +19,11 @@ kotlin {
         apiVersion.set(org.jetbrains.kotlin.gradle.dsl.KotlinVersion.KOTLIN_2_2)
         progressiveMode.set(true)
         allWarningsAsErrors.set(true)
-        // expect/actual classes are stable in modern Kotlin; no extra flag required.
     }
 
-    // Only include Linux x64 for now to avoid network dependency issues
-    linuxX64 {
+    // No JVM target: project is Native/JS/WASM focused; do not add JVM here
+
+    macosArm64 {
         binaries {
             executable {
                 entryPoint = "ai.solace.zlib.cli.main"
@@ -33,15 +31,12 @@ kotlin {
             }
         }
     }
-
-    // Restore macOS target so tests can run locally on macOS hosts
-    macosArm64 {
+    linuxX64 {
         binaries {
             executable {
                 entryPoint = "ai.solace.zlib.cli.main"
                 baseName = "zlib-cli"
             }
-            // test binary is created by default
         }
     }
 
@@ -57,53 +52,20 @@ kotlin {
         val commonTest by getting {
             dependencies {
                 implementation(kotlin("test"))
+                implementation("com.squareup.okio:okio:3.10.2")
             }
         }
-
+        // Native shared source set (optional, exists due to expect/actual logger)
         val nativeMain by creating {
             dependsOn(commonMain)
         }
         val nativeTest by creating {
             dependsOn(commonTest)
         }
-
-        // Linux source sets
-        val linuxMain by creating {
-            dependsOn(nativeMain)
-        }
-        val linuxTest by creating {
-            dependsOn(nativeTest)
-        }
-
-        // Configure platform-specific source sets
-        @Suppress("unused")
-        val linuxX64Main by getting {
-            dependsOn(linuxMain)
-            // Redundant edge for IDE clarity
-            dependsOn(commonMain)
-        }
-
-        @Suppress("unused")
-        val linuxX64Test by getting {
-            dependsOn(linuxTest)
-            // Redundant edge for IDE clarity
-            dependsOn(commonTest)
-        }
-
-        // Configure platform-specific source sets for macOS
-        @Suppress("unused")
-        val macosArm64Main by getting {
-            dependsOn(nativeMain)
-            // Redundant edge for IDE clarity
-            dependsOn(commonMain)
-        }
-
-        @Suppress("unused")
-        val macosArm64Test by getting {
-            dependsOn(nativeTest)
-            // Redundant edge for IDE clarity
-            dependsOn(commonTest)
-        }
+        val macosArm64Main by getting { dependsOn(nativeMain) }
+        val macosArm64Test by getting { dependsOn(nativeTest) }
+        val linuxX64Main by getting { dependsOn(nativeMain) }
+        val linuxX64Test by getting { dependsOn(nativeTest) }
     }
 }
 
@@ -116,7 +78,6 @@ ktlint {
     android.set(false)
     outputToConsole.set(true)
     ignoreFailures.set(false)
-    // No excludes: cover all source sets, including tests
 }
 
 // Detekt configuration
@@ -130,13 +91,8 @@ detekt {
             // Main
             "src/commonMain/kotlin",
             "src/nativeMain/kotlin",
-            "src/linuxMain/kotlin",
-            "src/macosArm64Main/kotlin",
             // Tests
             "src/commonTest/kotlin",
-            "src/nativeTest/kotlin",
-            "src/linuxTest/kotlin",
-            "src/macosArm64Test/kotlin",
         ),
     )
     ignoreFailures = false // Fail the build on violations
@@ -154,54 +110,37 @@ val withTests: Boolean =
         .map { it.equals("true", ignoreCase = true) }
         .getOrElse(false)
 
-// For Kotlin Multiplatform, disable only actual test execution tasks unless explicitly enabled.
 if (!withTests) {
     tasks.withType<Test>().configureEach {
         enabled = false
     }
-    tasks.withType<KotlinNativeTest>().configureEach {
-        enabled = false
-    }
 }
 
-// Friendly root `test` task for KMP: prints targets/tasks when tests are disabled,
-// or depends on all available test tasks when -PwithTests=true
-val kmp = extensions.findByType(KotlinMultiplatformExtension::class.java)
-
+// Root `test` task: Native only (host-appropriate)
 tasks.register("test") {
     group = "verification"
     description =
         if (withTests) {
-            "Runs all tests across configured Kotlin Multiplatform targets"
+            "Runs native tests on the current host (macosArm64 or linuxX64)"
         } else {
-            "Displays available test targets and how to enable running tests"
+            "Displays how to enable running native tests"
         }
 
     if (withTests) {
-        // Only depend on tasks that are present; Gradle will ignore empty collections
-        dependsOn(tasks.withType<Test>())
-        dependsOn(tasks.withType<KotlinNativeTest>())
+        val osName = System.getProperty("os.name").lowercase()
+        when {
+            osName.contains("mac") -> dependsOn("macosArm64Test")
+            osName.contains("nux") || osName.contains("linux") -> dependsOn("linuxX64Test")
+            else -> doFirst {
+                println("[ZLib.kotlin] No native test task configured for host OS: $osName")
+            }
+        }
     } else {
         doFirst {
-            val targets =
-                        kmp
-                            ?.targets
-                            ?.map { it.name }
-                            ?.sorted()
-                            .orEmpty()
-            println("\n[ZLib.kotlin] Tests are disabled by default.")
-            println("To run tests, use: ./gradlew -PwithTests=true test\n")
-            if (targets.isNotEmpty()) {
-                println("Configured Kotlin Multiplatform targets: ${targets.joinToString(", ")}")
-            }
-            val jvmTests = tasks.withType<Test>().map { it.path }.sorted()
-            val nativeTests = tasks.withType<KotlinNativeTest>().map { it.path }.sorted()
-            if (jvmTests.isNotEmpty() || nativeTests.isNotEmpty()) {
-                println("Available test tasks (may be disabled on this host):")
-                if (jvmTests.isNotEmpty()) println(" - JVM: ${jvmTests.joinToString(", ")}")
-                if (nativeTests.isNotEmpty()) println(" - Native: ${nativeTests.joinToString(", ")}")
-            }
-            println()
+            println("\n[ZLib.kotlin] Native tests are disabled by default.")
+            println("To run macOS tests: ./gradlew -PwithTests=true macosArm64Test")
+            println("To run Linux tests: ./gradlew -PwithTests=true linuxX64Test")
+            println("Or use host-agnostic: ./gradlew -PwithTests=true test\n")
         }
     }
 }

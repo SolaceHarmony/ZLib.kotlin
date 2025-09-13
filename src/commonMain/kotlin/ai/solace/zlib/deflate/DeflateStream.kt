@@ -11,6 +11,8 @@ import ai.solace.zlib.inflate.CanonicalHuffman
 import ai.solace.zlib.inflate.StreamingBitWriter
 import okio.BufferedSink
 import okio.BufferedSource
+import ai.solace.zlib.common.Z_OK
+import ai.solace.zlib.common.Z_STREAM_ERROR
 
 /**
  * Streaming zlib compressor (stored blocks only, no Huffman) for correctness and portability.
@@ -308,6 +310,23 @@ object DeflateStream {
             else -> compressZlibDynamic(source, sink, level)
         }
 
+    /**
+     * Compress with explicit status code.
+     * Returns (Z_OK, bytesIn) on success, or (Z_STREAM_ERROR, 0) when parameters are invalid.
+     * Currently validates the compression level to be at most 9; negative values are treated as stored mode.
+     */
+    fun compressZlibResult(
+        source: BufferedSource,
+        sink: BufferedSink,
+        level: Int = 6,
+    ): Pair<Int, Long> {
+        if (level > 9) {
+            return Z_STREAM_ERROR to 0L
+        }
+        val bytesIn = compressZlib(source, sink, level)
+        return Z_OK to bytesIn
+    }
+
     /** Stored-block compressor (no compression). */
     private fun compressZlibStored(
         source: BufferedSource,
@@ -354,7 +373,6 @@ object DeflateStream {
     }
 
     /** Fixed-Huffman compressor with streaming LZ77 (greedy+lazy), limited matcher, arithmetic bit writing. */
-    @Suppress("unused")
     private fun compressZlibFixed(
         source: BufferedSource,
         sink: BufferedSink,

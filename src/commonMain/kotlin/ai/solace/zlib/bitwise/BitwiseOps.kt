@@ -1,4 +1,4 @@
-@file:Suppress("unused", "ktlint:standard:indent")
+@file:Suppress("unused", "UNUSED_PARAMETER", "ktlint:standard:indent")
 
 package ai.solace.zlib.bitwise
 

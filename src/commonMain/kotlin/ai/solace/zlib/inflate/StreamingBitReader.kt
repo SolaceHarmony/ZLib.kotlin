@@ -51,5 +51,8 @@ class StreamingBitReader(
             bitBuffer = bitBuffer or (b shl bitCount)
             bitCount += 8
         }
+        if (minBits > 0 && bitCount < minBits) {
+            throw SourceExhausted("Needed $minBits bits but only $bitCount available (source exhausted)")
+        }
     }
 }

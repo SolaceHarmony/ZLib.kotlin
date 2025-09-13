@@ -50,11 +50,12 @@ class BitBuffer {
         val result = buffer and BitwiseOps.createMask(bits)
 
         // Shift the buffer or clear it if consuming all bits
-        buffer = if (bits >= 32 || bitCount - bits == 0) {
-            0
-        } else {
-            buffer ushr bits
-        }
+        buffer =
+            if (bits >= 32 || bitCount - bits == 0) {
+                0
+            } else {
+                buffer ushr bits
+            }
 
         // Update the bit count
         bitCount -= bits

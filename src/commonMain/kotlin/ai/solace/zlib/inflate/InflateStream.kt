@@ -5,11 +5,18 @@ import ai.solace.zlib.common.TREE_BASE_LENGTH
 import ai.solace.zlib.common.TREE_BL_ORDER
 import ai.solace.zlib.common.TREE_EXTRA_DBITS
 import ai.solace.zlib.common.TREE_EXTRA_LBITS
+import ai.solace.zlib.common.Z_BUF_ERROR
 import ai.solace.zlib.common.Z_DATA_ERROR
 import ai.solace.zlib.common.Z_DEFLATED
+import ai.solace.zlib.common.Z_ERRNO
+import ai.solace.zlib.common.Z_NEED_DICT
 import ai.solace.zlib.common.Z_OK
+import ai.solace.zlib.common.Z_STREAM_END
+import ai.solace.zlib.common.ZlibLogger
+import kotlin.math.min
 import okio.BufferedSink
 import okio.BufferedSource
+import okio.IOException
 
 /**
  * Streaming zlib inflate: reads from a BufferedSource and writes to a BufferedSink.
@@ -18,19 +25,23 @@ import okio.BufferedSource
 object InflateStream {
     private const val WINDOW_SIZE = 32 * 1024
 
-    private fun readZlibHeader(br: StreamingBitReader): Boolean {
+    private fun readZlibHeader(br: StreamingBitReader): Int {
         br.alignToByte()
         val cmf = br.readAlignedByte()
         val flg = br.readAlignedByte()
         val cm = cmf and 0x0F
         val cinfo = (cmf ushr 4) and 0x0F
-        if (cm != Z_DEFLATED || cinfo > 7) return false
-        if (((cmf shl 8) or flg) % 31 != 0) return false
+        if (cm != Z_DEFLATED || cinfo > 7) return Z_DATA_ERROR
+        if (((cmf shl 8) or flg) % 31 != 0) return Z_DATA_ERROR
         val presetDict = (flg and 0x20) != 0
         if (presetDict) {
-            repeat(4) { br.readAlignedByte() } // skip DICTID
+            // RFC 1950: when FDICT is set, a DICTID follows and a preset dictionary must be supplied
+            // Since this API has no way to provide the dictionary, signal Z_NEED_DICT immediately.
+            // Still consume the DICTID bytes from the stream to leave the reader positioned correctly.
+            repeat(4) { br.readAlignedByte() }
+            return Z_NEED_DICT
         }
-        return true
+        return Z_OK
     }
 
     private fun copyStored(
@@ -39,6 +50,7 @@ object InflateStream {
         window: ByteArray,
         posRef: IntArray,
         adler: LongArray,
+        outCount: LongArray,
     ): Int {
         br.alignToByte()
         val len = br.readAlignedByte() or (br.readAlignedByte() shl 8)
@@ -54,6 +66,7 @@ object InflateStream {
             pos = (pos + 1) and (WINDOW_SIZE - 1)
             s1 = (s1 + (b and 0xFF)) % 65521
             s2 = (s2 + s1) % 65521
+            outCount[0] = outCount[0] + 1
         }
         posRef[0] = pos
         adler[0] = (s2 shl 16) or s1
@@ -71,6 +84,7 @@ object InflateStream {
         window: ByteArray,
         posRef: IntArray,
         adler: LongArray,
+        outCount: LongArray,
     ) {
         var s1 = adler[0] and 0xFFFF
         var s2 = (adler[0] ushr 16) and 0xFFFF
@@ -80,6 +94,7 @@ object InflateStream {
         s1 = (s1 + (b and 0xFF)) % 65521
         s2 = (s2 + s1) % 65521
         adler[0] = (s2 shl 16) or s1
+        outCount[0] = outCount[0] + 1
     }
 
     // --- Validation and cached tables ---
@@ -112,6 +127,30 @@ object InflateStream {
             null
         }
 
+    // Pre-check Huffman code lengths using the classic "left" algorithm.
+    // Returns null if OK; otherwise returns a human-readable reason ("oversubscribed" or "incomplete").
+    private fun precheckCodeLengths(lengths: IntArray): String? {
+        var maxLen = 0
+        for (l in lengths) if (l > maxLen) maxLen = l
+        if (maxLen == 0) return "incomplete (no codes)"
+        val blCount = IntArray(maxLen + 1)
+        var nonZero = 0
+        for (l in lengths) {
+            if (l < 0) return "invalid length"
+            if (l > 0) {
+                nonZero++
+                blCount[l]++
+            }
+        }
+        var left = 1
+        for (bits in 1..maxLen) {
+            left = (left shl 1) - blCount[bits]
+            if (left < 0) return "oversubscribed"
+        }
+        // If left > 0, tree is incomplete. Allow a degenerate single-symbol tree; otherwise flag incomplete.
+        return if (left != 0 && nonZero > 1) "incomplete" else null
+    }
+
     private val FIXED_LIT_LENS: IntArray by lazy {
         IntArray(288).also {
             for (i in 0..143) it[i] = 8
@@ -134,6 +173,18 @@ object InflateStream {
     }
 
     // --- Helpers to deduplicate decode logic ---
+
+    /** Decode one symbol using [table]; convert IllegalStateException to DataFormatException with context. */
+    private fun decodeSymOrThrow(
+        br: StreamingBitReader,
+        table: CanonicalHuffman.FullTable,
+        context: String,
+    ): Int =
+        try {
+            CanonicalHuffman.decodeOne(br, table)
+        } catch (e: IllegalStateException) {
+            throw DataFormatException("Invalid Huffman ($context): ${e.message}", e)
+        }
 
     /** Decode match length from a literal/length symbol (sym >= 257). Returns -1 on error. */
     private fun decodeLength(
@@ -169,12 +220,13 @@ object InflateStream {
         window: ByteArray,
         posRef: IntArray,
         adler: LongArray,
+        outCount: LongArray,
     ) {
         var i = 0
         while (i < length) {
             val srcIndex = (posRef[0] - dist + WINDOW_SIZE) and (WINDOW_SIZE - 1)
             val b = window[srcIndex].toInt() and 0xFF
-            writeByte(b, sink, window, posRef, adler)
+            writeByte(b, sink, window, posRef, adler, outCount)
             i++
         }
     }
@@ -210,38 +262,34 @@ object InflateStream {
         return out
     }
 
-    // Build both decode tables together to avoid duplicated code at call sites
-    private fun buildDecodeTables(
-        litLens: IntArray,
-        distLens: IntArray,
-    ): Pair<CanonicalHuffman.FullTable, CanonicalHuffman.FullTable> {
-        val litTable = CanonicalHuffman.buildFull(litLens)
-        val distTable = CanonicalHuffman.buildFull(distLens)
-        return litTable to distTable
-    }
-
     private fun decodeFixed(
         br: StreamingBitReader,
         sink: BufferedSink,
         window: ByteArray,
         posRef: IntArray,
         adler: LongArray,
+        outCount: LongArray,
     ): Int {
         val litTable = FIXED_TABLES.lit
         val distTable = FIXED_TABLES.dist
 
         loop@ while (true) {
-            val sym = CanonicalHuffman.decodeOne(br, litTable)
+            val sym = decodeSymOrThrow(br, litTable, "fixed lit")
             when {
-                sym < 256 -> writeByte(sym, sink, window, posRef, adler)
+                sym < 256 -> writeByte(sym, sink, window, posRef, adler, outCount)
                 sym == 256 -> break@loop
                 else -> {
                     val length = decodeLength(br, sym)
                     if (length < 0) return Z_DATA_ERROR
-                    val distSym = CanonicalHuffman.decodeOne(br, distTable)
+                    val distSym = decodeSymOrThrow(br, distTable, "fixed dist")
                     val dist = decodeDistance(br, distSym)
                     if (dist < 0) return Z_DATA_ERROR
-                    copyMatch(length, dist, sink, window, posRef, adler)
+                    val available = min(outCount[0], WINDOW_SIZE.toLong()).toInt()
+                    if (dist < 1 || dist > available) {
+                        ZlibLogger.logInflate("distance too far back (dist=$dist, available=$available)", "decodeFixed")
+                        return Z_DATA_ERROR
+                    }
+                    copyMatch(length, dist, sink, window, posRef, adler, outCount)
                 }
             }
         }
@@ -254,6 +302,7 @@ object InflateStream {
         window: ByteArray,
         posRef: IntArray,
         adler: LongArray,
+        outCount: LongArray,
     ): Int {
         val hlit = br.take(5) + 257
         val hdist = br.take(5) + 1
@@ -268,33 +317,53 @@ object InflateStream {
         val distLens = readCodeLengths(br, clTable, hdist) ?: return Z_DATA_ERROR
 
         // Validate and safely build tables
-        if (!validateLitLens(litLenLens)) return Z_DATA_ERROR
-        if (!validateDistLens(distLens)) return Z_DATA_ERROR
-        val litTable = tryBuildTable(litLenLens) ?: return Z_DATA_ERROR
-        val distTable = tryBuildTable(distLens) ?: return Z_DATA_ERROR
-
-        loop@ while (true) {
-            val sym =
-                try {
-                    CanonicalHuffman.decodeOne(br, litTable)
-                } catch (_: Throwable) {
+        if (!validateLitLens(litLenLens)) {
+            ZlibLogger.logInflate("Invalid dynamic literal/length tree: missing codes or missing EOB(256)", "decodeDynamic")
+            return Z_DATA_ERROR
+        }
+        if (!validateDistLens(distLens)) {
+            ZlibLogger.logInflate("Invalid dynamic distance tree: no distance codes defined", "decodeDynamic")
+            return Z_DATA_ERROR
+        }
+        // Explicit pre-checks for over-/under-subscribed code sets
+        precheckCodeLengths(litLenLens)?.let { reason ->
+            ZlibLogger.logInflate("Invalid dynamic literal/length tree ($reason)", "decodeDynamic")
+            return Z_DATA_ERROR
+        }
+        precheckCodeLengths(distLens)?.let { reason ->
+            ZlibLogger.logInflate("Invalid dynamic distance tree ($reason)", "decodeDynamic")
+            return Z_DATA_ERROR
+        }
+        val litTable =
+            tryBuildTable(litLenLens)
+                ?: run {
+                    ZlibLogger.logInflate("Failed to build dynamic literal/length Huffman table (oversubscribed or incomplete)", "decodeDynamic")
                     return Z_DATA_ERROR
                 }
+        val distTable =
+            tryBuildTable(distLens)
+                ?: run {
+                    ZlibLogger.logInflate("Failed to build dynamic distance Huffman table (oversubscribed or incomplete)", "decodeDynamic")
+                    return Z_DATA_ERROR
+                }
+
+        loop@ while (true) {
+            val sym = decodeSymOrThrow(br, litTable, "dynamic lit")
             when {
-                sym < 256 -> writeByte(sym, sink, window, posRef, adler)
+                sym < 256 -> writeByte(sym, sink, window, posRef, adler, outCount)
                 sym == 256 -> break@loop
                 else -> {
                     val length = decodeLength(br, sym)
                     if (length < 0) return Z_DATA_ERROR
-                    val distSym =
-                        try {
-                            CanonicalHuffman.decodeOne(br, distTable)
-                        } catch (_: Throwable) {
-                            return Z_DATA_ERROR
-                        }
+                    val distSym = decodeSymOrThrow(br, distTable, "dynamic dist")
                     val dist = decodeDistance(br, distSym)
                     if (dist < 0) return Z_DATA_ERROR
-                    copyMatch(length, dist, sink, window, posRef, adler)
+                    val available = min(outCount[0], WINDOW_SIZE.toLong()).toInt()
+                    if (dist < 1 || dist > available) {
+                        ZlibLogger.logInflate("distance too far back (dist=$dist, available=$available)", "decodeDynamic")
+                        return Z_DATA_ERROR
+                    }
+                    copyMatch(length, dist, sink, window, posRef, adler, outCount)
                 }
             }
         }
@@ -309,45 +378,62 @@ object InflateStream {
         sink: BufferedSink,
     ): Pair<Int, Long> {
         val br = StreamingBitReader(source)
-        if (!readZlibHeader(br)) return Z_DATA_ERROR to 0L
+        val outCount = longArrayOf(0L)
+        try {
+            val hdr = readZlibHeader(br)
+            if (hdr != Z_OK) return hdr to 0L
 
-        val window = ByteArray(WINDOW_SIZE)
-        val posRef = intArrayOf(0)
-        val adler = longArrayOf(1L) // initial Adler-32 value
-        var totalOut = 0L
+            val window = ByteArray(WINDOW_SIZE)
+            val posRef = intArrayOf(0)
+            val adler = longArrayOf(1L) // initial Adler-32 value
+            var totalOut = 0L
 
-        while (true) {
-            val last = br.take(1)
-            when (br.take(2)) {
-                0 -> {
-                    val r = copyStored(br, sink, window, posRef, adler)
-                    if (r != Z_OK) return r to totalOut
+            while (true) {
+                val last = br.take(1)
+                when (br.take(2)) {
+                    0 -> {
+                        val r = copyStored(br, sink, window, posRef, adler, outCount)
+                        if (r != Z_OK) return r to totalOut
+                    }
+                    1 -> {
+                        val r = decodeFixed(br, sink, window, posRef, adler, outCount)
+                        if (r != Z_OK) return r to totalOut
+                    }
+                    2 -> {
+                        val r = decodeDynamic(br, sink, window, posRef, adler, outCount)
+                        if (r != Z_OK) return r to totalOut
+                    }
+                    else -> return Z_DATA_ERROR to totalOut
                 }
-                1 -> {
-                    val r = decodeFixed(br, sink, window, posRef, adler)
-                    if (r != Z_OK) return r to totalOut
-                }
-                2 -> {
-                    val r = decodeDynamic(br, sink, window, posRef, adler)
-                    if (r != Z_OK) return r to totalOut
-                }
-                else -> return Z_DATA_ERROR to totalOut
+                // Update bytesOut using tracked count
+                totalOut = outCount[0]
+                if (last == 1) break
             }
-            // We don't know bytesOut per-block; flush sink's buffer length heuristically
-            totalOut = sink.buffer.size
-            if (last == 1) break
+
+            // Read and validate Adler-32 trailer (big-endian)
+            br.alignToByte()
+            val a3 = br.readAlignedByte()
+            val a2 = br.readAlignedByte()
+            val a1 = br.readAlignedByte()
+            val a0 = br.readAlignedByte()
+            val trailer = ((a3 and 0xFF) shl 24) or ((a2 and 0xFF) shl 16) or ((a1 and 0xFF) shl 8) or (a0 and 0xFF)
+            val current = adler[0].toInt()
+            if (current != trailer) return Z_DATA_ERROR to totalOut
+
+            // End-of-stream reached and trailer verified successfully
+            return Z_STREAM_END to totalOut
+        } catch (e: SourceExhausted) {
+            // Need more input bytes to proceed
+            ZlibLogger.logInflate("Source exhausted during inflate: ${e.message}", "inflateZlib")
+            return Z_BUF_ERROR to outCount[0]
+        } catch (e: DataFormatException) {
+            // Corrupt or invalid data encountered in stream
+            ZlibLogger.logInflate("Data format error during inflate: ${e.message}", "inflateZlib")
+            return Z_DATA_ERROR to outCount[0]
+        } catch (e: IOException) {
+            // I/O failure from underlying source/sink
+            ZlibLogger.logInflate("I/O error during inflate: ${e.message}", "inflateZlib")
+            return Z_ERRNO to outCount[0]
         }
-
-        // Read and validate Adler-32 trailer (big-endian)
-        br.alignToByte()
-        val a3 = br.readAlignedByte()
-        val a2 = br.readAlignedByte()
-        val a1 = br.readAlignedByte()
-        val a0 = br.readAlignedByte()
-        val trailer = ((a3 and 0xFF) shl 24) or ((a2 and 0xFF) shl 16) or ((a1 and 0xFF) shl 8) or (a0 and 0xFF)
-        val current = adler[0].toInt()
-        if (current != trailer) return Z_DATA_ERROR to totalOut
-
-        return Z_OK to totalOut
     }
 }
